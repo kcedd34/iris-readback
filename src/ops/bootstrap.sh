@@ -23,7 +23,13 @@ if \$get(^Readback("srcHash"))'="${hash}" {
 }
 set sc=##class(Readback.Config.Loader).LoadIfChanged("${datahash}","${datadir}")
 if \$system.Status.IsError(sc) { write "READBACK CONFIG "_"FAILED: ",\$system.Status.GetErrorText(sc),! } else { write "Readback: configuration tables up to date",! }
+set sc=##class(Readback.Workflow.Setup).EnsureRoles()
+if \$system.Status.IsError(sc) { write "READBACK ROLES "_"FAILED: ",\$system.Status.GetErrorText(sc),! }
 set sc=##class(Ens.Director).SetAutoStart("Readback.Production")
+// The live agent item needs a key: it is enabled only when one is configured, so replay mode starts without errors.
+set tLive=(##class(Readback.Config.Mode).Current()="live")
+set tCur=##class(Ens.Director).IsItemEnabled("Readback.Agent")
+if tLive'=tCur { set sc=##class(Ens.Director).EnableConfigItem("Readback.Agent",tLive) }
 if '##class(Ens.Director).IsProductionRunning("Readback.Production") {
   set sc=##class(Ens.Director).StartProduction("Readback.Production")
   if \$system.Status.IsError(sc) { write "READBACK START "_"FAILED: ",\$system.Status.GetErrorText(sc),! } else { write "READBACK PRODUCTION "_"STARTED",! }
@@ -33,8 +39,32 @@ if '##class(Ens.Director).IsProductionRunning("Readback.Production") {
 halt
 OS
 
-if grep -q "^READBACK \(LOAD\|START\|CONFIG\) FAILED" "$log"; then
+if grep -q "^READBACK \(LOAD\|START\|CONFIG\|ROLES\) FAILED" "$log"; then
   echo "Readback did not start. IRIS keeps running so you can inspect it: docker compose logs iris"
 fi
 rm -f "$log"
+
+# Once per instance: the IPM client (absent from the image) and the community workflow REST module.
+# Needs network. Without it the tasks and the read-back rule still work through the engine.
+marker="$(iris session IRIS -U USER <<'OS' 2>/dev/null | grep -c '^RB_IPM_DONE'
+write "RB_IPM_"_$select($data(^Readback("ipm")):"DONE",1:"TODO"),!
+halt
+OS
+)"
+if [ "$marker" = "0" ]; then
+  echo "Readback: installing the IPM client and workflow-rest (needs network)..."
+  if wget -q -T 30 -O /tmp/zpm-installer.xml https://pm.community.intersystems.com/packages/zpm/latest/installer; then
+    ipmlog="$(mktemp)"
+    iris session IRIS -U USER <<'OS' 2>&1 | tee "$ipmlog" | grep -E "^READBACK|ERROR" 
+set sc=$system.OBJ.Load("/tmp/zpm-installer.xml","c")
+zpm "repo -n registry -r -url https://pm.community.intersystems.com/"
+zpm "install workflow-rest"
+if ##class(%Dictionary.ClassDefinition).%ExistsId("isc.wf.REST") { set ^Readback("ipm")=$horolog  write "READBACK IPM "_"INSTALLED",! } else { write "READBACK IPM "_"NOT INSTALLED: see the output above",! }
+halt
+OS
+    rm -f "$ipmlog"
+  else
+    echo "Readback: could not download the IPM client; the workflow REST layer is not installed. Tasks still work through the engine."
+  fi
+fi
 exit 0
