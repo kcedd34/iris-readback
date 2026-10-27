@@ -44,4 +44,19 @@ Method TestModeNeverReturnsTheKey()
 	Do $$$AssertTrue(##class(Readback.Config.Mode).Current()'["test-key-value", "the mode text does not contain the key")
 }
 
+Method TestRedactRemovesTheKeyFromText()
+{
+	Set ^||ReadbackTestKey = "test-key-value"
+	Set tText = ##class(Readback.Config.Mode).Redact("API error: Incorrect API key provided: test-key-value. See docs.")
+	Do $$$AssertTrue(tText'["test-key-value", "the key value is gone")
+	Do $$$AssertTrue(tText["[key redacted]", "replaced by the marker")
+	Do $$$AssertEquals(##class(Readback.Config.Mode).Redact("no secret here"), "no secret here", "text without the key is unchanged")
+}
+
+Method TestRedactWithNoKeyLeavesTextAlone()
+{
+	Set ^||ReadbackTestKey = ""
+	Do $$$AssertEquals(##class(Readback.Config.Mode).Redact("anything"), "anything", "no key, nothing to redact")
+}
+
 }

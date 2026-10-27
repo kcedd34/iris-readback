@@ -1,0 +1,6 @@
+# Test override: gives the container a key-shaped value so the live path is used, with the agent item
+# pointed at the local mock by the test. The value is not a real key.
+services:
+  iris:
+    environment:
+      OPENAI_API_KEY: test-key-for-mock
