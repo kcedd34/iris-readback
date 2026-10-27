@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+  <Document name="iris-readback.ZPM">
+    <Module>
+      <Name>iris-readback</Name>
+      <Version>0.1.0</Version>
+      <Description>Critical lab result notification with an AI Hub agent and human read-back.</Description>
+      <Keywords>interoperability hl7 ai-hub</Keywords>
+      <Packaging>module</Packaging>
+      <SourcesRoot>src</SourcesRoot>
+      <Resource Name="Readback.PKG"/>
+      <Author>
+        <Person>Carlos Eduardo Dias Duarte</Person>
+        <License>MIT</License>
+      </Author>
+    </Module>
+  </Document>
+</Export>
