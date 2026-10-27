@@ -23,6 +23,9 @@
 **/dist/
 **/target/
 .env
+**/__pycache__/
+*.pyc
+.pytest_cache/
 
 # Never part of the application. Redundant with the allowlist, on purpose.
 
