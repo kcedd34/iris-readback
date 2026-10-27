@@ -2,7 +2,7 @@
 Class Readback.Inbound.HL7File Extends EnsLib.HL7.Service.FileService
 {
 
-Parameter TARGET = "Readback.Outbound.LogOperation";
+Parameter TARGET = "Readback.Triage";
 
 Method standardOnProcessInput(pDocIn As EnsLib.HL7.Message, Output pDocOut As EnsLib.HL7.Message) As %Status
 {
@@ -14,7 +14,7 @@ Method standardOnProcessInput(pDocIn As EnsLib.HL7.Message, Output pDocOut As En
 	}
 	Set tSC = tLab.%Save()
 	Quit:$$$ISERR(tSC) tSC
-	Quit ..SendRequestAsync(..#TARGET, tLab)
+	Quit ..SendRequestAsync(..#TARGET, tLab, 0)
 }
 
 }

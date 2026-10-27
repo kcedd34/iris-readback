@@ -3,7 +3,7 @@
 Class Readback.Inbound.HL7TCP Extends EnsLib.HL7.Service.TCPService
 {
 
-Parameter TARGET = "Readback.Outbound.LogOperation";
+Parameter TARGET = "Readback.Triage";
 
 Method standardOnProcessInput(pDocIn As EnsLib.HL7.Message, Output pDocOut As EnsLib.HL7.Message) As %Status
 {
@@ -13,7 +13,7 @@ Method standardOnProcessInput(pDocIn As EnsLib.HL7.Message, Output pDocOut As En
 		$$$LOGERROR($$$StatusText(tSC))
 	} Else {
 		Set tSC = tLab.%Save()
-		Set:$$$ISOK(tSC) tSC = ..SendRequestAsync(..#TARGET, tLab)
+		Set:$$$ISOK(tSC) tSC = ..SendRequestAsync(..#TARGET, tLab, 0)
 		Set:$$$ISERR(tSC) tReply = "AE"
 	}
 	Set tAckStatus = $$$OK
