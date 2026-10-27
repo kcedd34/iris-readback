@@ -8,10 +8,20 @@ Parameter Communicators = "Readback.Communicators";
 
 Parameter Reviewers = "Readback.Reviewers";
 
+Parameter Capacity = 10000;
+
 ClassMethod EnsureRoles() As %Status
 {
 	For tRole = ..#Communicators, ..#Reviewers {
 		If '##class(EnsLib.Workflow.RoleDefinition).%ExistsId(tRole) { Set tSC = ##class(EnsLib.Workflow.RoleDefinition).CreateRole(tRole)  Quit:$System.Status.IsError(tSC) }
+		// The engine stops giving tasks to a person who already holds this many (default 100). A critical
+		// result must never wait for a free slot, so the limit is raised well above any realistic backlog.
+		Set tRoleObj = ##class(EnsLib.Workflow.RoleDefinition).%OpenId(tRole)
+		If tRoleObj.Capacity < ..#Capacity {
+			Set tRoleObj.Capacity = ..#Capacity
+			Set tSC = tRoleObj.%Save()
+			Quit:$System.Status.IsError(tSC)
+		}
 	}
 	Quit:$System.Status.IsError($Get(tSC, 1)) tSC
 	Set tPassword = ..Password()
