@@ -1,0 +1,10 @@
+{
+  "prices": [
+    {
+      "model": "gpt-5.4",
+      "inputPerMillion": null,
+      "outputPerMillion": null,
+      "priceDate": "2026-10-27"
+    }
+  ]
+}

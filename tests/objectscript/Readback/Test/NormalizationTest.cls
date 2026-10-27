@@ -63,4 +63,44 @@ Method TestDuplicateMessagesAreIndependent()
 	Do $$$AssertEquals(tLab1.MessageControlId, tLab2.MessageControlId, "same control id is processed again, not dropped")
 }
 
+Method TestBirthDateAndAge()
+{
+	Set tMsg = ..Build($ListBuild(..Msh(), "PID|1||SYN0000001^^^SYN^MR||SYNTHETIC^PATIENT||19700101|F", "OBR|1|||2823-3^Potassium^LN|||20260301080000", "OBX|1|NM|2823-3^Potassium^LN||4.2|mmol/L"))
+	Set tSC = ##class(Readback.Inbound.Normalizer).Normalize(tMsg, "file", .tLab, .tReply)
+	Do $$$AssertStatusOK(tSC, "message with a date of birth is accepted")
+	Do $$$AssertEquals($ZDate(tLab.BirthDate, 3), "1970-01-01", "BirthDate taken from PID-7")
+	Do $$$AssertEquals(tLab.AgeYears, 56, "age in whole years at the collection time")
+}
+
+Method TestAgeBeforeBirthday()
+{
+	Set tMsg = ..Build($ListBuild(..Msh(), "PID|1||SYN0000001||SYNTHETIC^PATIENT||19700301|F", "OBR|1|||2823-3^Potassium^LN|||20260228080000", "OBX|1|NM|2823-3^Potassium^LN||4.2|mmol/L"))
+	Do ##class(Readback.Inbound.Normalizer).Normalize(tMsg, "file", .tLab, .tReply)
+	Do $$$AssertEquals(tLab.AgeYears, 55, "birthday not reached yet, one year less")
+}
+
+Method TestMissingBirthDate()
+{
+	Set tMsg = ..Build($ListBuild(..Msh(), "PID|1||SYN0000001", "OBX|1|NM|2823-3^Potassium^LN||4.2|mmol/L"))
+	Do ##class(Readback.Inbound.Normalizer).Normalize(tMsg, "file", .tLab, .tReply)
+	Do $$$AssertEquals(tLab.BirthDate, "", "no BirthDate when PID-7 is absent")
+	Do $$$AssertEquals(tLab.AgeYears, "", "age unknown when BirthDate is absent")
+}
+
+Method TestUnparsableBirthDate()
+{
+	Set tMsg = ..Build($ListBuild(..Msh(), "PID|1||SYN0000001||SYNTHETIC^PATIENT||notadate|F", "OBX|1|NM|2823-3^Potassium^LN||4.2|mmol/L"))
+	Set tSC = ##class(Readback.Inbound.Normalizer).Normalize(tMsg, "file", .tLab, .tReply)
+	Do $$$AssertStatusOK(tSC, "an unparsable date of birth does not reject the message")
+	Do $$$AssertEquals(tLab.BirthDate, "", "unparsable date kept out")
+	Do $$$AssertEquals(tLab.AgeYears, "", "age unknown")
+}
+
+Method TestBirthDateAfterCollection()
+{
+	Set tMsg = ..Build($ListBuild(..Msh(), "PID|1||SYN0000001||SYNTHETIC^PATIENT||20300101|F", "OBR|1|||2823-3^Potassium^LN|||20260301080000", "OBX|1|NM|2823-3^Potassium^LN||4.2|mmol/L"))
+	Do ##class(Readback.Inbound.Normalizer).Normalize(tMsg, "file", .tLab, .tReply)
+	Do $$$AssertEquals(tLab.AgeYears, "", "date of birth after the collection time gives no age")
+}
+
 }

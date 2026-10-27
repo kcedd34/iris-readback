@@ -1,0 +1,113 @@
+{
+  "note": "Demonstration ranges only, not for clinical use.",
+  "ranges": [
+    {
+      "analyteCode": "2823-3",
+      "unit": "mmol/L",
+      "ageGroup": "neonate",
+      "criticalLow": 2.5,
+      "criticalHigh": 6.5,
+      "floorSeverity": 3,
+      "source": "synthetic reference table"
+    },
+    {
+      "analyteCode": "2823-3",
+      "unit": "mmol/L",
+      "ageGroup": "child",
+      "criticalLow": 2.5,
+      "criticalHigh": 6.5,
+      "floorSeverity": 3,
+      "source": "synthetic reference table"
+    },
+    {
+      "analyteCode": "2823-3",
+      "unit": "mmol/L",
+      "ageGroup": "adult",
+      "criticalLow": 2.5,
+      "criticalHigh": 6.5,
+      "floorSeverity": 3,
+      "source": "synthetic reference table"
+    },
+    {
+      "analyteCode": "2345-7",
+      "unit": "mg/dL",
+      "ageGroup": "neonate",
+      "criticalLow": 40,
+      "criticalHigh": 500,
+      "floorSeverity": 3,
+      "source": "synthetic reference table"
+    },
+    {
+      "analyteCode": "2345-7",
+      "unit": "mg/dL",
+      "ageGroup": "child",
+      "criticalLow": 40,
+      "criticalHigh": 500,
+      "floorSeverity": 3,
+      "source": "synthetic reference table"
+    },
+    {
+      "analyteCode": "2345-7",
+      "unit": "mg/dL",
+      "ageGroup": "adult",
+      "criticalLow": 40,
+      "criticalHigh": 500,
+      "floorSeverity": 3,
+      "source": "synthetic reference table"
+    },
+    {
+      "analyteCode": "718-7",
+      "unit": "g/dL",
+      "ageGroup": "neonate",
+      "criticalLow": 7.0,
+      "criticalHigh": 20.0,
+      "floorSeverity": 3,
+      "source": "synthetic reference table"
+    },
+    {
+      "analyteCode": "718-7",
+      "unit": "g/dL",
+      "ageGroup": "child",
+      "criticalLow": 7.0,
+      "criticalHigh": 20.0,
+      "floorSeverity": 3,
+      "source": "synthetic reference table"
+    },
+    {
+      "analyteCode": "718-7",
+      "unit": "g/dL",
+      "ageGroup": "adult",
+      "criticalLow": 7.0,
+      "criticalHigh": 20.0,
+      "floorSeverity": 3,
+      "source": "synthetic reference table"
+    },
+    {
+      "analyteCode": "2951-2",
+      "unit": "mmol/L",
+      "ageGroup": "neonate",
+      "criticalLow": 120,
+      "criticalHigh": 160,
+      "floorSeverity": 3,
+      "source": "synthetic reference table"
+    },
+    {
+      "analyteCode": "2951-2",
+      "unit": "mmol/L",
+      "ageGroup": "child",
+      "criticalLow": 120,
+      "criticalHigh": 160,
+      "floorSeverity": 3,
+      "source": "synthetic reference table"
+    },
+    {
+      "analyteCode": "2951-2",
+      "unit": "mmol/L",
+      "ageGroup": "adult",
+      "criticalLow": 120,
+      "criticalHigh": 160,
+      "floorSeverity": 3,
+      "source": "synthetic reference table"
+    }
+  ]
+}

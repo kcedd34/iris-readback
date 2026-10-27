@@ -11,6 +11,8 @@ USER irisowner
 COPY --chown=irisowner:irisowner src /opt/readback/src
 COPY --chown=irisowner:irisowner tests /opt/readback/tests
 COPY --chown=irisowner:irisowner data/samples /opt/readback/samples
+COPY --chown=irisowner:irisowner data/config /opt/readback/data/config
+COPY --chown=irisowner:irisowner data/replay /opt/readback/data/replay
 RUN chmod +x /opt/readback/src/ops/*.sh
 
 EXPOSE 52773 5001

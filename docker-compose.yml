@@ -9,6 +9,7 @@ services:
     environment:
       # Name only; the value comes from the shell or an untracked .env file. Empty means replay mode later.
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      READBACK_DEMO_PASSWORD: ${READBACK_DEMO_PASSWORD:-}
     ports:
       - "127.0.0.1:${READBACK_PORTAL_PORT:-52790}:52773"
       - "127.0.0.1:${READBACK_HL7_PORT:-5001}:5001"

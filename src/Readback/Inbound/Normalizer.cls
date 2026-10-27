@@ -32,6 +32,7 @@ ClassMethod Normalize(pHL7 As EnsLib.HL7.Message, pSource As %String, Output pLa
 		Set tName = tSeg.Name
 		If tName = "PID", tLab.PatientId = "" {
 			Set tLab.PatientId = tSeg.GetValueAt("3.1")
+			Set tLab.BirthDate = ..ToDate(tSeg.GetValueAt("7"))
 		} ElseIf tName = "OBR", tLab.CollectedAt = "" {
 			Set tLab.CollectedAt = ..ToTimeStamp(tSeg.GetValueAt("7"))
 		} ElseIf tName = "OBX" {
@@ -48,6 +49,7 @@ ClassMethod Normalize(pHL7 As EnsLib.HL7.Message, pSource As %String, Output pLa
 			}
 		}
 	}
+	Set tLab.AgeYears = ..AgeAt(tLab.BirthDate, $Select(tLab.CollectedAt'="":tLab.CollectedAt, 1:..ToTimeStamp(tMSH.GetValueAt("7"))))
 	Set tMissing = ""
 	Set:(tLab.MessageControlId = "") tMissing = tMissing_" MSH-10"
 	Set:(tLab.PatientId = "") tMissing = tMissing_" PID-3"
@@ -59,6 +61,30 @@ ClassMethod Normalize(pHL7 As EnsLib.HL7.Message, pSource As %String, Output pLa
 	}
 	Set pLab = tLab
 	Quit $$$OK
+}
+
+/// HL7 date (first 8 digits of yyyymmdd[hhmmss]) to an internal date; empty when absent or invalid.
+ClassMethod ToDate(pHL7Date As %String) As %Date
+{
+	Set tDigits = $Extract(pHL7Date, 1, 8)
+	Quit:tDigits'?8N ""
+	Set tDate = $ZDateH($Extract(tDigits, 1, 4)_"-"_$Extract(tDigits, 5, 6)_"-"_$Extract(tDigits, 7, 8), 3, , , , , , , "")
+	Quit tDate
+}
+
+/// Whole years between a birth date and an ISO timestamp (yyyy-mm-dd hh:mm:ss); empty when unknown or negative.
+ClassMethod AgeAt(pBirthDate As %Date, pIsoTime As %String) As %Integer
+{
+	Quit:pBirthDate="" ""
+	Set tDay = $Extract(pIsoTime, 1, 10)
+	Quit:tDay'?4N1"-"2N1"-"2N ""
+	Set tAt = $ZDateH(tDay, 3, , , , , , , "")
+	Quit:tAt="" ""
+	Quit:tAt<pBirthDate ""
+	Set tB = $ZDate(pBirthDate, 3), tA = $ZDate(tAt, 3)
+	Set tYears = +$Extract(tA, 1, 4) - +$Extract(tB, 1, 4)
+	If $Extract(tA, 6, 10) '] $Extract(tB, 6, 10) { If $Extract(tA, 6, 10) '= $Extract(tB, 6, 10) { Set tYears = tYears - 1 } }
+	Quit tYears
 }
 
 /// HL7 timestamp yyyymmdd[hh[mm[ss]]] to ISO form; anything else is returned unchanged.

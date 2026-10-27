@@ -36,6 +36,13 @@ Property RawHL7 As %String(MAXLEN = "");
 /// Channel the message arrived on.
 Property Source As %String(VALUELIST = ",file,tcp");
 
+/// PID-7. Empty when absent or unparsable, in which case the age is unknown.
+Property BirthDate As %Date;
+
+/// Whole years at CollectedAt (or at the message time when CollectedAt is empty).
+/// Empty when BirthDate is empty or after the collection time.
+Property AgeYears As %Integer;
+
 Storage Default
 {
 <Data name="LabResultDefaultData">
@@ -72,6 +79,12 @@ Storage Default
 </Value>
 <Value name="11">
 <Value>Source</Value>
+</Value>
+<Value name="12">
+<Value>BirthDate</Value>
+</Value>
+<Value name="13">
+<Value>AgeYears</Value>
 </Value>
 </Data>
 <DefaultData>LabResultDefaultData</DefaultData>
