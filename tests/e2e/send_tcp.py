@@ -36,14 +36,28 @@ def read_ack(conn):
 
 
 def send_many(paths, host="127.0.0.1", port=5001):
-    """Returns a list of (path, ack code) using a single connection."""
+    """Returns a list of (path, ack code) using a single connection.
+
+    A connection opened soon after another one closed can be reset before anything is acknowledged. That is
+    retried on a fresh connection, only until the first acknowledgement; later resets are real failures.
+    """
     results = []
     conn = connect(host, port)
     try:
         for path in paths:
             with open(path, "rb") as handle:
-                conn.sendall(START + handle.read() + END)
-            results.append((path, read_ack(conn)))
+                data = START + handle.read() + END
+            for attempt in range(6):
+                try:
+                    conn.sendall(data)
+                    results.append((path, read_ack(conn)))
+                    break
+                except (ConnectionResetError, BrokenPipeError):
+                    if results or attempt == 5:
+                        raise
+                    conn.close()
+                    time.sleep(3)
+                    conn = connect(host, port)
     finally:
         conn.close()
     return results

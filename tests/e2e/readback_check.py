@@ -96,6 +96,10 @@ def main():
 
     found = {}
     for i in ids:
+        # The trace records the task only after it was assigned, so wait for that before looking at lists:
+        # an unassigned task shows up in every role member's list.
+        assigned = wait_for(lambda i=i: query("SELECT TaskId FROM Readback_Trace.Decision WHERE MessageControlId = '%s' AND TaskId <> '' AND TaskId <> 'UNASSIGNED'" % i, ["TaskId"]), 40)
+        check(bool(assigned), "the trace never recorded an assigned task for " + i)
         found[i] = wait_for(lambda i=i: task_for(i, password, comm)[1] is not None and task_for(i, password, comm), 30)
         check(bool(found[i]), "no read-back task appeared for " + i)
     if failures:
