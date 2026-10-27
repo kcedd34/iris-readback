@@ -40,7 +40,7 @@ Method CallAgent(pText As %String, pMode As %String) As Readback.Triage.AgentOut
 		Set tSC = ex.AsStatus()
 	}
 	Set tOutcome.LatencyMs = $Justify(($ZHorolog - tStart) * 1000, 0, 0)
-	If pMode = "live" { Set tOutcome.Model = ##class(Ens.Director).GetAdapterSettingValue(tTarget, "Model") }
+	If pMode = "live" { Set tOutcome.Model = ##class(Ens.Director).GetAdapterSettingValue(tTarget, "Model") } Else { Set tOutcome.Model = "fixture" }
 	// A call that ran out of time returns without a response and without an error status.
 	If $System.Status.IsOK(tSC) && '$IsObject($Get(tResponse)) {
 		If tOutcome.LatencyMs >= (..AgentTimeoutSeconds * 1000 - 250) {
@@ -75,7 +75,7 @@ Method SaveTrace(pLab As Readback.Msg.LabResult, pFloor As Readback.Triage.Floor
 	Set tTrace.InputText = pText
 	Set tTrace.PromptVersion = ##class(Readback.Triage.Prompt).#Version
 	Set tTrace.Model = pOutcome.Model
-	Set tTrace.Provider = "openai"
+	Set tTrace.Provider = $Select(pMode="live":"openai", 1:"replay")
 	Set tTrace.RawOutput = pOutcome.Content
 	Set tTrace.SchemaValid = pAgent.Valid
 	Set tTrace.FailureKind = pAgent.FailureKind

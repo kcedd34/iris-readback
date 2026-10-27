@@ -23,6 +23,8 @@ if \$get(^Readback("srcHash"))'="${hash}" {
 }
 set sc=##class(Readback.Config.Loader).LoadIfChanged("${datahash}","${datadir}")
 if \$system.Status.IsError(sc) { write "READBACK CONFIG "_"FAILED: ",\$system.Status.GetErrorText(sc),! } else { write "Readback: configuration tables up to date",! }
+set sc=##class(Readback.API.Status).EnsureWebApp()
+if \$system.Status.IsError(sc) { write "READBACK WEBAPP "_"FAILED: ",\$system.Status.GetErrorText(sc),! }
 set sc=##class(Readback.Workflow.Setup).EnsureRoles()
 if \$system.Status.IsError(sc) { write "READBACK ROLES "_"FAILED: ",\$system.Status.GetErrorText(sc),! }
 set sc=##class(Ens.Director).SetAutoStart("Readback.Production")
@@ -39,7 +41,7 @@ if '##class(Ens.Director).IsProductionRunning("Readback.Production") {
 halt
 OS
 
-if grep -q "^READBACK \(LOAD\|START\|CONFIG\|ROLES\) FAILED" "$log"; then
+if grep -q "^READBACK \(LOAD\|START\|CONFIG\|ROLES\|WEBAPP\) FAILED" "$log"; then
   echo "Readback did not start. IRIS keeps running so you can inspect it: docker compose logs iris"
 fi
 rm -f "$log"

@@ -43,10 +43,39 @@ ClassMethod Password() As %String
 
 ClassMethod EnsureSecurityUser(pName As %String, pFullName As %String, pPassword As %String) As %Status
 {
+	Set tSC = ..EnsureApiRole()
+	Quit:$System.Status.IsError(tSC) tSC
 	New $Namespace
 	Set $Namespace = "%SYS"
-	Quit:##class(Security.Users).Exists(pName) $$$OK
-	Quit ##class(Security.Users).Create(pName, "%DB_USER,%EnsRole_WorkflowUser", pPassword, pFullName)
+	If '##class(Security.Users).Exists(pName) {
+		Quit ##class(Security.Users).Create(pName, "%DB_USER,%EnsRole_WorkflowUser,ReadbackApi", pPassword, pFullName)
+	}
+	// Existing user from an earlier run: make sure it has the API role.
+	Set tSC = ##class(Security.Users).Get(pName, .tProps)
+	Quit:$System.Status.IsError(tSC) tSC
+	If (","_tProps("Roles")_",") [ ",ReadbackApi," { Quit $$$OK }
+	Set tProps("Roles") = tProps("Roles")_$Select(tProps("Roles")="":"", 1:",")_"ReadbackApi"
+	Quit ##class(Security.Users).Modify(pName, .tProps)
+}
+
+/// The role that lets the demo users read the status tables through /readback/api: SELECT only, on the
+/// tables the endpoint reads. Nothing broader is granted.
+ClassMethod EnsureApiRole() As %Status
+{
+	New $Namespace
+	Set tNs = $Namespace
+	Set $Namespace = "%SYS"
+	If '##class(Security.Roles).Exists("ReadbackApi") {
+		Set tSC = ##class(Security.Roles).Create("ReadbackApi", "Read access to the Readback status tables")
+		Quit:$System.Status.IsError(tSC) tSC
+	}
+	Set $Namespace = tNs
+	For tTable = "Readback_Config.Range", "Readback_Config.Price", "Readback_Replay.Recording", "Readback_Trace.Decision" {
+		Set tRS = ##class(%SQL.Statement).%ExecDirect(, "GRANT SELECT ON "_tTable_" TO ReadbackApi")
+		If tRS.%SQLCODE < 0 { Quit }
+	}
+	Quit:tRS.%SQLCODE<0 $System.Status.Error(5001, "grant failed: "_tRS.%Message)
+	Quit $$$OK
 }
 
 }
