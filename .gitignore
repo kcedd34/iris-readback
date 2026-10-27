@@ -1,0 +1,51 @@
+# Everything is ignored by default. Only what is allowed below is tracked.
+/*
+
+# allowed: README, license and build
+!/.gitignore
+!/README.md
+!/LICENSE
+!/Dockerfile
+!/docker-compose.yml
+!/module.xml
+!/.env.example
+
+# allowed: application, tests and synthetic dataset
+!/src/
+!/tests/
+!/frontend/
+!/java/
+!/data/
+
+# ignored even inside the allowed folders
+**/node_modules/
+**/build/
+**/dist/
+**/target/
+.env
+
+# Never part of the application. Redundant with the allowlist, on purpose.
+
+# spec-kit
+specs/
+.specify/
+**/spec.md
+**/plan.md
+**/tasks.md
+**/research.md
+**/data-model.md
+**/quickstart.md
+**/checklists/
+**/constitution.md
+
+# development agent
+.claude/
+.agents/
+CLAUDE.md
+**/CLAUDE.md
+
+# internal documentation, including the PRD under any name
+docs/
+.local/
+PRD*.md
+prd*.md
