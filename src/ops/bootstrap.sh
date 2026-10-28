@@ -14,13 +14,8 @@ log="$(mktemp)"
 
 echo "Readback: source hash ${hash}"
 iris session IRIS -U USER <<OS 2>&1 | tee "$log"
-if \$get(^Readback("srcHash"))'="${hash}" {
-  write "Readback: loading classes from ${src} into USER...",!
-  set sc=\$system.OBJ.LoadDir("${src}","ck",.err,1)
-  if \$system.Status.IsError(sc) { write "READBACK LOAD "_"FAILED: ",\$system.Status.GetErrorText(sc),! } else { set ^Readback("srcHash")="${hash}" kill ^Readback("dataHash") }
-} else {
-  write "Readback: classes already loaded for this source, not recompiling",!
-}
+// One line per block: the terminal reads its input line by line, so a block spread over several lines is a <SYNTAX> error and its body would run unconditionally.
+if \$get(^Readback("srcHash"))'="${hash}" { write "Readback: loading classes from ${src} into USER...",!  set sc=\$system.OBJ.LoadDir("${src}","ck",.err,1)  if \$system.Status.IsError(sc) { write "READBACK LOAD "_"FAILED: ",\$system.Status.GetErrorText(sc),! } else { set ^Readback("srcHash")="${hash}" kill ^Readback("dataHash") } } else { write "Readback: classes already loaded for this source, not recompiling",! }
 set sc=##class(Readback.Config.Loader).LoadIfChanged("${datahash}","${datadir}")
 if \$system.Status.IsError(sc) { write "READBACK CONFIG "_"FAILED: ",\$system.Status.GetErrorText(sc),! } else { write "Readback: configuration tables up to date",! }
 set sc=##class(Readback.Units.Setup).EnsureComponent()
@@ -36,12 +31,7 @@ set sc=##class(Ens.Director).SetAutoStart("Readback.Production")
 set tLive=(##class(Readback.Config.Mode).Current()="live")
 set tCur=##class(Ens.Director).IsItemEnabled("Readback.Agent")
 if tLive'=tCur { set sc=##class(Ens.Director).EnableConfigItem("Readback.Agent",tLive) }
-if '##class(Ens.Director).IsProductionRunning("Readback.Production") {
-  set sc=##class(Ens.Director).StartProduction("Readback.Production")
-  if \$system.Status.IsError(sc) { write "READBACK START "_"FAILED: ",\$system.Status.GetErrorText(sc),! } else { write "READBACK PRODUCTION "_"STARTED",! }
-} else {
-  write "READBACK PRODUCTION "_"ALREADY RUNNING",!
-}
+if '##class(Ens.Director).IsProductionRunning("Readback.Production") { set sc=##class(Ens.Director).StartProduction("Readback.Production")  if \$system.Status.IsError(sc) { write "READBACK START "_"FAILED: ",\$system.Status.GetErrorText(sc),! } else { write "READBACK PRODUCTION "_"STARTED",! } } else { write "READBACK PRODUCTION "_"ALREADY RUNNING",! }
 halt
 OS
 
