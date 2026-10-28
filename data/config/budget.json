@@ -1,0 +1,6 @@
+{
+  "note": "Demonstration ceilings. perResultTokens bounds one agent call; hourlyCostUsd and hourlyTokens bound the agent calls of the last 60 minutes (tokens are used when the price of the model is unknown).",
+  "perResultTokens": 6000,
+  "hourlyCostUsd": 5.0,
+  "hourlyTokens": 2000000
+}

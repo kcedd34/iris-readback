@@ -1,0 +1,6 @@
+ucum-1.0.9.jar
+  Library:  org.fhir:ucum (Ucum-java, https://github.com/FHIR/Ucum-java)
+  Version:  1.0.9
+  Origin:   https://repo1.maven.org/maven2/org/fhir/ucum/1.0.9/ucum-1.0.9.jar
+  SHA-256:  82d3f91372667cc8ab72407cd9ef2e9ff7c917f75a27fd49bcebc526111227a0
+  Licence:  BSD 3-Clause (see UCUM-LICENSE.txt), compatible with this project's MIT licence

@@ -4,9 +4,18 @@ ARG IRIS_IMAGE=irishealth-community:2026.3.0AI.154.0
 FROM ${IRIS_IMAGE}
 
 USER root
-RUN mkdir -p /opt/readback /data/in /data/archive /data/work \
+RUN mkdir -p /opt/readback /opt/readback/fastembed /data/in /data/archive /data/work \
  && chown -R irisowner:irisowner /opt/readback /data
 USER irisowner
+
+# The local embedding model is not part of the base image: the platform downloads it on first use into this
+# directory. It is fetched here, at build time, so the running container needs no network (docs/probes.md Probe 8).
+# This step needs network access once. If it fails, the build goes on and retrieval reports itself unavailable.
+ENV FASTEMBED_CACHE_DIR=/opt/readback/fastembed
+RUN (iris start IRIS quietly \
+     && printf 'set emb=##class(%%AI.RAG.Embedding.FastEmbed).Create()\nhalt\n' | iris session IRIS -U USER ; \
+     iris stop IRIS quietly) \
+ || echo "embedding model warm-up skipped: retrieval will report itself unavailable"
 
 COPY --chown=irisowner:irisowner src /opt/readback/src
 COPY --chown=irisowner:irisowner tests /opt/readback/tests

@@ -1,0 +1,9 @@
+{
+  "note": "Reference unit of each analyte. molarMass (g/mol) is needed only where a result can arrive as a mass concentration while the reference unit is an amount concentration.",
+  "analytes": [
+    { "analyteCode": "2823-3", "name": "Potassium", "referenceUnit": "mmol/L" },
+    { "analyteCode": "2345-7", "name": "Glucose", "referenceUnit": "mmol/L", "molarMass": 180.156 },
+    { "analyteCode": "718-7", "name": "Hemoglobin", "referenceUnit": "g/dL" },
+    { "analyteCode": "2951-2", "name": "Sodium", "referenceUnit": "mmol/L" }
+  ]
+}

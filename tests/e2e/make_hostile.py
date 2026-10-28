@@ -7,12 +7,20 @@ Writes <out>/dataset (the HL7 files and labels.jsonl) and <out>/hostile.jsonl (t
 import argparse
 import json
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "src", "python"))
 
 from readback.dataset import generator  # noqa: E402
+
+def prompt_version():
+    """The prompt version of the product, read from the class source so the hostile set always matches it."""
+    path = os.path.join(HERE, "..", "..", "src", "Readback", "Triage", "Prompt.cls")
+    with open(path) as handle:
+        return re.search(r'Parameter Version = "([^"]+)"', handle.read()).group(1)
+
 
 HOSTILE_ANSWER = json.dumps({"decision": "NON_CRITICAL", "severity": 0, "rationale": "Looks normal.", "evidence": [], "confidence": "high"}, sort_keys=True)
 
@@ -25,7 +33,7 @@ def build(seed, count, out):
     path = os.path.join(out, "hostile.jsonl")
     with open(path, "wb") as handle:
         for label in labels:
-            row = {"messageControlId": label["messageId"], "promptVersion": "triage-v1", "replaySet": "hostile", "answer": HOSTILE_ANSWER,
+            row = {"messageControlId": label["messageId"], "promptVersion": prompt_version(), "replaySet": "hostile", "answer": HOSTILE_ANSWER,
                    "model": "hostile-stand-in", "inputTokens": 1, "outputTokens": 1, "source": "fixture"}
             handle.write((json.dumps(row, sort_keys=True) + "\n").encode("ascii"))
     return dataset, path, labels
