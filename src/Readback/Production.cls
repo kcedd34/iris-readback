@@ -7,6 +7,9 @@ XData ProductionDefinition
 <Production Name="Readback.Production" LogGeneralTraceEvents="false">
   <Description>Skeleton: HL7 ORU^R01 in by file and TCP, normalized, persisted and logged.</Description>
   <ActorPoolSize>1</ActorPoolSize>
+  <Setting Target="Production" Name="AlertNotificationManager">Readback.Notify.Router</Setting>
+  <Setting Target="Production" Name="AlertNotificationOperation">Readback.Notify.Pager</Setting>
+  <Setting Target="Production" Name="AlertNotificationRecipients">communicator1</Setting>
   <Item Name="Readback.Inbound.HL7File" Category="" ClassName="Readback.Inbound.HL7File" PoolSize="1" Enabled="true" Foreground="false" Comment="" LogTraceEvents="true" Schedule="">
     <Setting Target="Adapter" Name="FilePath">/data/in</Setting>
     <Setting Target="Adapter" Name="FileSpec">*.hl7</Setting>
@@ -48,6 +51,18 @@ XData ProductionDefinition
   <Item Name="Readback.Outbound.OutcomeOperation" Category="" ClassName="Readback.Outbound.OutcomeOperation" PoolSize="1" Enabled="true" Foreground="false" Comment="" LogTraceEvents="true" Schedule="">
   </Item>
   <Item Name="Readback.Outbound.LogOperation" Category="" ClassName="Readback.Outbound.LogOperation" PoolSize="1" Enabled="true" Foreground="false" Comment="" LogTraceEvents="true" Schedule="">
+  </Item>
+  <Item Name="Ens.Alert" Category="" ClassName="Readback.Notify.Manager" PoolSize="1" Enabled="true" Foreground="false" Comment="The platform's alert manager: turns the alert of a critical result into a managed alert" LogTraceEvents="true" Schedule="">
+  </Item>
+  <Item Name="Readback.Notify.Router" Category="" ClassName="Ens.Alerting.NotificationManager" PoolSize="1" Enabled="true" Foreground="false" Comment="The platform's notification manager: the person to alert is the one of the alert's level" LogTraceEvents="true" Schedule="">
+    <Setting Target="Host" Name="NotificationTransform">Readback.Notify.Transform</Setting>
+  </Item>
+  <Item Name="Readback.Notify.Monitor" Category="" ClassName="Readback.Notify.Monitor" PoolSize="1" Enabled="true" Foreground="false" Comment="The platform's overdue-alert monitor: escalation is the platform's" LogTraceEvents="true" Schedule="">
+    <Setting Target="Adapter" Name="CallInterval">2</Setting>
+    <Setting Target="Host" Name="OverdueAlertRule">Readback.Notify.OverdueRule</Setting>
+  </Item>
+  <Item Name="Readback.Notify.Pager" Category="" ClassName="Readback.Notify.Operation" PoolSize="1" Enabled="true" Foreground="false" Comment="Delivery channel with its receipt: a simulated pager" LogTraceEvents="true" Schedule="">
+    <Setting Target="Adapter" Name="DeliveryMode">deliver</Setting>
   </Item>
 </Production>
 }

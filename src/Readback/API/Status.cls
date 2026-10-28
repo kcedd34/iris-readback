@@ -10,6 +10,7 @@ XData UrlMap
   <Route Url="/status" Method="GET" Call="GetStatus"/>
   <Route Url="/decisions/:controlId" Method="GET" Call="GetDecision"/>
   <Route Url="/indicators" Method="GET" Call="GetIndicators"/>
+  <Route Url="/alerts" Method="GET" Call="GetAlerts"/>
 </Routes>
 }
 
@@ -32,6 +33,7 @@ ClassMethod GetStatus() As %Status
 	Set tRes.retrieval = ##class(Readback.Retrieval.Engine).Snapshot()
 	Set tRes.unitComponent = {}
 	Do tRes.unitComponent.%Set("registered", ''##class(Readback.Units.Setup).IsRegistered(), "boolean")
+	Set tRes.alerts = ##class(Readback.Notify.Alerts).Counts()
 	Do tRes.%Set("productionRunning", ''##class(Ens.Director).IsProductionRunning("Readback.Production"), "boolean")
 	Write tRes.%ToJSON()
 	Quit $$$OK
@@ -75,7 +77,28 @@ ClassMethod GetDecision(pControlId As %String) As %Status
 	Set tRes.budgetUsed = tTrace.BudgetUsed, tRes.budgetCeiling = tTrace.BudgetCeiling, tRes.budgetEstimate = tTrace.BudgetEstimate
 	Do tRes.%Set("agentCalled", ''tTrace.AgentCalled, "boolean")
 	Set tRes.createdAt = tTrace.CreatedAt
+	Set tRes.notifications = ..Notifications(tTrace.SessionId)
 	Write tRes.%ToJSON()
+	Quit $$$OK
+}
+
+/// The notification events of a session, in time order.
+ClassMethod Notifications(pSessionId As %Integer) As %DynamicArray
+{
+	Set tList = []
+	Set tRS = ##class(%SQL.Statement).%ExecDirect(, "SELECT Event, Recipient, EscalationLevel, EventTime, Detail, AlertId FROM Readback_Trace.Notification WHERE SessionId = ? ORDER BY ID", pSessionId)
+	If tRS.%SQLCODE < 0 { Throw ##class(%Exception.General).%New("notifications query failed", tRS.%SQLCODE) }
+	While tRS.%Next() {
+		Set tItem = {"event":(tRS.%Get("Event")), "recipient":(tRS.%Get("Recipient")), "level":(+tRS.%Get("EscalationLevel")), "at":(tRS.%Get("EventTime")), "detail":(tRS.%Get("Detail"))}
+		Do:tRS.%Get("AlertId")'="" tItem.%Set("alertId", +tRS.%Get("AlertId"), "number")
+		Do tList.%Push(tItem)
+	}
+	Quit tList
+}
+
+ClassMethod GetAlerts() As %Status
+{
+	Write ##class(Readback.Notify.Alerts).Open().%ToJSON()
 	Quit $$$OK
 }
 

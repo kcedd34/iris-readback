@@ -70,6 +70,8 @@ ClassMethod Confirm(pTaskId As %String, pUser As %String)
 	Set tTrace.ConfirmedBy = pUser, tTrace.ReadbackMatch = 1
 	Set tTrace.ConfirmedAt = $ZDateTime($ZTimeStamp, 3, 1, 3)
 	Do tTrace.%Save()
+	// Only a matching read-back reaches this method, and only it closes the alert of the case.
+	Do ##class(Readback.Notify.Alerts).Close(tTrace.SessionId, pUser)
 }
 
 }

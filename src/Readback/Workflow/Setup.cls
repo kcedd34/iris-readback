@@ -34,7 +34,11 @@ ClassMethod EnsureRoles() As %Status
 			&sql(SELECT COUNT(*) INTO :tIn FROM EnsLib_Workflow.RoleMembership WHERE RoleName = :tRole AND UserName = :tName)
 			If tIn = 0 { Set tSC = ##class(EnsLib.Workflow.RoleDefinition).AddUserToRole(tRole, tName, 3, tFull)  Quit:$System.Status.IsError(tSC) }
 		}
-		Set tSC = ..EnsureSecurityUser(tName, tFull, tPassword)
+		// The people who confirm a read-back also close the alert of the case, which is an update of the platform's managed alert.
+		// The platform lets only the owner of an alert update it unless the user holds %Ens_AlertAdministration, and the person
+		// who confirms is not always the owner (the task goes by rotation): the platform's own alert administrator role is held
+		// by the communicators, and by nobody else.
+		Set tSC = ..EnsureSecurityUser(tName, tFull, tPassword, $Select(tRole=..#Communicators:"%EnsRole_AlertAdministrator", 1:""))
 		Quit:$System.Status.IsError(tSC)
 	}
 	Quit $Get(tSC, 1)
@@ -51,20 +55,25 @@ ClassMethod Password() As %String
 	Quit ^Readback("demoPassword")
 }
 
-ClassMethod EnsureSecurityUser(pName As %String, pFullName As %String, pPassword As %String) As %Status
+ClassMethod EnsureSecurityUser(pName As %String, pFullName As %String, pPassword As %String, pExtraRoles As %String = "") As %Status
 {
 	Set tSC = ..EnsureApiRole()
 	Quit:$System.Status.IsError(tSC) tSC
 	New $Namespace
 	Set $Namespace = "%SYS"
 	If '##class(Security.Users).Exists(pName) {
-		Quit ##class(Security.Users).Create(pName, "%DB_USER,%EnsRole_WorkflowUser,ReadbackApi", pPassword, pFullName)
+		Quit ##class(Security.Users).Create(pName, "%DB_USER,%EnsRole_WorkflowUser,ReadbackApi"_$Select(pExtraRoles="":"", 1:","_pExtraRoles), pPassword, pFullName)
 	}
-	// Existing user from an earlier run: make sure it has the API role.
+	// Existing user from an earlier run: make sure it has the API role and any extra role asked for.
 	Set tSC = ##class(Security.Users).Get(pName, .tProps)
 	Quit:$System.Status.IsError(tSC) tSC
-	If (","_tProps("Roles")_",") [ ",ReadbackApi," { Quit $$$OK }
-	Set tProps("Roles") = tProps("Roles")_$Select(tProps("Roles")="":"", 1:",")_"ReadbackApi"
+	Set tChanged = 0
+	For tNeed = "ReadbackApi", pExtraRoles {
+		If (tNeed '= "") && ((","_tProps("Roles")_",") '[ (","_tNeed_",")) {
+			Set tProps("Roles") = tProps("Roles")_$Select(tProps("Roles")="":"", 1:",")_tNeed, tChanged = 1
+		}
+	}
+	Quit:'tChanged $$$OK
 	Quit ##class(Security.Users).Modify(pName, .tProps)
 }
 
@@ -80,14 +89,15 @@ ClassMethod EnsureApiRole() As %Status
 		Quit:$System.Status.IsError(tSC) tSC
 	}
 	Set $Namespace = tNs
-	For tTable = "Readback_Config.Range", "Readback_Config.Price", "Readback_Replay.Recording", "Readback_Trace.Decision", "Readback_Config.Budget" {
+	For tTable = "Readback_Config.Range", "Readback_Config.Price", "Readback_Replay.Recording", "Readback_Trace.Decision", "Readback_Config.Budget", "Readback_Trace.Notification" {
 		Set tRS = ##class(%SQL.Statement).%ExecDirect(, "GRANT SELECT ON "_tTable_" TO ReadbackApi")
 		If tRS.%SQLCODE < 0 { Quit }
 	}
 	Quit:tRS.%SQLCODE<0 $System.Status.Error(5001, "grant failed: "_tRS.%Message)
 	// The status endpoint counts the vector tables. They exist only once the retrieval engine has been built, so a
 	// failed grant here is not an error: the next start grants them.
-	For tTable = "Readback_Retrieval.PolicyVec", "Readback_Retrieval.CaseVec" {
+	// The alerts endpoints read the platform's managed alerts.
+	For tTable = "Readback_Retrieval.PolicyVec", "Readback_Retrieval.CaseVec", "Ens_Alerting.ManagedAlert" {
 		Do ##class(%SQL.Statement).%ExecDirect(, "GRANT SELECT ON "_tTable_" TO ReadbackApi")
 	}
 	Quit $$$OK

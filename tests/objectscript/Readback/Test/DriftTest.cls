@@ -18,6 +18,18 @@ Method TestSessionConfigMatchesTheSchemaClass()
 	Do $$$AssertTrue(..ProductionXml()[("<Setting Target=""Adapter"" Name=""SessionConfigString"">"_##class(Readback.Triage.Schema).SessionConfigJSON()_"</Setting>"), "the SessionConfigString of Readback.Agent is built from the schema class")
 }
 
+Method TestAlertChainInTheProduction()
+{
+	Set tXml = ..ProductionXml()
+	Do $$$AssertTrue(tXml[("<Item Name=""Ens.Alert"" Category="""" ClassName=""Readback.Notify.Manager"""), "the platform's alert manager item is the product's subclass")
+	Do $$$AssertTrue(tXml[("ClassName=""Ens.Alerting.NotificationManager"""), "the notification manager is the platform's class")
+	Do $$$AssertTrue(tXml[("<Setting Target=""Host"" Name=""NotificationTransform"">Readback.Notify.Transform</Setting>"), "the transform maps a level to a person")
+	Do $$$AssertTrue(tXml[("<Setting Target=""Host"" Name=""OverdueAlertRule"">Readback.Notify.OverdueRule</Setting>"), "the monitor has its rule")
+	Do $$$AssertTrue(tXml[("<Setting Target=""Production"" Name=""AlertNotificationManager"">Readback.Notify.Router</Setting>"), "the production names its notification manager")
+	Do $$$AssertTrue(tXml[("ClassName=""Readback.Notify.Operation"""), "the delivery channel is the product's operation")
+	Do $$$AssertTrue(##class(%Dictionary.CompiledClass).%ExistsId("Readback.Notify.OverdueRule"), "the rule class exists")
+}
+
 Method TestTheKeyIsOnlyAnEnvironmentReference()
 {
 	Set tXml = ..ProductionXml()

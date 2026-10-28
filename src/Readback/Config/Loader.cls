@@ -20,6 +20,12 @@ ClassMethod LoadAll(pDir As %String = {..#DATADIR}, Output pCounts) As %Status
 	Set tSC = ..LoadBudget(pDir_"/config/budget.json", .tN)
 	Quit:$$$ISERR(tSC) tSC
 	Set pCounts("budget") = tN
+	// The escalation list is an addition to the read-back task: a file that is not valid is reported and the product goes on.
+	If ##class(%File).Exists(pDir_"/config/escalation.json") {
+		Set tEsc = ##class(Readback.Notify.Escalation).Load(pDir_"/config/escalation.json")
+		If $$$ISERR(tEsc) { Do ##class(%SYS.System).WriteToConsoleLog("Readback: "_$System.Status.GetErrorText(tEsc)_"; no alert will be raised for a critical result", 0, 1) }
+		Set pCounts("escalation") = $Select($$$ISOK(tEsc):##class(Readback.Notify.Escalation).Levels(), 1:0)
+	}
 	If ##class(%File).Exists(pDir_"/replay/recordings.jsonl") {
 		Set tSC = ##class(Readback.Replay.Recording).LoadFile(pDir_"/replay/recordings.jsonl", .tN)
 		Quit:$$$ISERR(tSC) tSC

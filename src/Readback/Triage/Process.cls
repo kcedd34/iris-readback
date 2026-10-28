@@ -199,6 +199,8 @@ Method Route(pLab As Readback.Msg.LabResult, pFinal As Readback.Triage.FinalDeci
 	If (pFinal.Route = "readback") || (pFinal.Route = "review") {
 		Do ..OpenTask(pLab, pFinal, pAgent, pMode, pTrace)
 	}
+	// The alert is an addition to the read-back task and never a condition of it; a review raises none.
+	If pFinal.Route = "readback" { Do ##class(Readback.Notify.Raise).ForCase($this, pLab.MessageControlId, pLab.AnalyteCode, pFinal.FinalSeverity) }
 	Set tOutcome = ##class(Readback.Msg.Outcome).%New()
 	Set tOutcome.MessageControlId = pLab.MessageControlId, tOutcome.Route = pFinal.Route
 	Set tOutcome.FinalSeverity = pFinal.FinalSeverity, tOutcome.Reason = pFinal.Reason, tOutcome.Mode = pMode
