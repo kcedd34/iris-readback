@@ -1,0 +1,9 @@
+{
+  "note": "Escalation of a critical result that is not confirmed. firstWindowSeconds and windowSeconds are the time a person has before the alert moves to the next level; levels are the people alerted, in order. Demonstration values: short, so an escalation can be watched.",
+  "firstWindowSeconds": 30,
+  "windowSeconds": 30,
+  "levels": [
+    { "recipient": "communicator1" },
+    { "recipient": "communicator2" }
+  ]
+}
