@@ -65,7 +65,7 @@ Method TestEstimateIsCharsOverFourRoundedUpPlusLongestAnswer()
 	Set tBase = ..Base()
 	Do ..SetBudget(100000, 5, tBase + 2000000)
 	Set tState = ##class(Readback.Budget.Guard).Check($Justify("", 401))
-	Do $$$AssertEquals(tState.EstimatedTokens, 101 + ##class(Readback.Triage.Schema).#MaxTokens, "the estimate adds the max_tokens of the session config")
+	Do $$$AssertEquals(tState.EstimatedTokens, 101 + ##class(Readback.Triage.Schema).#MaxTokens, "the estimate adds the output cap of the session config")
 	Do $$$AssertEquals(tState.State, "ok", "under the ceilings is ok")
 }
 

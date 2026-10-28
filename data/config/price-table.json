@@ -2,9 +2,9 @@
   "prices": [
     {
       "model": "gpt-5.4",
-      "inputPerMillion": null,
-      "outputPerMillion": null,
-      "priceDate": "2026-10-27"
+      "inputPerMillion": 2.50,
+      "outputPerMillion": 15.00,
+      "priceDate": "2026-10-28"
     }
   ]
 }

@@ -53,9 +53,9 @@ def request_for(case_id):
 
 
 def trace(case_id):
-    rows = query("SELECT Mode,PromptVersion,Model,InputTokens,OutputTokens,LatencyMs,CostKnown,FloorSeverity,AgentSeverity,AgentDecision,"
+    rows = query("SELECT Mode,PromptVersion,Model,InputTokens,OutputTokens,LatencyMs,CostKnown,CostUsd,FloorSeverity,AgentSeverity,AgentDecision,"
                  "FinalSeverity,Route,FailureKind,Divergence,SchemaValid FROM Readback_Trace.Decision WHERE MessageControlId='%s' ORDER BY ID DESC" % case_id,
-                 ["Mode", "PromptVersion", "Model", "InputTokens", "OutputTokens", "LatencyMs", "CostKnown", "FloorSeverity", "AgentSeverity",
+                 ["Mode", "PromptVersion", "Model", "InputTokens", "OutputTokens", "LatencyMs", "CostKnown", "CostUsd", "FloorSeverity", "AgentSeverity",
                   "AgentDecision", "FinalSeverity", "Route", "FailureKind", "Divergence", "SchemaValid"])
     return rows[0] if rows else None
 
@@ -108,7 +108,7 @@ def main():
         check(t["Model"] == "gpt-5.4", "model not recorded from the item setting: %r" % t["Model"])
         check(t["InputTokens"] == "120" and t["OutputTokens"] == "40", "tokens not recorded: %s/%s" % (t["InputTokens"], t["OutputTokens"]))
         check(int(t["LatencyMs"] or 0) > 0, "latency not recorded")
-        check(t["CostKnown"] in ("0", ""), "cost should be unknown with null prices")
+        check(t["CostKnown"] == "1" and abs(float(t["CostUsd"]) - (120 * 2.5 + 40 * 15.0) / 1e6) < 1e-9, "cost is not tokens x the price table: %s %s" % (t["CostKnown"], t["CostUsd"]))
         check(t["FinalSeverity"] == "3" and t["Route"] == "readback", "critical case did not route to read-back: %s" % t)
     req = request_for(tag + "-OK")
     check(req is not None, "the mock saw no request for the first case")
@@ -117,7 +117,7 @@ def main():
         rf = body.get("response_format", {})
         check(rf.get("type") == "json_schema" and rf.get("json_schema", {}).get("strict") is True, "request lacks the strict schema")
         check("decision" in json.dumps(rf), "schema content missing from the request")
-        check(body.get("max_tokens") == 400, "max_tokens is not 400")
+        check(body.get("max_completion_tokens") == 400 and "max_tokens" not in body, "the output cap is not max_completion_tokens 400")
         check(body.get("temperature") == 0, "temperature is not 0")
         check(req["auth"] == "Bearer " + KEY, "the test key did not reach the provider")
     t = traces.get("drop")

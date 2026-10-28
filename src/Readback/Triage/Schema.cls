@@ -28,13 +28,15 @@ ClassMethod SchemaJSON() As %String
 	Quit "{""type"":""object"",""additionalProperties"":false,""required"":[""decision"",""severity"",""rationale"",""evidence"",""confidence""],""properties"":{""decision"":{""type"":""string"",""enum"":[""CRITICAL"",""RECOLLECT"",""NEEDS_REVIEW"",""NON_CRITICAL""]},""severity"":{""type"":""integer"",""enum"":[0,1,2,3]},""rationale"":{""type"":""string""},""evidence"":{""type"":""array"",""items"":{""type"":""string""}},""confidence"":{""type"":""string"",""enum"":[""low"",""medium"",""high""]}}}"
 }
 
-/// The longest answer the agent may give, in tokens: the max_tokens of the session configuration.
+/// The longest answer the agent may give, in tokens. The provider rejects max_tokens for the current model and the
+/// session configuration does not accept max_completion_tokens as a field, so the cap travels in extra_params
+/// (docs/probes.md). A cut answer is not valid JSON and goes to a person.
 Parameter MaxTokens = 400;
 
 /// The session configuration of the live agent item: strict structured output, deterministic, bounded.
 ClassMethod SessionConfigJSON() As %String
 {
-	Quit "{""temperature"":0,""max_tokens"":"_..#MaxTokens_",""response_format"":{""type"":""json_schema"",""json_schema"":{""name"":""triage_decision"",""strict"":true,""schema"":"_..SchemaJSON()_"}}}"
+	Quit "{""temperature"":0,""extra_params"":{""max_completion_tokens"":"_..#MaxTokens_"},""response_format"":{""type"":""json_schema"",""json_schema"":{""name"":""triage_decision"",""strict"":true,""schema"":"_..SchemaJSON()_"}}}"
 }
 
 }
