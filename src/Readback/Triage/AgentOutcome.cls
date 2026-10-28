@@ -15,6 +15,9 @@ Property OutputTokens As %Integer [ InitialExpression = 0 ];
 /// Wall clock around the call, retries included.
 Property LatencyMs As %Integer;
 
+/// In replay, the latency of the original call, taken from the recording; empty otherwise.
+Property RecordedLatencyMs As %Integer;
+
 /// live or replay.
 Property Mode As %String;
 

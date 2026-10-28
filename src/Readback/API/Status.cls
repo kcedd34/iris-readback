@@ -19,7 +19,7 @@ ClassMethod GetStatus() As %Status
 	Set tRes = {}
 	Set tRes.mode = tMode
 	Set tRes.provider = $Select(tMode="live":"openai", 1:"replay")
-	Set tRes.model = $Select(tMode="live":##class(Ens.Director).GetAdapterSettingValue("Readback.Agent", "Model"), 1:"fixture")
+	Set tRes.model = $Select(tMode="live":##class(Ens.Director).GetAdapterSettingValue("Readback.Agent", "Model"), 1:##class(Readback.Replay.Recording).ActiveModel())
 	Set tRes.promptVersion = ##class(Readback.Triage.Prompt).#Version
 	Set tRes.agentTimeoutSeconds = +##class(Ens.Director).GetHostSettingValue("Readback.Triage", "AgentTimeoutSeconds")
 	Set tRes.replaySet = ##class(Readback.Replay.Recording).ActiveSet()

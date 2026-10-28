@@ -113,6 +113,53 @@ Method TestLoadFileReplacesTheSetsInTheFile()
 	Do ##class(%File).Delete(tFile)
 }
 
+Method TestActiveModelNamesTheSet()
+{
+	Set tActive = ##class(Readback.Replay.Recording).ActiveSet()
+	Do ..Add("unit-m", "RP-M1", "{}")
+	Do ##class(Readback.Replay.Recording).Activate("unit-m")
+	Do $$$AssertEquals(##class(Readback.Replay.Recording).ActiveModel(), "fixture", "the active set names the model of its recordings")
+	Do ##class(Readback.Replay.Recording).Activate("unit-empty-set")
+	Do $$$AssertEquals(##class(Readback.Replay.Recording).ActiveModel(), "replay", "an empty set is named replay")
+	Do ##class(Readback.Replay.Recording).Activate(tActive)
+}
+
+Method TestLoadFileKeepsTheRecordedLatencyAndModel()
+{
+	Set tFile = "/tmp/readback-replay-latency.jsonl"
+	Set tStream = ##class(%Stream.FileCharacter).%New()
+	Do tStream.LinkToFile(tFile)
+	Do tStream.WriteLine("{""messageControlId"":""RP-LAT"",""promptVersion"":""triage-v1"",""replaySet"":""unit-lat"",""answer"":""{}"",""model"":""m-large"",""inputTokens"":700,""outputTokens"":100,""latencyMs"":2400,""source"":""recorded""}")
+	Do tStream.WriteLine("{""messageControlId"":""RP-NOLAT"",""promptVersion"":""triage-v1"",""replaySet"":""unit-lat"",""answer"":""{}"",""model"":""m-large"",""inputTokens"":700,""outputTokens"":100,""source"":""recorded""}")
+	Do tStream.%Save()
+	Do $$$AssertStatusOK(##class(Readback.Replay.Recording).LoadFile(tFile, .tN), "a file with latencyMs loads")
+	Do ##class(Readback.Replay.Recording).Activate("unit-lat")
+	Set tRec = ##class(Readback.Replay.Recording).Lookup("RP-LAT", "triage-v1")
+	Do $$$AssertEquals(tRec.LatencyMs, 2400, "the recorded latency is kept")
+	Do $$$AssertEquals(tRec.Model, "m-large", "the recorded model is kept")
+	Do $$$AssertEquals(##class(Readback.Replay.Recording).Lookup("RP-NOLAT", "triage-v1").LatencyMs, "", "a row without latencyMs has none")
+	Do ##class(%File).Delete(tFile)
+}
+
+Method TestALatencyThatIsNotANonNegativeIntegerIsRejected()
+{
+	Set tFile = "/tmp/readback-replay-badlatency.jsonl"
+	Set tValues = $ListBuild("-5", """slow""", "1.5")
+	Set tPtr = 0
+	While $ListNext(tValues, tPtr, tValue) {
+		Set tStream = ##class(%Stream.FileCharacter).%New()
+		Do tStream.LinkToFile(tFile)
+		Do tStream.WriteLine("{""messageControlId"":""RP-BAD"",""promptVersion"":""triage-v1"",""replaySet"":""unit-badlat"",""answer"":""{}"",""model"":""m"",""inputTokens"":1,""outputTokens"":1,""latencyMs"":"_tValue_",""source"":""recorded""}")
+		Do tStream.%Save()
+		Set tSC = ##class(Readback.Replay.Recording).LoadFile(tFile, .tN)
+		Do $$$AssertStatusNotOK(tSC, "latencyMs "_tValue_" is rejected")
+		Do $$$AssertTrue($System.Status.GetErrorText(tSC) [ "latencyMs", "the message names the field")
+	}
+	&sql(SELECT COUNT(*) INTO :tCount FROM Readback_Replay.Recording WHERE ReplaySet = 'unit-badlat')
+	Do $$$AssertEquals(tCount, 0, "a rejected file loads nothing")
+	Do ##class(%File).Delete(tFile)
+}
+
 Method TestMalformedFileIsRejected()
 {
 	Set tFile = "/tmp/readback-replay-bad.jsonl"

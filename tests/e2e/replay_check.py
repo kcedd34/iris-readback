@@ -1,8 +1,13 @@
 """Replay mode end to end: no provider key, recorded answers, honest labeling, same human step.
 
-Starts the stack with no key, processes the committed sample messages twice and checks that every case
-reaches a decision, that the two runs agree, that rule-critical cases stay critical whatever the recorded
-agent said, that a case with no recording goes to a human, and that a read-back completes as in live mode.
+Starts the stack with no key, processes the committed sample messages twice and checks invariants that hold whatever
+the recorded answers say: every case reaches a decision, the two runs agree, a rule-critical case stays critical, a
+divergence is recorded whenever the agent is below the floor, the trace names the recording's model and keeps its latency,
+a case with no recording goes to a human, and a read-back completes as in live mode.
+
+The three behaviours that need a particular answer (the agent lowering a critical, advising a new sample on a hemolyzed
+critical, raising an acute drop) are driven by test-only recordings in a replay set of their own, loaded for the test and
+removed afterwards. They are never written to the recordings that ship with the product.
 """
 import json
 import os
@@ -11,7 +16,7 @@ import sys
 import tempfile
 import time
 
-from common import ROOT, compose, query, scalar, wait_for
+from common import ROOT, compose, iris, query, scalar, wait_for
 from readback_check import call, tasks_of
 import send_tcp
 
@@ -57,9 +62,35 @@ def send(payloads):
 
 
 def traces(control_id):
-    return query("SELECT Mode,Provider,RawOutput,Route,FinalSeverity,FloorSeverity,AgentDecision,Divergence,FailureKind,FailureReason,TaskId "
+    return query("SELECT Mode,Provider,Model,RecordedLatencyMs,RawOutput,Route,FinalSeverity,FloorSeverity,AgentDecision,AgentSeverity,Divergence,FailureKind,FailureReason,TaskId "
                  "FROM Readback_Trace.Decision WHERE MessageControlId='%s' ORDER BY ID" % control_id,
-                 ["Mode", "Provider", "RawOutput", "Route", "FinalSeverity", "FloorSeverity", "AgentDecision", "Divergence", "FailureKind", "FailureReason", "TaskId"])
+                 ["Mode", "Provider", "Model", "RecordedLatencyMs", "RawOutput", "Route", "FinalSeverity", "FloorSeverity", "AgentDecision", "AgentSeverity", "Divergence", "FailureKind", "FailureReason", "TaskId"])
+
+
+def shipped_recordings():
+    """The rows of the default replay set in the file that ships with the product, by message id."""
+    with open(os.path.join(ROOT, "data", "replay", "recordings.jsonl")) as handle:
+        rows = [json.loads(line) for line in handle if line.strip()]
+    return {r["messageControlId"]: r for r in rows if r.get("replaySet", "default") == "default"}
+
+
+DELETE_STANDINS = 'set rs=##class(%SQL.Statement).%ExecDirect(,"DELETE FROM Readback_Replay.Recording WHERE ReplaySet = \'standin\'")'
+ANSWER = '{"decision":"%s","severity":%d,"rationale":"test-only answer","evidence":["current-result"],"confidence":"high"}'
+
+
+def load_standins(answers):
+    """answers: message id -> (decision, severity). Test-only recordings in the replay set 'standin', labelled fixture."""
+    lines = [DELETE_STANDINS]
+    for mid, (decision, severity) in answers.items():
+        text = (ANSWER % (decision, severity)).replace('"', '""')
+        lines.append('set r=##class(Readback.Replay.Recording).%New()  set r.ReplaySet="standin", r.MessageControlId="' + mid + '", r.PromptVersion=##class(Readback.Triage.Prompt).#Version, r.AnswerText="' + text
+                     + '", r.Model="fixture", r.InputTokens=1, r.OutputTokens=1, r.Source="fixture"  do r.%Save()')
+    lines.append('write "RB_STANDIN_OK",!')
+    return "RB_STANDIN_OK" in iris("\n".join(lines))
+
+
+def activate(replay_set):
+    return any(l == "RB_ACTIVE=ok" for l in iris('set sc=##class(Readback.Replay.Recording).Activate("%s")\nwrite "RB_ACTIVE="_$select($system.Status.IsOK(sc):"ok",1:"failed"),!' % replay_set))
 
 
 def main():
@@ -81,7 +112,7 @@ def main():
     if status == 200:
         body = json.loads(text)
         check(body["mode"] == "replay", "status does not say replay: %s" % body["mode"])
-        check(body["recordingsLoaded"] == 26, "expected 26 recordings loaded, got %s" % body["recordingsLoaded"])
+        check(body["recordingsLoaded"] == len(shipped_recordings()), "expected %d recordings loaded, got %s" % (len(shipped_recordings()), body["recordingsLoaded"]))
         check(body["productionRunning"] is True, "the production is not running")
         check("sk-" not in text and "api_key" not in text.lower(), "the status response carries key-like text")
 
@@ -95,6 +126,7 @@ def main():
     if failures:
         return 1
 
+    recordings = shipped_recordings()
     by_category = {}
     for mid, _, category, role in items:
         t = traces(mid)
@@ -105,18 +137,37 @@ def main():
         check(first["RawOutput"] == second["RawOutput"] and first["RawOutput"] != "", "%s: the two runs gave different agent answers" % mid)
         check(first["Mode"] == "replay" and first["Provider"] == "replay", "%s: not labeled replay: %s/%s" % (mid, first["Mode"], first["Provider"]))
         check(first["Route"] in ("readback", "review", "recollect", "release"), "%s: no final route" % mid)
-        check(first["FailureKind"] in ("", "low-confidence"), "%s: unexpected failure %s %s" % (mid, first["FailureKind"], first["FailureReason"]))
+        check(first["FailureKind"] in ("", "low-confidence", "schema-invalid"), "%s: unexpected failure %s %s" % (mid, first["FailureKind"], first["FailureReason"]))
         if first["FloorSeverity"] == "3":
             check(first["FinalSeverity"] == "3" and first["Route"] == "readback", "%s: a rule-critical result did not stay critical: %s" % (mid, first))
-        by_category.setdefault((category, role), []).append(first)
+        if first["AgentSeverity"] != "" and int(first["AgentSeverity"]) < int(first["FloorSeverity"] or 0):
+            check(first["Divergence"] != "", "%s: the agent was below the floor and no divergence was recorded: %s" % (mid, first))
+        rec = recordings.get(mid)
+        if rec:
+            check(first["Model"] == rec.get("model"), "%s: the trace names %r, the recording %r" % (mid, first["Model"], rec.get("model")))
+            if rec.get("latencyMs") not in (None, ""):
+                check(first["RecordedLatencyMs"] == str(rec["latencyMs"]), "%s: recorded latency %r, expected %r" % (mid, first["RecordedLatencyMs"], rec["latencyMs"]))
+        by_category.setdefault((category, role), []).append((mid, first))
 
-    for t in by_category.get(("explainable-false-critical", "subject"), []):
+    # The behaviours that need a particular answer are driven by test-only recordings in their own set.
+    pick = {c: by_category[(c, "subject")][0][0] for c in ("explainable-false-critical", "sample-problem", "acute-drop-in-range") if by_category.get((c, "subject"))}
+    check(len(pick) == 3, "the sample set lacks a subject case of each of the three special categories: %s" % sorted(pick))
+    if len(pick) == 3:
+        answers = {pick["explainable-false-critical"]: ("NON_CRITICAL", 0), pick["sample-problem"]: ("RECOLLECT", 1), pick["acute-drop-in-range"]: ("CRITICAL", 3)}
+        check(load_standins(answers) and activate("standin"), "the test-only recordings could not be loaded")
+        special = [m for m in items if m[0] in pick.values()]
+        send([m[1] for m in special])
+        done = wait_for(lambda: all(len(traces(m[0])) >= 3 for m in special), 60, 2)
+        check(bool(done), "the three special cases did not reach a third decision")
+        t = traces(pick["explainable-false-critical"])[-1]
         check(t["FloorSeverity"] == "3" and t["AgentDecision"] == "NON_CRITICAL" and t["FinalSeverity"] == "3" and t["Divergence"] != "",
-              "the replayed NON_CRITICAL did not diverge from a critical floor: %s" % t)
-    for t in by_category.get(("sample-problem", "subject"), []):
+              "the NON_CRITICAL answer did not diverge from a critical floor: %s" % t)
+        t = traces(pick["sample-problem"])[-1]
         check(t["AgentDecision"] == "RECOLLECT" and t["Route"] == "readback" and t["FinalSeverity"] == "3", "a rule-critical hemolyzed potassium must stay critical with the recollect advice: %s" % t)
-    for t in by_category.get(("acute-drop-in-range", "subject"), []):
+        t = traces(pick["acute-drop-in-range"])[-1]
         check(t["FloorSeverity"] == "0" and t["Route"] == "readback" and t["AgentDecision"] == "CRITICAL", "the acute drop was not raised by the agent: %s" % t)
+        iris(DELETE_STANDINS + '\nwrite "RB_GONE",!')
+        check(activate("default"), "the default replay set could not be selected again")
 
     # A case with no recording goes to a human; a rule-critical one stays critical.
     from common import oru

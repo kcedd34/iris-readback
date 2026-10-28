@@ -18,6 +18,9 @@ Property InputTokens As %Integer;
 
 Property OutputTokens As %Integer;
 
+/// The latency in milliseconds of the real call the recording was taken from. Empty for a row without one.
+Property LatencyMs As %Integer;
+
 Property Source As %String(VALUELIST = ",fixture,recorded") [ InitialExpression = "fixture" ];
 
 Index KeyIdx On (ReplaySet, MessageControlId, PromptVersion) [ Unique ];
@@ -33,6 +36,16 @@ ClassMethod Activate(pSetName As %String) As %Status
 {
 	Set ^Readback("replaySet") = pSetName
 	Quit $$$OK
+}
+
+/// The model named by the recordings of the active set, or "replay" when the set is empty. A case with no recording is
+/// traced with this name, so a run of one set carries one model name.
+ClassMethod ActiveModel() As %String
+{
+	Set tSet = ..ActiveSet()
+	&sql(SELECT TOP 1 Model INTO :tModel FROM Readback_Replay.Recording WHERE ReplaySet = :tSet AND Model IS NOT NULL AND Model <> '')
+	Quit:SQLCODE<0 "replay"
+	Quit $Select(SQLCODE=0:tModel, 1:"replay")
 }
 
 /// Finds the recording of a case in the active set. Returns the object or "" when there is none.
@@ -52,7 +65,7 @@ ClassMethod LoadFile(pFile As %String, Output pCount As %Integer) As %Status
 	Set tSC = tStream.LinkToFile(pFile)
 	Quit:$$$ISERR(tSC) tSC
 	Kill tRows, tSets
-	Set tLine = 0, tRows = 0, tBadLine = 0
+	Set tLine = 0, tRows = 0, tBadLine = 0, tBadLatency = 0
 	While 'tStream.AtEnd {
 		Set tText = $ZStrip(tStream.ReadLine(), "<>W")
 		Set tLine = tLine + 1
@@ -68,8 +81,10 @@ ClassMethod LoadFile(pFile As %String, Output pCount As %Integer) As %Status
 		Set:tSet="" tSet = "default"
 		Set tSets(tSet) = 1
 		Set tRows($Increment(tRows)) = tObj
+		If tObj.%IsDefined("latencyMs") && (tObj.latencyMs '= "") && ((tObj.latencyMs '= +tObj.latencyMs) || (tObj.latencyMs < 0) || (tObj.latencyMs '= (tObj.latencyMs \ 1))) { Set tBadLatency = tRows }
 	}
 	If tBadLine Quit $$$ERROR($$$GeneralError, "Recordings file line "_tBadLine_" is not valid JSON")
+	If tBadLatency Quit $$$ERROR($$$GeneralError, "Recordings file row "_tBadLatency_": latencyMs must be a non-negative integer")
 	TStart
 	Set tSet = ""
 	For { Set tSet = $Order(tSets(tSet))  Quit:tSet=""
@@ -89,6 +104,7 @@ ClassMethod LoadFile(pFile As %String, Output pCount As %Integer) As %Status
 		Set tRec.Model = tObj.model
 		Set tRec.InputTokens = tObj.inputTokens
 		Set tRec.OutputTokens = tObj.outputTokens
+		Set tRec.LatencyMs = $Select(tObj.%IsDefined("latencyMs"):tObj.latencyMs, 1:"")
 		Set tRec.Source = $Select(tObj.source'="":tObj.source, 1:"fixture")
 		Set tSC = tRec.%Save()
 		If $$$ISERR(tSC) { TRollback  Quit }
@@ -126,6 +142,9 @@ Storage Default
 </Value>
 <Value name="8">
 <Value>Source</Value>
+</Value>
+<Value name="9">
+<Value>LatencyMs</Value>
 </Value>
 </Data>
 <DataLocation>^Readback.Replay.RecordingD</DataLocation>

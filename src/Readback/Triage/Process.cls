@@ -100,10 +100,10 @@ ClassMethod ItemIds(pList As %ListOfObjects, pTraceIds As %Boolean) As %String
 	Quit tArr.%ToJSON()
 }
 
-/// The model the agent step of the mode uses: the Model setting of the live item, or the replay label.
+/// The model the agent step of the mode uses: the Model setting of the live item, or the model of the active replay set.
 Method ModelOf(pMode As %String) As %String
 {
-	Quit:pMode'="live" "fixture"
+	Quit:pMode'="live" ##class(Readback.Replay.Recording).ActiveModel()
 	Quit ##class(Ens.Director).GetAdapterSettingValue("Readback.Agent", "Model")
 }
 
@@ -124,6 +124,14 @@ Method CallAgent(pText As %String, pMode As %String) As Readback.Triage.AgentOut
 	}
 	Set tOutcome.LatencyMs = $Justify(($ZHorolog - tStart) * 1000, 0, 0)
 	Set tOutcome.Model = ..ModelOf(pMode)
+	// In replay the trace names the model of the recording and keeps the latency of the original call.
+	If pMode = "replay" {
+		Set tRecording = ##class(Readback.Agent.ReplayOperation).Find(pText)
+		If $IsObject(tRecording) {
+			Set:tRecording.Model'="" tOutcome.Model = tRecording.Model
+			Set tOutcome.RecordedLatencyMs = tRecording.LatencyMs
+		}
+	}
 	// A call that ran out of time returns without a response and without an error status.
 	If $System.Status.IsOK(tSC) && '$IsObject($Get(tResponse)) {
 		If tOutcome.LatencyMs >= (..AgentTimeoutSeconds * 1000 - 250) {
@@ -172,7 +180,7 @@ Method SaveTrace(pLab As Readback.Msg.LabResult, pFloor As Readback.Triage.Floor
 	Set tTrace.InputTokens = pOutcome.InputTokens, tTrace.OutputTokens = pOutcome.OutputTokens
 	Set tTrace.CostUsd = ##class(Readback.Config.Cost).Compute(pOutcome.Model, pOutcome.InputTokens, pOutcome.OutputTokens, .tKnown)
 	Set tTrace.CostKnown = tKnown
-	Set tTrace.LatencyMs = pOutcome.LatencyMs
+	Set tTrace.LatencyMs = pOutcome.LatencyMs, tTrace.RecordedLatencyMs = pOutcome.RecordedLatencyMs
 	Set tTrace.OriginalValue = pLab.ValueText, tTrace.OriginalUnit = pLab.Unit
 	Set tTrace.ConversionOutcome = pConv.outcome
 	If (pConv.outcome = "converted") || (pConv.outcome = "not-needed") { Set tTrace.ConvertedValue = pConv.value, tTrace.ConvertedUnit = pConv.unit }

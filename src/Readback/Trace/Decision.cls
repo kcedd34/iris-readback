@@ -63,6 +63,10 @@ Property CostKnown As %Boolean;
 /// Wall clock around the agent call, retries included.
 Property LatencyMs As %Integer;
 
+/// In replay, the latency of the original call the recording was taken from; empty in live. LatencyMs keeps the
+/// process's own measured time, because a replay is not a model call.
+Property RecordedLatencyMs As %Integer;
+
 Property TaskId As %String(MAXLEN = 50);
 
 Property ConfirmedBy As %String(MAXLEN = 100);
@@ -277,6 +281,9 @@ Storage Default
 </Value>
 <Value name="50">
 <Value>AgentCalled</Value>
+</Value>
+<Value name="51">
+<Value>RecordedLatencyMs</Value>
 </Value>
 </Data>
 <DataLocation>^Readback.Trace.DecisionD</DataLocation>

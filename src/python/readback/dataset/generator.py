@@ -74,13 +74,21 @@ def render_message(message_id, patient_number, analyte, value, collected, indice
     return "\r".join(segments) + "\r"
 
 
-def generate(seed, count):
-    """Returns a list of (message_id, text, label) tuples, deterministic for (seed, count)."""
+def generate(seed, count, profile="samples"):
+    """Returns a list of (message_id, text, label) tuples, deterministic for (seed, count, profile).
+
+    The "samples" profile cycles the six original categories and its output is unchanged. The "evaluation" profile
+    cycles the eight categories of the evaluation and adds the expected decision to the label of each subject case.
+    """
+    if profile not in ("samples", "evaluation"):
+        raise ValueError("unknown profile: {}".format(profile))
+    categories = cat.EVALUATION_CATEGORIES if profile == "evaluation" else cat.CATEGORIES
+    builders = cat.EVALUATION_BUILDERS if profile == "evaluation" else cat.BUILDERS
     rng = random.Random(seed)
     out = []
     for index in range(count):
-        category = cat.CATEGORIES[index % len(cat.CATEGORIES)]
-        builder, analytes = cat.BUILDERS[category]
+        category = categories[index % len(categories)]
+        builder, analytes = builders[category]
         case = builder(rng, analytes[rng.randrange(len(analytes))])
         number = index + 1
         subject_time = BASE_TIME + datetime.timedelta(minutes=7 * index)
@@ -89,18 +97,18 @@ def generate(seed, count):
             history_id = "RB{}-{:05d}H{}".format(seed, number, step)
             old_collected = collected - datetime.timedelta(hours=hours_before)
             text = render_message(history_id, number, case.analyte, old_value, old_collected, {}, "", old_collected + datetime.timedelta(minutes=10))
-            out.append((history_id, text, _label(history_id, case, seed, number, "history")))
+            out.append((history_id, text, _label(history_id, case, seed, number, "history", profile)))
         message_id = "RB{}-{:05d}".format(seed, number)
         text = render_message(message_id, number, case.analyte, case.value, collected, case.indices, case.note, subject_time)
-        out.append((message_id, text, _label(message_id, case, seed, number, "subject")))
+        out.append((message_id, text, _label(message_id, case, seed, number, "subject", profile)))
     for _, text, _ in out:
         if contains_real_identifier(text):
             raise ValueError("generated text matches a real identifier pattern")
     return out
 
 
-def _label(message_id, case, seed, number, role):
-    return {
+def _label(message_id, case, seed, number, role, profile="samples"):
+    label = {
         "messageId": message_id,
         "category": case.category,
         "seed": seed,
@@ -109,6 +117,9 @@ def _label(message_id, case, seed, number, role):
         "patientId": "SYN{:07d}".format(number),
         "analyte": case.analyte,
     }
+    if profile == "evaluation":
+        label["expected"] = cat.EXPECTED[case.category] if role == "subject" else ""
+    return label
 
 
 def write_dataset(seed, count, out_dir):
