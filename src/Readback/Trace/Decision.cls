@@ -73,6 +73,52 @@ Property ConfirmedAt As %TimeStamp;
 
 Property CreatedAt As %TimeStamp [ InitialExpression = {$ZDateTime($ZTimeStamp, 3, 1, 3)} ];
 
+Property OriginalValue As %String(MAXLEN = 100);
+
+Property OriginalUnit As %String(MAXLEN = 50);
+
+Property ConvertedValue As %String(MAXLEN = 100);
+
+Property ConvertedUnit As %String(MAXLEN = 50);
+
+/// converted, not-needed, not-convertible, unavailable or skipped.
+Property ConversionOutcome As %String(MAXLEN = 30);
+
+/// JSON array text of the policy passage identifiers given to the agent.
+Property PassageIds As %String(MAXLEN = 1000);
+
+/// JSON array text of the labels of the similar cases given to the agent.
+Property CaseLabels As %String(MAXLEN = 1000);
+
+/// JSON array text of the opaque trace ids behind those labels, for audit; never sent to the agent.
+Property CaseTraceIds As %String(MAXLEN = 1000);
+
+/// Hash of the policy file used; empty when retrieval was unavailable.
+Property IndexVersion As %String(MAXLEN = 100);
+
+Property RetrievalNote As %String(MAXLEN = 500);
+
+/// ok, result-ceiling or hourly-ceiling.
+Property BudgetState As %String(MAXLEN = 30);
+
+/// cost or tokens.
+Property BudgetBasis As %String(MAXLEN = 10);
+
+Property BudgetUsed As %Numeric(SCALE = 6);
+
+Property BudgetCeiling As %Numeric(SCALE = 6);
+
+Property BudgetEstimate As %Integer;
+
+Property ReviewedBy As %String(MAXLEN = 100);
+
+Property ReviewedAt As %TimeStamp;
+
+/// False when the budget stopped the agent call.
+Property AgentCalled As %Boolean [ InitialExpression = 1 ];
+
+Index CreatedIdx On CreatedAt;
+
 Index ControlIdIdx On MessageControlId;
 
 Index SessionIdx On SessionId;
@@ -177,6 +223,60 @@ Storage Default
 </Value>
 <Value name="32">
 <Value>CreatedAt</Value>
+</Value>
+<Value name="33">
+<Value>OriginalValue</Value>
+</Value>
+<Value name="34">
+<Value>OriginalUnit</Value>
+</Value>
+<Value name="35">
+<Value>ConvertedValue</Value>
+</Value>
+<Value name="36">
+<Value>ConvertedUnit</Value>
+</Value>
+<Value name="37">
+<Value>ConversionOutcome</Value>
+</Value>
+<Value name="38">
+<Value>PassageIds</Value>
+</Value>
+<Value name="39">
+<Value>CaseLabels</Value>
+</Value>
+<Value name="40">
+<Value>CaseTraceIds</Value>
+</Value>
+<Value name="41">
+<Value>IndexVersion</Value>
+</Value>
+<Value name="42">
+<Value>RetrievalNote</Value>
+</Value>
+<Value name="43">
+<Value>BudgetState</Value>
+</Value>
+<Value name="44">
+<Value>BudgetBasis</Value>
+</Value>
+<Value name="45">
+<Value>BudgetUsed</Value>
+</Value>
+<Value name="46">
+<Value>BudgetCeiling</Value>
+</Value>
+<Value name="47">
+<Value>BudgetEstimate</Value>
+</Value>
+<Value name="48">
+<Value>ReviewedBy</Value>
+</Value>
+<Value name="49">
+<Value>ReviewedAt</Value>
+</Value>
+<Value name="50">
+<Value>AgentCalled</Value>
 </Value>
 </Data>
 <DataLocation>^Readback.Trace.DecisionD</DataLocation>

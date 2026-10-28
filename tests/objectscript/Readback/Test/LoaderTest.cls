@@ -14,6 +14,13 @@ ClassMethod Write(pFile As %String, pText As %String)
 	Do tStream.%Save()
 }
 
+/// The analyte and budget files every load needs, valid by default.
+ClassMethod WriteBase(pBudget As %String = "{""perResultTokens"":6000,""hourlyCostUsd"":5.0,""hourlyTokens"":2000000}")
+{
+	Do ..Write(..#DIR_"/config/analytes.json", "{""analytes"":[{""analyteCode"":""2823-3"",""name"":""Potassium"",""referenceUnit"":""mmol/L""},{""analyteCode"":""2345-7"",""name"":""Glucose"",""referenceUnit"":""mmol/L"",""molarMass"":180.156}]}")
+	Do ..Write(..#DIR_"/config/budget.json", pBudget)
+}
+
 ClassMethod Prices(pPrice As %String = "null") As %String
 {
 	Quit "{""prices"":[{""model"":""m1"",""inputPerMillion"":"_pPrice_",""outputPerMillion"":"_pPrice_",""priceDate"":""2026-10-27""}]}"
@@ -32,6 +39,7 @@ Method OnAfterAllTests() As %Status
 
 Method TestValidLoadAndReload()
 {
+	Do ..WriteBase()
 	Do ..Write(..#DIR_"/config/critical-ranges.json", "{""ranges"":["_..Range()_"]}")
 	Do ..Write(..#DIR_"/config/price-table.json", ..Prices("1.5"))
 	Set tSC = ##class(Readback.Config.Loader).LoadAll(..#DIR, .tCounts)
@@ -47,6 +55,7 @@ Method TestValidLoadAndReload()
 
 Method TestMalformedRowIsRejectedAndTableUnchanged()
 {
+	Do ..WriteBase()
 	Do ..Write(..#DIR_"/config/critical-ranges.json", "{""ranges"":["_..Range()_"]}")
 	Do ..Write(..#DIR_"/config/price-table.json", ..Prices())
 	Do ##class(Readback.Config.Loader).LoadAll(..#DIR)
@@ -60,6 +69,7 @@ Method TestMalformedRowIsRejectedAndTableUnchanged()
 
 Method TestInvalidValuesAreRejected()
 {
+	Do ..WriteBase()
 	Do ..Write(..#DIR_"/config/price-table.json", ..Prices())
 	Do ..Write(..#DIR_"/config/critical-ranges.json", "{""ranges"":[{""analyteCode"":""a"",""unit"":""u"",""ageGroup"":""senior"",""criticalHigh"":1,""floorSeverity"":3,""source"":""x""}]}")
 	Do $$$AssertStatusNotOK(##class(Readback.Config.Loader).LoadAll(..#DIR), "an unknown age group is rejected")
@@ -69,6 +79,31 @@ Method TestInvalidValuesAreRejected()
 	Do $$$AssertStatusNotOK(##class(Readback.Config.Loader).LoadAll(..#DIR), "a floor severity above 3 is rejected")
 	Do ..Write(..#DIR_"/config/critical-ranges.json", "not json")
 	Do $$$AssertStatusNotOK(##class(Readback.Config.Loader).LoadAll(..#DIR), "text that is not JSON is rejected")
+}
+
+Method TestRangeUnitMustMatchTheReferenceUnit()
+{
+	Do ..WriteBase()
+	Do ..Write(..#DIR_"/config/price-table.json", ..Prices())
+	Do ..Write(..#DIR_"/config/critical-ranges.json", "{""ranges"":["_$Replace(..Range(), "mmol/L", "mg/dL")_"]}")
+	Set tSC = ##class(Readback.Config.Loader).LoadAll(..#DIR)
+	Do $$$AssertStatusNotOK(tSC, "a range in another unit than the reference unit is rejected")
+	Do $$$AssertTrue($System.Status.GetErrorText(tSC)["reference unit", "the message names the reference unit")
+}
+
+Method TestAnalyteValidation()
+{
+	Do ..Write(..#DIR_"/config/critical-ranges.json", "{""ranges"":["_..Range()_"]}")
+	Do ..Write(..#DIR_"/config/price-table.json", ..Prices())
+	Do ..Write(..#DIR_"/config/budget.json", "{""perResultTokens"":1,""hourlyCostUsd"":1,""hourlyTokens"":1}")
+	Do ..Write(..#DIR_"/config/analytes.json", "{""analytes"":[{""analyteCode"":""2345-7"",""name"":""Glucose"",""referenceUnit"":""mmol/L"",""molarMass"":0}]}")
+	Do $$$AssertStatusNotOK(##class(Readback.Config.Loader).LoadAll(..#DIR), "a molar mass of 0 is rejected")
+	Do ..Write(..#DIR_"/config/analytes.json", "{""analytes"":[{""analyteCode"":""2345-7"",""name"":""Glucose"",""referenceUnit"":""mmol/L"",""molarMass"":""heavy""}]}")
+	Do $$$AssertStatusNotOK(##class(Readback.Config.Loader).LoadAll(..#DIR), "a text molar mass is rejected")
+	Do ..Write(..#DIR_"/config/analytes.json", "{""analytes"":[{""analyteCode"":""2345-7"",""name"":""Glucose""}]}")
+	Set tSC = ##class(Readback.Config.Loader).LoadAll(..#DIR)
+	Do $$$AssertStatusNotOK(tSC, "an analyte without a reference unit is rejected")
+	Do $$$AssertTrue($System.Status.GetErrorText(tSC)["referenceUnit", "the message names the field")
 }
 
 }

@@ -33,7 +33,9 @@ Method TestOtherAnalytes()
 {
 	Do $$$AssertEquals(##class(Readback.Triage.Floor).Compute(..Lab("718-7", "g/dL", 6.8)).Severity, 3, "hemoglobin 6.8 is critical")
 	Do $$$AssertEquals(##class(Readback.Triage.Floor).Compute(..Lab("718-7", "g/dL", 8.1)).Severity, 0, "hemoglobin 8.1 is inside the limit, the agent decides")
-	Do $$$AssertEquals(##class(Readback.Triage.Floor).Compute(..Lab("2345-7", "mg/dL", 520)).Severity, 3, "glucose 520 is critical")
+	Do $$$AssertEquals(##class(Readback.Triage.Floor).Compute(..Lab("2345-7", "mmol/L", 30)).Severity, 3, "glucose 30 mmol/L is critical")
+	Do $$$AssertEquals(##class(Readback.Triage.Floor).Compute(..Lab("2345-7", "mmol/L", 5)).Severity, 0, "glucose 5 mmol/L is not critical")
+	Do $$$AssertEquals(##class(Readback.Triage.Floor).Compute(..Lab("2345-7", "mmol/L", 2.2)).Severity, 3, "glucose 2.2 mmol/L is at the low limit")
 	Do $$$AssertEquals(##class(Readback.Triage.Floor).Compute(..Lab("2951-2", "mmol/L", 118)).Severity, 3, "sodium 118 is critical")
 }
 
@@ -91,6 +93,20 @@ Method TestUnitIsCaseSensitive()
 {
 	Set tFloor = ##class(Readback.Triage.Floor).Compute(..Lab("2823-3", "MMOL/L", 4.2))
 	Do $$$AssertEquals(tFloor.UnitUnknown, 1, "a unit that differs in case is not the table unit")
+}
+
+Method TestGlucoseInMgPerDlIsAnUnknownUnitHereAndStaysConservative()
+{
+	// The conversion to mmol/L happens before the floor (feature 3); if it did not, a raw mg/dL value is
+	// judged conservatively: critical under any known unit stays critical.
+	Set tFloor = ##class(Readback.Triage.Floor).Compute(..Lab("2345-7", "mg/dL", 520))
+	Do $$$AssertEquals(tFloor.UnitUnknown, 1, "mg/dL is not a table unit for glucose any more")
+	Do $$$AssertEquals(tFloor.Severity, 3, "520 is critical under the table unit, so it stays critical")
+	Set tFloor = ##class(Readback.Triage.Floor).Compute(..Lab("2345-7", "mg/dL", 2.0))
+	Do $$$AssertEquals(tFloor.Severity, 3, "2.0 is below the low limit of the table unit, so it stays critical too")
+	Set tFloor = ##class(Readback.Triage.Floor).Compute(..Lab("2345-7", "mg/dL", 10))
+	Do $$$AssertEquals(tFloor.Severity, 0, "10 is inside the limits of the table unit, so it is not critical by this path")
+	Do $$$AssertEquals(tFloor.UnitUnknown, 1, "and the unit is still flagged for review")
 }
 
 }

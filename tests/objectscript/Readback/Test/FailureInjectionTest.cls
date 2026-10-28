@@ -103,4 +103,37 @@ Method TestAValidAnswerFlowsThrough()
 	Do $$$AssertEquals(tFinal.FinalSeverity, 3, "final severity 3")
 }
 
+Method TestBudgetReachedTenTimesBothCeilings()
+{
+	Set tLab = ##class(Readback.Msg.LabResult).%New()
+	For tState = "result-ceiling", "hourly-ceiling" {
+		For n = 1:1:10 {
+			Set tO = ##class(Readback.Triage.AgentOutcome).%New()
+			Set tO.AgentCalled = 0, tO.BudgetState = tState, tO.Mode = "live"
+			Set tFinal = ##class(Readback.Triage.Pipeline).Decide(tLab, ..Floor(0), tO, .tAgent)
+			Do $$$AssertEquals(tAgent.FailureKind, "budget-reached", tState_" #"_n_": classified")
+			Do $$$AssertEquals(tFinal.Route, "review", tState_" #"_n_": floor 0 goes to review")
+			Do $$$AssertEquals(tFinal.Reason, "budget reached: "_$Select(tState="result-ceiling":"result ceiling", 1:"hourly ceiling"), tState_" #"_n_": literal reason")
+			Set tFinal = ##class(Readback.Triage.Pipeline).Decide(tLab, ..Floor(3), tO, .tAgent)
+			Do $$$AssertEquals(tFinal.Route, "readback", tState_" #"_n_": floor 3 still goes to read-back")
+			Do $$$AssertEquals(tFinal.FinalSeverity, 3, tState_" #"_n_": floor 3 stays critical")
+		}
+	}
+}
+
+Method TestUnitReasonsFollowTheConversionOutcome()
+{
+	Set tLab = ##class(Readback.Msg.LabResult).%New()
+	Set tOk = "{""decision"":""NON_CRITICAL"",""severity"":0,""rationale"":""fine"",""evidence"":[],""confidence"":""high""}"
+	For tCase = $ListBuild("not-convertible", "unit not convertible"), $ListBuild("unavailable", "unit conversion unavailable"), $ListBuild("", "unit not in rule table") {
+		Set tO = ##class(Readback.Triage.AgentOutcome).%New()
+		Set tO.Content = tOk, tO.ConversionOutcome = $List(tCase, 1)
+		Set tFinal = ##class(Readback.Triage.Pipeline).Decide(tLab, ..Floor(0, 1), tO, .tAgent)
+		Do $$$AssertEquals(tFinal.Route, "review", "an unjudged unit goes to review ("_$List(tCase, 1)_")")
+		Do $$$AssertEquals(tFinal.Reason, $List(tCase, 2), "with the fixed reason")
+		Set tFinal = ##class(Readback.Triage.Pipeline).Decide(tLab, ..Floor(3, 1), tO, .tAgent)
+		Do $$$AssertEquals(tFinal.Route, "readback", "a value critical under a known unit still goes to read-back ("_$List(tCase, 1)_")")
+	}
+}
+
 }

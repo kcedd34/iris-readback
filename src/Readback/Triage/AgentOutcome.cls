@@ -25,4 +25,25 @@ Property TimedOut As %Boolean [ InitialExpression = 0 ];
 
 Property TimeoutSeconds As %Integer [ InitialExpression = 30 ];
 
+/// False when the budget stopped the call: no request was made.
+Property AgentCalled As %Boolean [ InitialExpression = 1 ];
+
+/// ok, result-ceiling or hourly-ceiling.
+Property BudgetState As %String [ InitialExpression = "ok" ];
+
+/// cost or tokens.
+Property BudgetBasis As %String;
+
+Property BudgetUsed As %Numeric(SCALE = 6);
+
+Property BudgetCeiling As %Numeric(SCALE = 6);
+
+Property BudgetEstimate As %Integer;
+
+/// converted, not-needed, not-convertible, unavailable or skipped.
+Property ConversionOutcome As %String;
+
+/// Why retrieval gave nothing, empty when it did or was not asked.
+Property RetrievalNote As %String(MAXLEN = 500);
+
 }
