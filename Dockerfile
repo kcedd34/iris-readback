@@ -22,7 +22,10 @@ COPY --chown=irisowner:irisowner tests /opt/readback/tests
 COPY --chown=irisowner:irisowner data/samples /opt/readback/samples
 COPY --chown=irisowner:irisowner data/config /opt/readback/data/config
 COPY --chown=irisowner:irisowner data/replay /opt/readback/data/replay
-RUN chmod +x /opt/readback/src/ops/*.sh
+COPY --chown=irisowner:irisowner data/policy /opt/readback/data/policy
+COPY --chown=irisowner:irisowner java /opt/readback/java
+RUN chmod +x /opt/readback/src/ops/*.sh /opt/readback/java/build.sh /opt/readback/tests/java/run_java_tests.sh \
+ && /opt/readback/java/build.sh
 
 EXPOSE 52773 5001
 

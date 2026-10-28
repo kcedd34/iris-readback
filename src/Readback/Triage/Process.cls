@@ -15,13 +15,36 @@ Method OnRequest(pRequest As Readback.Msg.LabResult, Output pResponse As Ens.Res
 	// Feature 1 behavior: the lab result is still logged.
 	Do ..SendRequestAsync("Readback.Outbound.LogOperation", pRequest, 0)
 
-	Set tFloor = ##class(Readback.Triage.Floor).Compute(pRequest)
-	Set tText = ##class(Readback.Triage.Context).Build(pRequest)
+	// Units first: the floor and the agent see the value in the reference unit of the analyte.
+	Set tConv = ..Convert(pRequest)
+	Set tEffective = ##class(Readback.Units.Client).Effective(pRequest, tConv)
+	Set tFloor = ##class(Readback.Triage.Floor).Compute(tEffective)
+	Set tText = ##class(Readback.Triage.Context).Build(pRequest, tConv)
 	Set tMode = ##class(Readback.Config.Mode).Current()
 	Set tOutcome = ..CallAgent(tText, tMode)
+	Set tOutcome.ConversionOutcome = tConv.outcome
 	Set tFinal = ##class(Readback.Triage.Pipeline).Decide(pRequest, tFloor, tOutcome, .tAgent)
-	Set tTrace = ..SaveTrace(pRequest, tFloor, tAgent, tFinal, tOutcome, tText, tMode)
+	Set tTrace = ..SaveTrace(pRequest, tFloor, tAgent, tFinal, tOutcome, tText, tMode, tConv)
 	Quit ..Route(pRequest, tFinal, tAgent, tMode, tTrace)
+}
+
+/// Converts the value of a result to the reference unit of its analyte through the Java component. Returns a
+/// %DynamicObject with outcome, value, unit and message. Any failure of the component is outcome "unavailable":
+/// it is logged and never stops the case.
+Method Convert(pLab As Readback.Msg.LabResult) As %DynamicObject
+{
+	Set tKind = ##class(Readback.Units.Client).NeedsConversion(pLab, .tAnalyte)
+	If tKind = "skipped" { Quit {"outcome":"skipped","value":"","unit":"","message":""} }
+	If tKind = "not-needed" { Quit {"outcome":"not-needed","value":(pLab.ValueText),"unit":(tAnalyte.ReferenceUnit),"message":""} }
+	Set tRequest = ##class(Readback.Units.Client).BuildRequest(pLab, tAnalyte)
+	Try {
+		Set tSC = ..SendRequestSync("Readback.Units", tRequest, .tResponse, 10)
+	} Catch ex {
+		Set tSC = ex.AsStatus()
+	}
+	Set tConv = ##class(Readback.Units.Client).ParseResponse($Get(tResponse), tSC)
+	If tConv.outcome = "unavailable" { $$$LOGWARNING(tConv.message) }
+	Quit tConv
 }
 
 /// Sends the text to the agent item of the mode and returns what came back, without judging it.
@@ -66,7 +89,7 @@ Method CallAgent(pText As %String, pMode As %String) As Readback.Triage.AgentOut
 }
 
 /// Saves the trace record with every field the decision can be rebuilt from. Never touches the key.
-Method SaveTrace(pLab As Readback.Msg.LabResult, pFloor As Readback.Triage.FloorResult, pAgent As Readback.Triage.AgentOutput, pFinal As Readback.Triage.FinalDecision, pOutcome As Readback.Triage.AgentOutcome, pText As %String, pMode As %String) As Readback.Trace.Decision
+Method SaveTrace(pLab As Readback.Msg.LabResult, pFloor As Readback.Triage.FloorResult, pAgent As Readback.Triage.AgentOutput, pFinal As Readback.Triage.FinalDecision, pOutcome As Readback.Triage.AgentOutcome, pText As %String, pMode As %String, pConv As %DynamicObject) As Readback.Trace.Decision
 {
 	Set tTrace = ##class(Readback.Trace.Decision).%New()
 	Set tTrace.MessageControlId = pLab.MessageControlId
@@ -88,6 +111,10 @@ Method SaveTrace(pLab As Readback.Msg.LabResult, pFloor As Readback.Triage.Floor
 	Set tTrace.CostUsd = ##class(Readback.Config.Cost).Compute(pOutcome.Model, pOutcome.InputTokens, pOutcome.OutputTokens, .tKnown)
 	Set tTrace.CostKnown = tKnown
 	Set tTrace.LatencyMs = pOutcome.LatencyMs
+	Set tTrace.OriginalValue = pLab.ValueText, tTrace.OriginalUnit = pLab.Unit
+	Set tTrace.ConversionOutcome = pConv.outcome
+	If (pConv.outcome = "converted") || (pConv.outcome = "not-needed") { Set tTrace.ConvertedValue = pConv.value, tTrace.ConvertedUnit = pConv.unit }
+	Set tTrace.AgentCalled = pOutcome.AgentCalled
 	Do tTrace.%Save()
 	Quit tTrace
 }

@@ -13,7 +13,7 @@ ClassMethod CollectedOrNow(pLab As Readback.Msg.LabResult) As %String
 	Quit $Select(pLab.CollectedAt'="":pLab.CollectedAt, 1:$ZDateTime($Horolog, 3))
 }
 
-ClassMethod Build(pLab As Readback.Msg.LabResult) As %String
+ClassMethod Build(pLab As Readback.Msg.LabResult, pConv As %DynamicObject = "") As %String
 {
 	Set tCR = $Char(10)
 	Set tCollected = ..CollectedOrNow(pLab)
@@ -22,6 +22,15 @@ ClassMethod Build(pLab As Readback.Msg.LabResult) As %String
 	Set tText = tText_"Patient: "_pLab.PatientId_$Select(pLab.AgeYears'="":", age "_pLab.AgeYears_" years", 1:", age unknown")_tCR
 	Set tText = tText_"Analyte code: "_pLab.AnalyteCode_tCR
 	Set tText = tText_"Value: "_pLab.ValueText_$Select(pLab.Unit'="":" "_pLab.Unit, 1:"")_" (current-result)"_tCR
+	If $IsObject(pConv) {
+		If pConv.outcome = "converted" {
+			Set tText = tText_"Converted value: "_pConv.value_" "_pConv.unit_" (reference unit of the analyte)"_tCR
+		} ElseIf pConv.outcome = "not-convertible" {
+			Set tText = tText_"Converted value: not available (unit not convertible)"_tCR
+		} ElseIf pConv.outcome = "unavailable" {
+			Set tText = tText_"Converted value: not available (unit conversion unavailable)"_tCR
+		}
+	}
 	Set tText = tText_"Reference range: "_$Select(pLab.ReferenceRange'="":pLab.ReferenceRange, 1:"not given")_tCR
 	Set tText = tText_"Collected at: "_tCollected_tCR
 	Set tIndices = ""
