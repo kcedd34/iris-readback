@@ -21,7 +21,16 @@ Method OnRequest(pRequest As Readback.Msg.LabResult, Output pResponse As Ens.Res
 	Set tFloor = ##class(Readback.Triage.Floor).Compute(tEffective)
 	Set tText = ##class(Readback.Triage.Context).Build(pRequest, tConv)
 	Set tMode = ##class(Readback.Config.Mode).Current()
-	Set tOutcome = ..CallAgent(tText, tMode)
+	// P-7: the budget is decided before the call. A reached ceiling means no call at all.
+	Set tBudget = ##class(Readback.Budget.Guard).Check(tText, "", "", ..ModelOf(tMode))
+	If tBudget.State = "ok" {
+		Set tOutcome = ..CallAgent(tText, tMode)
+	} Else {
+		Set tOutcome = ##class(Readback.Triage.AgentOutcome).%New()
+		Set tOutcome.Mode = tMode, tOutcome.Model = ..ModelOf(tMode), tOutcome.AgentCalled = 0
+	}
+	Set tOutcome.BudgetState = tBudget.State, tOutcome.BudgetBasis = tBudget.Basis, tOutcome.BudgetUsed = tBudget.Used
+	Set tOutcome.BudgetCeiling = tBudget.Ceiling, tOutcome.BudgetEstimate = tBudget.EstimatedTokens
 	Set tOutcome.ConversionOutcome = tConv.outcome
 	Set tFinal = ##class(Readback.Triage.Pipeline).Decide(pRequest, tFloor, tOutcome, .tAgent)
 	Set tTrace = ..SaveTrace(pRequest, tFloor, tAgent, tFinal, tOutcome, tText, tMode, tConv)
@@ -47,6 +56,13 @@ Method Convert(pLab As Readback.Msg.LabResult) As %DynamicObject
 	Quit tConv
 }
 
+/// The model the agent step of the mode uses: the Model setting of the live item, or the replay label.
+Method ModelOf(pMode As %String) As %String
+{
+	Quit:pMode'="live" "fixture"
+	Quit ##class(Ens.Director).GetAdapterSettingValue("Readback.Agent", "Model")
+}
+
 /// Sends the text to the agent item of the mode and returns what came back, without judging it.
 Method CallAgent(pText As %String, pMode As %String) As Readback.Triage.AgentOutcome
 {
@@ -63,7 +79,7 @@ Method CallAgent(pText As %String, pMode As %String) As Readback.Triage.AgentOut
 		Set tSC = ex.AsStatus()
 	}
 	Set tOutcome.LatencyMs = $Justify(($ZHorolog - tStart) * 1000, 0, 0)
-	If pMode = "live" { Set tOutcome.Model = ##class(Ens.Director).GetAdapterSettingValue(tTarget, "Model") } Else { Set tOutcome.Model = "fixture" }
+	Set tOutcome.Model = ..ModelOf(pMode)
 	// A call that ran out of time returns without a response and without an error status.
 	If $System.Status.IsOK(tSC) && '$IsObject($Get(tResponse)) {
 		If tOutcome.LatencyMs >= (..AgentTimeoutSeconds * 1000 - 250) {
@@ -115,6 +131,8 @@ Method SaveTrace(pLab As Readback.Msg.LabResult, pFloor As Readback.Triage.Floor
 	Set tTrace.ConversionOutcome = pConv.outcome
 	If (pConv.outcome = "converted") || (pConv.outcome = "not-needed") { Set tTrace.ConvertedValue = pConv.value, tTrace.ConvertedUnit = pConv.unit }
 	Set tTrace.AgentCalled = pOutcome.AgentCalled
+	Set tTrace.BudgetState = pOutcome.BudgetState, tTrace.BudgetBasis = pOutcome.BudgetBasis, tTrace.BudgetUsed = pOutcome.BudgetUsed
+	Set tTrace.BudgetCeiling = pOutcome.BudgetCeiling, tTrace.BudgetEstimate = pOutcome.BudgetEstimate
 	Do tTrace.%Save()
 	Quit tTrace
 }

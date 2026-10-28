@@ -80,7 +80,7 @@ ClassMethod EnsureApiRole() As %Status
 		Quit:$System.Status.IsError(tSC) tSC
 	}
 	Set $Namespace = tNs
-	For tTable = "Readback_Config.Range", "Readback_Config.Price", "Readback_Replay.Recording", "Readback_Trace.Decision" {
+	For tTable = "Readback_Config.Range", "Readback_Config.Price", "Readback_Replay.Recording", "Readback_Trace.Decision", "Readback_Config.Budget" {
 		Set tRS = ##class(%SQL.Statement).%ExecDirect(, "GRANT SELECT ON "_tTable_" TO ReadbackApi")
 		If tRS.%SQLCODE < 0 { Quit }
 	}

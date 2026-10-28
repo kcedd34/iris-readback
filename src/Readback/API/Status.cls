@@ -27,6 +27,7 @@ ClassMethod GetStatus() As %Status
 	Set tSet = tRes.replaySet
 	&sql(SELECT COUNT(*) INTO :tRec FROM Readback_Replay.Recording WHERE ReplaySet = :tSet)
 	Set tRes.recordingsLoaded = +$Get(tRec)
+	Set tRes.budget = ##class(Readback.Budget.Guard).Now(tRes.model)
 	Do tRes.%Set("productionRunning", ''##class(Ens.Director).IsProductionRunning("Readback.Production"), "boolean")
 	Write tRes.%ToJSON()
 	Quit $$$OK

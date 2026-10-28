@@ -115,4 +115,16 @@ Method TestEveryFailureKind()
 	Do $$$AssertEquals(tResult.Route, "review", "no answer at all goes to review")
 }
 
+Method TestBudgetReachedRoutesLikeAnyFailure()
+{
+	Set tAgent = ##class(Readback.Triage.AgentOutput).%New()
+	Set tAgent.Valid = 0, tAgent.FailureKind = "budget-reached", tAgent.FailureReason = "budget reached: hourly ceiling"
+	Set tFinal = ##class(Readback.Triage.Composer).Compose(..Floor(3), tAgent)
+	Do $$$AssertEquals(tFinal.Route, "readback", "floor 3 stays on read-back")
+	Do $$$AssertEquals(tFinal.FinalSeverity, 3, "and critical")
+	Set tFinal = ##class(Readback.Triage.Composer).Compose(..Floor(0), tAgent)
+	Do $$$AssertEquals(tFinal.Route, "review", "floor 0 goes to review")
+	Do $$$AssertEquals(tFinal.Reason, "budget reached: hourly ceiling", "with the literal reason")
+}
+
 }
