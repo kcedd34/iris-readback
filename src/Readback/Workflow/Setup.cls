@@ -85,6 +85,11 @@ ClassMethod EnsureApiRole() As %Status
 		If tRS.%SQLCODE < 0 { Quit }
 	}
 	Quit:tRS.%SQLCODE<0 $System.Status.Error(5001, "grant failed: "_tRS.%Message)
+	// The status endpoint counts the vector tables. They exist only once the retrieval engine has been built, so a
+	// failed grant here is not an error: the next start grants them.
+	For tTable = "Readback_Retrieval.PolicyVec", "Readback_Retrieval.CaseVec" {
+		Do ##class(%SQL.Statement).%ExecDirect(, "GRANT SELECT ON "_tTable_" TO ReadbackApi")
+	}
 	Quit $$$OK
 }
 

@@ -134,6 +134,8 @@ Method CallAgent(pText As %String, pMode As %String) As Readback.Triage.AgentOut
 	}
 	If $System.Status.IsError(tSC) {
 		Set tText = ##class(Readback.Config.Mode).Redact($System.Status.GetErrorText(tSC))
+		// The platform operation has already written the raw provider text to the event log: clean it.
+		Do ##class(Readback.Config.Mode).ScrubEventLog()
 		Set tOutcome.Status = $System.Status.Error(5001, tText)
 		If (tText [ "imed out") || (tText [ "imeout") { Set tOutcome.TimedOut = 1 }
 		Quit tOutcome

@@ -205,6 +205,19 @@ Method Collect(pTool As %String, pQuery As %String, pMax As %Integer, pList As %
 	}
 }
 
+/// A cheap view for the status endpoint: nothing is loaded and nothing is searched. Available means the model is in
+/// the cache and the policy table holds the passages of the file it was built from.
+ClassMethod Snapshot() As %DynamicObject
+{
+	Set tDir = $System.Util.GetEnviron("FASTEMBED_CACHE_DIR")
+	Set tPassages = $Select(..CountRows(..#PolicyTable)<0:0, 1:..CountRows(..#PolicyTable)), tCases = $Select(..CountRows(..#CaseTable)<0:0, 1:..CountRows(..#CaseTable))
+	Set tRes = {}
+	Do tRes.%Set("available", ((tDir'="") && ..HasModel(tDir) && (tPassages>0)), "boolean")
+	Set tRes.indexVersion = ##class(Readback.Retrieval.Policy).StoredVersion()
+	Set tRes.passages = tPassages, tRes.confirmedCases = tCases
+	Quit tRes
+}
+
 /// Builds the engine once at start-up so the policy index is ready before the first case. An engine that is
 /// not available is reported, never fatal: cases then go to a person with the reason.
 ClassMethod Prepare() As %Status

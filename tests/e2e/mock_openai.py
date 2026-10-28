@@ -2,11 +2,12 @@
 
 Listens on 127.0.0.1:8099, answers /v1/chat/completions, logs each request body to
 /tmp/mock-requests.jsonl, and picks its behavior from a MODE:<name> marker in the messages.
-Modes: 500, 429, refusal, badjson, empty, nousage, slow. The default answer is a valid decision.
+Modes: 500, 429, refusal, badjson, empty, nousage, slow, noncrit, recollect, echo500, echo401.
+The echo modes put the received credential in the error text, as a provider that echoes it would. The default answer is a valid decision.
 """
 import json
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 LOG = "/tmp/mock-requests.jsonl"
 VALID_DECISION = {
@@ -43,6 +44,15 @@ class Handler(BaseHTTPRequestHandler):
         message = {"role": "assistant", "content": json.dumps(VALID_DECISION)}
         if "MODE:slow" in text:
             time.sleep(8)
+        credential = self.headers.get("Authorization") or ""
+        if "MODE:echo500" in text:
+            return self._send(500, {"error": {"message": "upstream failure for %s (Authorization: %s)" % (credential, credential), "type": "server_error"}})
+        if "MODE:echo401" in text:
+            return self._send(401, {"error": {"message": "Incorrect API key provided: %s. You can find your API key at the provider site." % credential.replace("Bearer ", ""), "type": "invalid_request_error"}})
+        if "MODE:noncrit" in text:
+            message["content"] = json.dumps(dict(VALID_DECISION, decision="NON_CRITICAL", severity=0, rationale="Within the usual range."))
+        if "MODE:recollect" in text:
+            message["content"] = json.dumps(dict(VALID_DECISION, decision="RECOLLECT", severity=0, rationale="The sample is hemolyzed."))
         if "MODE:500" in text:
             return self._send(500, {"error": {"message": "mock internal error", "type": "server_error"}})
         if "MODE:429" in text:
@@ -63,4 +73,4 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    HTTPServer(("127.0.0.1", 8099), Handler).serve_forever()
+    ThreadingHTTPServer(("127.0.0.1", 8099), Handler).serve_forever()

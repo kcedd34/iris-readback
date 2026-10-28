@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs every check of the triage core, units, budget and retrieval, in order, from a clean stack. Stops at the first failure.
+# Runs every check of the triage core, units, budget, retrieval and trace, in order, from a clean stack. Stops at the first failure.
 # Needs: docker, the image irishealth-community:2026.3.0AI.154.0, python3 with pytest, network once for the IPM client.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -23,5 +23,6 @@ step "replay";                   "$PY" tests/e2e/replay_check.py
 step "read-back";                "$PY" tests/e2e/readback_check.py
 step "hostile agent";            "$PY" tests/e2e/hostile_check.py
 step "intake (feature 1)";       tests/e2e/flow_check.sh
+step "trace and indicators";     "$PY" tests/e2e/trace_check.py
 step "live path against a mock"; "$PY" tests/e2e/live_mock_check.py
-printf '\nAll triage core, units, budget and retrieval checks passed.\n'
+printf '\nAll triage core, units, budget, retrieval and trace checks passed.\n'

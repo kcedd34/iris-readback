@@ -59,4 +59,22 @@ Method TestRedactWithNoKeyLeavesTextAlone()
 	Do $$$AssertEquals(##class(Readback.Config.Mode).Redact("anything"), "anything", "no key, nothing to redact")
 }
 
+Method TestRedactCoversEveryCredentialShape()
+{
+	Set ^||ReadbackTestKey = "test-key-value"
+	Set tRedact = "##class(Readback.Config.Mode).Redact"
+	// The configured key in the other forms a message can carry.
+	For tForm = "test-key-value", $ZConvert("test-key-value", "O", "URL"), $System.Encryption.Base64Encode("test-key-value") {
+		Do $$$AssertTrue(##class(Readback.Config.Mode).Redact("failed with "_tForm_" in the request")'[tForm, "form removed: "_$Extract(tForm, 1, 6))
+	}
+	// Whatever the provider echoes, masked, cut or in a header, even when it is not the configured key.
+	For tText = "Incorrect API key provided: sk-proj-abcd****wxyz. You can find your key", "header Authorization: Bearer abc.def-123", "Authorization=Basic dXNlcjpwYXNzd29yZA==", "password: hunter2value", "api_key=zzz999", "token sk-abc123def456ghi" {
+		Set tOut = ##class(Readback.Config.Mode).Redact(tText)
+		Do $$$AssertTrue(tOut["[key redacted]", "marker present for: "_$Extract(tText, 1, 25))
+		Do $$$AssertTrue((tOut'["abcd****"), "masked value gone")
+		Do $$$AssertTrue((tOut'["hunter2value") && (tOut'["zzz999") && (tOut'["dXNlcjpwYXNz") && (tOut'["abc.def-123"), "no credential value survives")
+	}
+	Do $$$AssertEquals(##class(Readback.Config.Mode).Redact("timeout after 30 seconds, task sk is not a key"), "timeout after 30 seconds, task sk is not a key", "ordinary text is unchanged")
+}
+
 }
