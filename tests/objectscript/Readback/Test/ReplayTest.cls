@@ -67,7 +67,7 @@ Method TestTwoLookupsGiveTheSameText()
 
 Method TestOperationAnswersWithTheLiveResponseType()
 {
-	Do ..Add("unit-f", "RP-5", "{""decision"":""NON_CRITICAL""}")
+	Do ..Add("unit-f", "RP-5", "{""decision"":""NON_CRITICAL""}", ##class(Readback.Triage.Prompt).#Version)
 	Do ##class(Readback.Replay.Recording).Activate("unit-f")
 	Set tOp = ##class(Readback.Agent.ReplayOperation).%New("Readback.Agent.Replay")
 	Set tSC = tOp.OnTextRequest(..Request("RP-5"), .tResp)

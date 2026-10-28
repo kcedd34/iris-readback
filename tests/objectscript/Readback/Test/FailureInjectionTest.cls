@@ -136,4 +136,25 @@ Method TestUnitReasonsFollowTheConversionOutcome()
 	}
 }
 
+Method TestRetrievalFailureGoesToAPersonAndIsNeverNothingFound()
+{
+	Set tLab = ##class(Readback.Msg.LabResult).%New()
+	For n = 1:1:10 {
+		Set tO = ##class(Readback.Triage.AgentOutcome).%New()
+		Set tO.AgentCalled = 0, tO.RetrievalFailed = 1, tO.RetrievalNote = "the embedding model is not in the cache directory", tO.Mode = "live"
+		Set tFinal = ##class(Readback.Triage.Pipeline).Decide(tLab, ..Floor(0), tO, .tAgent)
+		Do $$$AssertEquals(tAgent.FailureKind, "retrieval-unavailable", "#"_n_": classified as a retrieval failure")
+		Do $$$AssertEquals(tFinal.Route, "review", "#"_n_": floor 0 goes to review")
+		Do $$$AssertEquals(tFinal.Reason, "retrieval unavailable", "#"_n_": with the fixed reason")
+		Set tFinal = ##class(Readback.Triage.Pipeline).Decide(tLab, ..Floor(3), tO, .tAgent)
+		Do $$$AssertEquals(tFinal.Route, "readback", "#"_n_": a rule-critical result still goes to read-back")
+		Do $$$AssertEquals(tFinal.FinalSeverity, 3, "#"_n_": and stays critical")
+	}
+	// A reached budget outranks the retrieval reason when both apply.
+	Set tO = ##class(Readback.Triage.AgentOutcome).%New()
+	Set tO.AgentCalled = 0, tO.RetrievalFailed = 1, tO.BudgetState = "hourly-ceiling", tO.Mode = "live"
+	Do ##class(Readback.Triage.Pipeline).Decide(tLab, ..Floor(0), tO, .tAgent)
+	Do $$$AssertEquals(tAgent.FailureKind, "budget-reached", "the budget reason is kept when the ceiling was the cause")
+}
+
 }

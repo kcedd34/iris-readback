@@ -13,7 +13,7 @@ ClassMethod CollectedOrNow(pLab As Readback.Msg.LabResult) As %String
 	Quit $Select(pLab.CollectedAt'="":pLab.CollectedAt, 1:$ZDateTime($Horolog, 3))
 }
 
-ClassMethod Build(pLab As Readback.Msg.LabResult, pConv As %DynamicObject = "") As %String
+ClassMethod Build(pLab As Readback.Msg.LabResult, pConv As %DynamicObject = "", pRetrieval As Readback.Msg.RetrievalResponse = "") As %String
 {
 	Set tCR = $Char(10)
 	Set tCollected = ..CollectedOrNow(pLab)
@@ -42,7 +42,50 @@ ClassMethod Build(pLab As Readback.Msg.LabResult, pConv As %DynamicObject = "") 
 	} Else {
 		Set tText = tText_"Earlier results for this analyte in the last "_..#LookbackDays_" days, newest first:"_tCR_tEarlier
 	}
+	If $IsObject(pRetrieval) { Set tText = tText_..RetrievalSection(pRetrieval) }
 	Quit tText
+}
+
+/// The policy and similar-case sections of the agent text. Retrieval that failed says so; retrieval that found
+/// nothing says that instead. The two are different statements.
+ClassMethod RetrievalSection(pRetrieval As Readback.Msg.RetrievalResponse) As %String
+{
+	Set tCR = $Char(10)
+	If 'pRetrieval.Available { Quit "Policy and case retrieval is not available for this result."_tCR }
+	Set tText = ""
+	If pRetrieval.Passages.Count() = 0 {
+		Set tText = tText_"No policy passage matched."_tCR
+	} Else {
+		Set tText = tText_"Policy passages ("_pRetrieval.IndexVersion_"):"_tCR
+		For i = 1:1:pRetrieval.Passages.Count() { Set tText = tText_..PassageLine(pRetrieval.Passages.GetAt(i)) }
+	}
+	If pRetrieval.Cases.Count() = 0 {
+		Set tText = tText_"No similar confirmed case."_tCR
+	} Else {
+		Set tText = tText_"Similar confirmed cases:"_tCR
+		For i = 1:1:pRetrieval.Cases.Count() { Set tText = tText_..CaseLine(pRetrieval.Cases.GetAt(i)) }
+	}
+	Quit tText
+}
+
+ClassMethod PassageLine(pItem As Readback.Msg.RetrievalItem) As %String
+{
+	Quit "["_pItem.Id_"] "_pItem.Text_$Char(10)
+}
+
+ClassMethod CaseLine(pItem As Readback.Msg.RetrievalItem) As %String
+{
+	Quit pItem.Id_": "_pItem.Text_" Decision: "_pItem.Decision_". Route: "_pItem.Route_"."_$Char(10)
+}
+
+/// The number of characters each retrieved item adds to the text, as two $Lists, for the budget guard.
+ClassMethod ItemChars(pRetrieval As Readback.Msg.RetrievalResponse, Output pPassageChars As %List, Output pCaseChars As %List)
+{
+	Set pPassageChars = "", pCaseChars = ""
+	Quit:'$IsObject(pRetrieval)
+	Quit:'pRetrieval.Available
+	For i = 1:1:pRetrieval.Passages.Count() { Set pPassageChars = pPassageChars_$ListBuild($Length(..PassageLine(pRetrieval.Passages.GetAt(i)))) }
+	For i = 1:1:pRetrieval.Cases.Count() { Set pCaseChars = pCaseChars_$ListBuild($Length(..CaseLine(pRetrieval.Cases.GetAt(i)))) }
 }
 
 /// Numbered lines of earlier results, or empty.

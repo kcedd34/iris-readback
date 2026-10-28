@@ -89,4 +89,61 @@ Method TestUnknownAge()
 	Do $$$AssertTrue(##class(Readback.Triage.Context).Build(tLab)["age unknown", "an unknown age is stated")
 }
 
+ClassMethod Response(pPassages As %Integer, pCases As %Integer, pAvailable As %Boolean = 1) As Readback.Msg.RetrievalResponse
+{
+	Set tResp = ##class(Readback.Msg.RetrievalResponse).%New()
+	Set tResp.Available = pAvailable, tResp.IndexVersion = "abc123def4567890", tResp.Reason = $Select(pAvailable:"", 1:"model missing")
+	For i = 1:1:pPassages {
+		Set tItem = ##class(Readback.Msg.RetrievalItem).%New()
+		Set tItem.Id = "pass-"_i, tItem.Text = "Passage text "_i_"."
+		Do tResp.Passages.Insert(tItem)
+	}
+	For i = 1:1:pCases {
+		Set tItem = ##class(Readback.Msg.RetrievalItem).%New()
+		Set tItem.Id = "similar-case-"_i, tItem.Text = "Potassium 7.1 mmol/L, adult.", tItem.Decision = "critical", tItem.Route = "readback"
+		Do tResp.Cases.Insert(tItem)
+	}
+	Quit tResp
+}
+
+Method TestV2TextWithPassagesAndCases()
+{
+	Set tLab = ..Save("CTX-V2-1", "CTXP9", "718-7", "8.1", "2026-05-01 08:00:00")
+	Set tText = ##class(Readback.Triage.Context).Build(tLab, {"outcome":"converted","value":"29.97","unit":"mmol/L"}, ..Response(2, 2))
+	Do $$$AssertTrue(tText["Value: 8.1 g/dL", "the original value line")
+	Do $$$AssertTrue(tText["Converted value: 29.97 mmol/L", "the converted value line")
+	Do $$$AssertTrue(tText["Policy passages (abc123def4567890):"_$Char(10)_"[pass-1] Passage text 1."_$Char(10)_"[pass-2] Passage text 2.", "policy lines as [id] text under the index version")
+	Do $$$AssertTrue(tText["Similar confirmed cases:"_$Char(10)_"similar-case-1: Potassium 7.1 mmol/L, adult. Decision: critical. Route: readback."_$Char(10)_"similar-case-2:", "case lines in the fixed shape")
+	Do $$$AssertTrue(tText'["No policy passage matched", "no empty-policy sentence when there are passages")
+}
+
+Method TestV2FixedSentences()
+{
+	Set tLab = ..Save("CTX-V2-2", "CTXP8", "718-7", "8.1", "2026-05-02 08:00:00")
+	Set tNone = ##class(Readback.Triage.Context).Build(tLab, "", ..Response(0, 0))
+	Do $$$AssertTrue(tNone["No policy passage matched.", "the fixed sentence for no passage")
+	Do $$$AssertTrue(tNone["No similar confirmed case.", "and for no case")
+	Set tDown = ##class(Readback.Triage.Context).Build(tLab, "", ..Response(0, 0, 0))
+	Do $$$AssertTrue(tDown["Policy and case retrieval is not available for this result.", "retrieval that failed says so")
+	Do $$$AssertTrue(tDown'["No policy passage matched", "and does not claim that nothing matched")
+	Do $$$AssertTrue(tDown'["model missing", "the reason stays in the trace, not in the agent text")
+}
+
+Method TestRetrievedPartsCarryNoIdentifier()
+{
+	Set tLab = ..Save("CTX-V2-3", "CTXPATIENT3", "718-7", "8.1", "2026-05-03 08:00:00")
+	Set tPart = ##class(Readback.Triage.Context).RetrievalSection(..Response(3, 3))
+	Do $$$AssertTrue(tPart'["CTXPATIENT3", "no patient id in the retrieved parts")
+	Do $$$AssertTrue(tPart'["CTX-V2-3", "no message id in the retrieved parts")
+}
+
+Method TestWithoutRetrievalTheTextIsTheV1Text()
+{
+	Set tLab = ..Save("CTX-V2-4", "CTXP7", "718-7", "8.1", "2026-05-04 08:00:00")
+	Set tText = ##class(Readback.Triage.Context).Build(tLab)
+	Do $$$AssertTrue(tText'["Policy passages", "no policy section when no retrieval was asked")
+	Do $$$AssertTrue(tText'["not available for this result", "and no unavailable sentence")
+}
+
+
 }

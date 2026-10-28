@@ -43,7 +43,10 @@ Property BudgetEstimate As %Integer;
 /// converted, not-needed, not-convertible, unavailable or skipped.
 Property ConversionOutcome As %String;
 
-/// Why retrieval gave nothing, empty when it did or was not asked.
+/// True when retrieval itself failed (as opposed to finding nothing): the agent is not called.
+Property RetrievalFailed As %Boolean [ InitialExpression = 0 ];
+
+/// Why retrieval failed, empty when it did not.
 Property RetrievalNote As %String(MAXLEN = 500);
 
 }

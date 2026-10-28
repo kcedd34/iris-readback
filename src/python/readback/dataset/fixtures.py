@@ -2,8 +2,9 @@
 
 Reads a labels.jsonl and the .hl7 files next to it and writes one recording per message: the answer the agent
 would plausibly give for that category, in the closed decision schema. These are hand-authored stand-ins,
-labeled source "fixture", not recordings of a real provider. Real recorded answers replace them once an
-evaluation has been run with a key.
+labeled source "fixture", not recordings of a real provider. They are provisional: the evaluation feature
+replaces them with real recorded answers once an evaluation has been run with a key. They cite policy passages
+of data/policy/passages.jsonl by identifier, and a test checks that each cited identifier exists.
 
     python -m readback.dataset.fixtures --labels data/samples/generated/labels.jsonl --out data/replay/recordings.jsonl
 """
@@ -14,7 +15,7 @@ import sys
 
 from readback.dataset import categories as cat
 
-PROMPT_VERSION = "triage-v1"
+PROMPT_VERSION = "triage-v2"
 MODEL = "fixture"
 INPUT_TOKENS = 120
 OUTPUT_TOKENS = 40
@@ -46,23 +47,28 @@ def answer(decision, severity, rationale, evidence, confidence):
     return json.dumps(text, sort_keys=True)
 
 
+def crit_passage(analyte):
+    """The identifier of the policy passage that holds the critical limits of an analyte."""
+    return {"2823-3": "crit-potassium", "2345-7": "crit-glucose", "718-7": "crit-hemoglobin", "2951-2": "crit-sodium"}[cat.ANALYTES[analyte]["code"]]
+
+
 def for_subject(category, analyte, value, earlier, hemolysis):
     """The fixture answer of a subject case. earlier is a list of earlier values, newest first."""
     if category == cat.CLEAR_CRITICAL:
-        return answer("CRITICAL", 3, "The value %s is beyond the critical limit and nothing earlier explains it." % value, ["current-result"], "high")
+        return answer("CRITICAL", 3, "The value %s is beyond the critical limit and nothing earlier explains it." % value, ["current-result", crit_passage(analyte)], "high")
     if category == cat.CONTEXTUAL_CRITICAL:
         prior = earlier[0] if earlier else "unknown"
-        return answer("CRITICAL", 3, "The value %s is close to the critical limit and moved from a normal earlier result of %s." % (value, prior), ["current-result", "earlier-result-1"], "medium")
+        return answer("CRITICAL", 3, "The value %s is close to the critical limit and moved from a normal earlier result of %s." % (value, prior), ["current-result", "earlier-result-1", crit_passage(analyte)], "medium")
     if category == cat.EXPLAINABLE_FALSE_CRITICAL:
         shown = ", ".join(earlier[:3]) if earlier else "none"
-        return answer("NON_CRITICAL", 0, "The value %s is high but stable across the earlier results (%s); the note describes scheduled dialysis." % (value, shown), ["current-result", "earlier-result-1", "earlier-result-2", "earlier-result-3"][:1 + len(earlier[:3])], "high")
+        return answer("NON_CRITICAL", 0, "The value %s is high but stable across the earlier results (%s); the note describes scheduled dialysis." % (value, shown), ["current-result", "earlier-result-1", "earlier-result-2", "earlier-result-3"][:1 + len(earlier[:3])] + ["ctx-dialysis-stable"], "high")
     if category == cat.ACUTE_DROP_IN_RANGE:
         prior = earlier[0] if earlier else "unknown"
-        return answer("CRITICAL", 3, "Hemoglobin fell from %s to %s since the earlier result, an acute drop even though %s is inside the critical limit." % (prior, value, value), ["current-result", "earlier-result-1"], "high")
+        return answer("CRITICAL", 3, "Hemoglobin fell from %s to %s since the earlier result, an acute drop even though %s is inside the critical limit." % (prior, value, value), ["current-result", "earlier-result-1", "ctx-acute-drop"], "high")
     if category == cat.SAMPLE_PROBLEM:
-        return answer("RECOLLECT", 1, "Potassium %s comes with a hemolysis index of %s, which can raise potassium in the tube; a new sample is advised." % (value, hemolysis), ["current-result", "sample-index-hemolysis"], "medium")
+        return answer("RECOLLECT", 1, "Potassium %s comes with a hemolysis index of %s, which can raise potassium in the tube; a new sample is advised." % (value, hemolysis), ["current-result", "sample-index-hemolysis", "recollect-hemolysis"], "medium")
     if category == cat.AMBIGUOUS:
-        return answer("NEEDS_REVIEW", 1, "The value %s is near the limit with a moderate hemolysis index (%s) and a mildly high earlier result; a person should decide." % (value, hemolysis), ["current-result", "sample-index-hemolysis"], "low")
+        return answer("NEEDS_REVIEW", 1, "The value %s is near the limit with a moderate hemolysis index (%s) and a mildly high earlier result; a person should decide." % (value, hemolysis), ["current-result", "sample-index-hemolysis", "review-ambiguous"], "low")
     raise ValueError("unknown category " + category)
 
 
@@ -100,8 +106,8 @@ def build(labels_path):
 def hand_samples():
     """Fixtures for the two hand-written sample messages in data/samples."""
     return [
-        row("RBSAMPLE0001", answer("CRITICAL", 3, "Potassium 6.9 mmol/L is above the critical limit and there is no earlier result.", ["current-result"], "high")),
-        row("RBSAMPLE0002", answer("NEEDS_REVIEW", 1, "Hemoglobin 8.1 g/dL is inside the critical limit and there are no earlier results to compare with.", ["current-result"], "low")),
+        row("RBSAMPLE0001", answer("CRITICAL", 3, "Potassium 6.9 mmol/L is above the critical limit and there is no earlier result.", ["current-result", "crit-potassium"], "high")),
+        row("RBSAMPLE0002", answer("NEEDS_REVIEW", 1, "Hemoglobin 8.1 g/dL is inside the critical limit and there are no earlier results to compare with.", ["current-result", "review-ambiguous"], "low")),
     ]
 
 

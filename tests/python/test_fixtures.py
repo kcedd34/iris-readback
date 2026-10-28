@@ -84,7 +84,7 @@ def test_every_row_is_labeled_as_a_fixture(dataset):
     for item in fixtures.build(os.path.join(dataset, "labels.jsonl")) + fixtures.hand_samples():
         assert item["source"] == "fixture"
         assert item["replaySet"] == "default"
-        assert item["promptVersion"] == "triage-v1"
+        assert item["promptVersion"] == "triage-v2"
 
 
 def test_hand_samples_cover_both_sample_messages():
@@ -97,3 +97,33 @@ def test_cli_writes_the_file(dataset, tmp_path):
     assert fixtures.main(["--labels", os.path.join(dataset, "labels.jsonl"), "--out", str(out), "--with-samples"]) == 0
     lines = out.read_text().splitlines()
     assert len(lines) == len(labels_of(dataset)) + 2
+
+
+def passage_ids():
+    with open(os.path.join(ROOT, "data", "policy", "passages.jsonl")) as handle:
+        return {json.loads(line)["id"] for line in handle if line.strip()}
+
+
+def test_every_cited_policy_passage_exists(dataset):
+    known = passage_ids()
+    cited = set()
+    for item in fixtures.build(os.path.join(dataset, "labels.jsonl")) + fixtures.hand_samples():
+        for evidence in json.loads(item["answer"])["evidence"]:
+            if evidence.startswith(("crit-", "recollect-", "ctx-", "unit-", "review-")):
+                cited.add(evidence)
+    assert cited, "the fixtures cite no policy passage"
+    assert cited <= known, "unknown passages cited: %s" % sorted(cited - known)
+
+
+def test_categories_cite_their_passage(dataset):
+    rows = {r["messageControlId"]: json.loads(r["answer"]) for r in fixtures.build(os.path.join(dataset, "labels.jsonl"))}
+    expected = {cat.EXPLAINABLE_FALSE_CRITICAL: "ctx-dialysis-stable", cat.ACUTE_DROP_IN_RANGE: "ctx-acute-drop",
+                cat.SAMPLE_PROBLEM: "recollect-hemolysis", cat.AMBIGUOUS: "review-ambiguous"}
+    for label in labels_of(dataset):
+        if label["role"] == "history":
+            continue
+        body = rows[label["messageId"]]
+        if label["category"] in expected:
+            assert expected[label["category"]] in body["evidence"]
+        else:
+            assert any(e.startswith("crit-") for e in body["evidence"])

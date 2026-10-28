@@ -25,6 +25,8 @@ set sc=##class(Readback.Config.Loader).LoadIfChanged("${datahash}","${datadir}")
 if \$system.Status.IsError(sc) { write "READBACK CONFIG "_"FAILED: ",\$system.Status.GetErrorText(sc),! } else { write "Readback: configuration tables up to date",! }
 set sc=##class(Readback.Units.Setup).EnsureComponent()
 if \$system.Status.IsError(sc) { write "READBACK UNITS "_"FAILED: ",\$system.Status.GetErrorText(sc),! }
+set sc=##class(Readback.Retrieval.Engine).Prepare()
+if \$system.Status.IsError(sc) { write "READBACK RETRIEVAL "_"FAILED: ",\$system.Status.GetErrorText(sc),! } else { write "Readback: policy index ready",! }
 set sc=##class(Readback.API.Status).EnsureWebApp()
 if \$system.Status.IsError(sc) { write "READBACK WEBAPP "_"FAILED: ",\$system.Status.GetErrorText(sc),! }
 set sc=##class(Readback.Workflow.Setup).EnsureRoles()

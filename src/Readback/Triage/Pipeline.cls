@@ -18,6 +18,8 @@ ClassMethod Decide(pLab As Readback.Msg.LabResult, pFloor As Readback.Triage.Flo
 ClassMethod Classify(pOutcome As Readback.Triage.AgentOutcome) As Readback.Triage.AgentOutput
 {
 	If 'pOutcome.AgentCalled {
+		// A retrieval that failed is not "nothing found": the agent is not asked to decide without its policy.
+		If pOutcome.RetrievalFailed && (pOutcome.BudgetState = "ok") { Quit ..Failed("retrieval-unavailable", "retrieval unavailable") }
 		Quit ..Failed("budget-reached", "budget reached: "_$Select(pOutcome.BudgetState="result-ceiling":"result ceiling", 1:"hourly ceiling"))
 	}
 	If pOutcome.TimedOut {

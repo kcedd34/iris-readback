@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 
+import make_hostile
 from common import ROOT, compose, iris, oru, query, scalar, wait_for
 import send_tcp
 
@@ -103,7 +104,7 @@ def main():
     t = traces.get("ok")
     if t:
         check(t["Mode"] == "live", "mode is not live: %s" % t["Mode"])
-        check(t["PromptVersion"] == "triage-v1", "prompt version missing")
+        check(t["PromptVersion"] == make_hostile.prompt_version(), "prompt version missing")
         check(t["Model"] == "gpt-5.4", "model not recorded from the item setting: %r" % t["Model"])
         check(t["InputTokens"] == "120" and t["OutputTokens"] == "40", "tokens not recorded: %s/%s" % (t["InputTokens"], t["OutputTokens"]))
         check(int(t["LatencyMs"] or 0) > 0, "latency not recorded")

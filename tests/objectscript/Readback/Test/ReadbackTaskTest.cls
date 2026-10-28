@@ -115,4 +115,20 @@ Method TestReviewTaskAcceptsOnlyReviewed()
 	Do $$$AssertStatusNotOK(tTask.OnAction("Communicated"), "a review task does not accept the read-back action")
 }
 
+Method TestReviewRecordsTheReviewerAndARefusedReviewRecordsNothing()
+{
+	Set tTask = ..Case(7)
+	&sql(SELECT ReviewedBy INTO :r FROM Readback_Trace.Decision WHERE TaskId = :tTask)
+	Do $$$AssertEquals($Get(r), "", "nobody reviewed yet")
+	Set tReview = ##class(Readback.Workflow.ReviewTask).%New()
+	Set tSC = tReview.OnAction("Communicated")
+	Do $$$AssertStatusNotOK(tSC, "only the action Reviewed completes a review")
+	&sql(SELECT ReviewedBy INTO :r FROM Readback_Trace.Decision WHERE TaskId = :tTask)
+	Do $$$AssertEquals($Get(r), "", "a refused review records nothing")
+	Do ##class(Readback.Workflow.ReviewTask).Record(tTask, "reviewer1")
+	&sql(SELECT ReviewedBy, ReviewedAt INTO :r, :at FROM Readback_Trace.Decision WHERE TaskId = :tTask)
+	Do $$$AssertEquals($Get(r), "reviewer1", "a completed review records the reviewer")
+	Do $$$AssertTrue($Get(at)'="", "and the time")
+}
+
 }
