@@ -6,7 +6,7 @@ divergence is recorded whenever the agent is below the floor, the trace names th
 a case with no recording goes to a human, and a read-back completes as in live mode.
 
 The three behaviours that need a particular answer (the agent lowering a critical, advising a new sample on a hemolyzed
-critical, raising an acute drop) are driven by test-only recordings in a replay set of their own, loaded for the test and
+critical, an acute drop, now raised by the change floor before the agent) are driven by test-only recordings in a replay set of their own, loaded for the test and
 removed afterwards. They are never written to the recordings that ship with the product.
 """
 import json
@@ -62,9 +62,9 @@ def send(payloads):
 
 
 def traces(control_id):
-    return query("SELECT Mode,Provider,Model,RecordedLatencyMs,RawOutput,Route,FinalSeverity,FloorSeverity,AgentDecision,AgentSeverity,Divergence,FailureKind,FailureReason,TaskId "
+    return query("SELECT Mode,Provider,Model,RecordedLatencyMs,RawOutput,Route,FinalSeverity,FloorSeverity,AgentDecision,AgentSeverity,Divergence,FailureKind,FailureReason,TaskId,FloorNote "
                  "FROM Readback_Trace.Decision WHERE MessageControlId='%s' ORDER BY ID" % control_id,
-                 ["Mode", "Provider", "Model", "RecordedLatencyMs", "RawOutput", "Route", "FinalSeverity", "FloorSeverity", "AgentDecision", "AgentSeverity", "Divergence", "FailureKind", "FailureReason", "TaskId"])
+                 ["Mode", "Provider", "Model", "RecordedLatencyMs", "RawOutput", "Route", "FinalSeverity", "FloorSeverity", "AgentDecision", "AgentSeverity", "Divergence", "FailureKind", "FailureReason", "TaskId", "FloorNote"])
 
 
 def shipped_recordings():
@@ -165,7 +165,8 @@ def main():
         t = traces(pick["sample-problem"])[-1]
         check(t["AgentDecision"] == "RECOLLECT" and t["Route"] == "readback" and t["FinalSeverity"] == "3", "a rule-critical hemolyzed potassium must stay critical with the recollect advice: %s" % t)
         t = traces(pick["acute-drop-in-range"])[-1]
-        check(t["FloorSeverity"] == "0" and t["Route"] == "readback" and t["AgentDecision"] == "CRITICAL", "the acute drop was not raised by the agent: %s" % t)
+        check(t["FloorSeverity"] == "3" and t["Route"] == "readback" and t["AgentDecision"] == "CRITICAL" and "critical by change" in t.get("FloorNote", ""),
+              "the acute drop was not raised by the change floor: %s" % t)
         iris(DELETE_STANDINS + '\nwrite "RB_GONE",!')
         check(activate("default"), "the default replay set could not be selected again")
 

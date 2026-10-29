@@ -122,8 +122,9 @@ def main():
         check(req["auth"] == "Bearer " + KEY, "the test key did not reach the provider")
     t = traces.get("drop")
     if t:
-        check(t["FloorSeverity"] == "0" and t["AgentSeverity"] == "3" and t["FinalSeverity"] == "3" and t["Route"] == "readback",
-              "the agent raise did not become the final severity: %s" % t)
+        # The acute drop is critical by the change floor before the agent is asked; the agent agrees and the route is read-back.
+        check(t["FloorSeverity"] == "3" and t["AgentSeverity"] == "3" and t["FinalSeverity"] == "3" and t["Route"] == "readback",
+              "the acute drop did not end at severity 3 through read-back: %s" % t)
     req = request_for(tag + "-DROP")
     check(req is not None and "12.4 g/dL" in json.dumps(req["body"]["messages"]), "the earlier result did not reach the agent")
 

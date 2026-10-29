@@ -1,0 +1,41 @@
+{
+  "note": "Demonstration change rules only, not for clinical use. A result whose change from an earlier result of the same patient and analyte, inside the window, is MORE than maxChange (in the reference unit of the analyte) raises the floor to floorSeverity, like a value range does. The hemoglobin row restates the context rule ctx-acute-drop of the policy (more than 3 g/dL within 24 hours); the others are demonstration limits.",
+  "rules": [
+    {
+      "analyteCode": "718-7",
+      "unit": "g/dL",
+      "maxChange": 3.0,
+      "windowHours": 24,
+      "direction": "fall",
+      "floorSeverity": 3,
+      "source": "synthetic policy rule ctx-acute-drop (acute drop of hemoglobin)"
+    },
+    {
+      "analyteCode": "2823-3",
+      "unit": "mmol/L",
+      "maxChange": 1.5,
+      "windowHours": 24,
+      "direction": "either",
+      "floorSeverity": 3,
+      "source": "synthetic demonstration limit for a rapid change of potassium"
+    },
+    {
+      "analyteCode": "2951-2",
+      "unit": "mmol/L",
+      "maxChange": 8,
+      "windowHours": 24,
+      "direction": "either",
+      "floorSeverity": 3,
+      "source": "synthetic demonstration limit for a rapid change of sodium"
+    },
+    {
+      "analyteCode": "2345-7",
+      "unit": "mmol/L",
+      "maxChange": 11.1,
+      "windowHours": 24,
+      "direction": "either",
+      "floorSeverity": 3,
+      "source": "synthetic demonstration limit for a rapid change of glucose (about 200 mg/dL at 180.156 g/mol)"
+    }
+  ]
+}

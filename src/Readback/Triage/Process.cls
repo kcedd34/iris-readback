@@ -19,6 +19,8 @@ Method OnRequest(pRequest As Readback.Msg.LabResult, Output pResponse As Ens.Res
 	Set tConv = ..Convert(pRequest)
 	Set tEffective = ##class(Readback.Units.Client).Effective(pRequest, tConv)
 	Set tFloor = ##class(Readback.Triage.Floor).Compute(tEffective)
+	// The floor also holds the change rule: a large move from the patient's earlier results raises it like a limit.
+	Do ##class(Readback.Triage.Delta).Apply(pRequest, tEffective, tFloor)
 	// Policy passages and confirmed cases, found by meaning from an identifier-free description of the result.
 	Set tRetr = ..Retrieve(tEffective)
 	Set tText = ##class(Readback.Triage.Context).Build(pRequest, tConv, tRetr)

@@ -193,8 +193,10 @@ def check_report(model, plan, subjects):
     check(agent["NEEDS_REVIEW"] == {"CRITICAL": 0, "RECOLLECT": 0, "NEEDS_REVIEW": 1, "NON_CRITICAL": 0, "none": 1}, "agent matrix, expected NEEDS_REVIEW: %s" % agent["NEEDS_REVIEW"])
     check(agent["NON_CRITICAL"] == {"CRITICAL": 0, "RECOLLECT": 0, "NEEDS_REVIEW": 0, "NON_CRITICAL": 1, "none": 1}, "agent matrix, expected NON_CRITICAL: %s" % agent["NON_CRITICAL"])
     check(model["silencedCriticals"] == 0, "silenced criticals: %s" % model["silencedCriticalIds"])
-    check(len(model["missedCriticals"]) == 1, "exactly one missed critical (a contextual case answered NON_CRITICAL): %s" % model["missedCriticals"])
-    check(model["downgradeAttempts"] == 4, "downgrade attempts (2 explainable, 2 sample-problem): %s" % model["downgradeAttempts"])
+    # The contextual case answered NON_CRITICAL is critical by the change floor, so it is a downgrade attempt that was
+    # held, not a missed critical: no result critical by value or by change is missed.
+    check(len(model["missedCriticals"]) == 0, "no missed critical expected, the contextual case is critical by change: %s" % model["missedCriticals"])
+    check(model["downgradeAttempts"] == 5, "downgrade attempts (2 explainable, 2 sample-problem, 1 contextual held by the change floor): %s" % model["downgradeAttempts"])
     check(model["failureCounts"].get("no-recorded-answer", 0) >= 1, "the case with no recording is not counted: %s" % model["failureCounts"])
     check(model["failureCounts"].get("schema-invalid", 0) == 1, "the invalid answer is not counted as schema-invalid: %s" % model["failureCounts"])
     check(model["costPerThousandUsd"] is not None and model["unknownCostRows"] <= 2, "cost should be known for the recorded model: %s / %s" % (model["costPerThousandUsd"], model["unknownCostRows"]))

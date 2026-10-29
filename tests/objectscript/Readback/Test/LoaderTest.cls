@@ -19,6 +19,7 @@ ClassMethod WriteBase(pBudget As %String = "{""perResultTokens"":6000,""hourlyCo
 {
 	Do ..Write(..#DIR_"/config/analytes.json", "{""analytes"":[{""analyteCode"":""2823-3"",""name"":""Potassium"",""referenceUnit"":""mmol/L""},{""analyteCode"":""2345-7"",""name"":""Glucose"",""referenceUnit"":""mmol/L"",""molarMass"":180.156}]}")
 	Do ..Write(..#DIR_"/config/budget.json", pBudget)
+	Do ..Write(..#DIR_"/config/delta-rules.json", "{""rules"":[{""analyteCode"":""2823-3"",""unit"":""mmol/L"",""maxChange"":1.5,""windowHours"":24,""direction"":""either"",""floorSeverity"":3,""source"":""test table""}]}")
 }
 
 ClassMethod Prices(pPrice As %String = "null") As %String
@@ -46,6 +47,7 @@ Method TestValidLoadAndReload()
 	Do $$$AssertStatusOK(tSC, "valid files load")
 	Do $$$AssertEquals($Get(tCounts("ranges")), 1, "one range loaded")
 	Do $$$AssertEquals($Get(tCounts("prices")), 1, "one price loaded")
+	Do $$$AssertEquals($Get(tCounts("deltaRules")), 1, "one change rule loaded")
 	Do ..Write(..#DIR_"/config/critical-ranges.json", "{""ranges"":["_..Range()_","_$Replace(..Range(), "adult", "child")_"]}")
 	Set tSC = ##class(Readback.Config.Loader).LoadAll(..#DIR, .tCounts)
 	Do $$$AssertEquals($Get(tCounts("ranges")), 2, "reload after an edit picks up the new row")

@@ -14,6 +14,9 @@ ClassMethod LoadAll(pDir As %String = {..#DATADIR}, Output pCounts) As %Status
 	Set tSC = ..LoadRanges(pDir_"/config/critical-ranges.json", .tN)
 	Quit:$$$ISERR(tSC) tSC
 	Set pCounts("ranges") = tN
+	Set tSC = ..LoadDeltaRules(pDir_"/config/delta-rules.json", .tN)
+	Quit:$$$ISERR(tSC) tSC
+	Set pCounts("deltaRules") = tN
 	Set tSC = ..LoadPrices(pDir_"/config/price-table.json", .tN)
 	Quit:$$$ISERR(tSC) tSC
 	Set pCounts("prices") = tN
@@ -94,6 +97,47 @@ ClassMethod LoadRanges(pFile As %String, Output pCount As %Integer) As %Status
 		Set tRange.FloorSeverity = tRow.floorSeverity
 		Set tRange.Source = tRow.source
 		Set tSC = tRange.%Save()
+		If $$$ISERR(tSC) { TRollback  Quit }
+		Set pCount = pCount + 1
+	}
+	If $$$ISOK(tSC) { TCommit }
+	Quit tSC
+}
+
+/// Loads the change rules. Every rule uses the reference unit of its analyte, so a change is always measured in it.
+ClassMethod LoadDeltaRules(pFile As %String, Output pCount As %Integer) As %Status
+{
+	Set pCount = 0
+	Set tSC = ..ReadJSON(pFile, .tDoc)
+	Quit:$$$ISERR(tSC) tSC
+	Set tRows = tDoc.rules
+	If '$IsObject(tRows) Quit $$$ERROR($$$GeneralError, "Change rule table has no 'rules' list")
+	Set tSeen = ""
+	For i = 0:1:tRows.%Size()-1 {
+		Set tRow = tRows.%Get(i), tNo = i + 1
+		Set tMissing = ""
+		For tField = "analyteCode", "unit", "maxChange", "windowHours", "direction", "floorSeverity", "source" {
+			If 'tRow.%IsDefined(tField) { Set tMissing = tField  Quit }
+		}
+		If tMissing '= "" { Set tSC = $$$ERROR($$$GeneralError, "Change rule "_tNo_" is missing required field '"_tMissing_"'")  Quit }
+		If (tRow.%GetTypeOf("maxChange") '= "number") || (tRow.maxChange '> 0) { Set tSC = $$$ERROR($$$GeneralError, "Change rule "_tNo_" has a maxChange that is not a number greater than 0")  Quit }
+		If (tRow.%GetTypeOf("windowHours") '= "number") || (tRow.windowHours < 1) || (tRow.windowHours '= (tRow.windowHours\1)) { Set tSC = $$$ERROR($$$GeneralError, "Change rule "_tNo_" has a windowHours that is not a whole number of at least 1")  Quit }
+		If ",fall,rise,either," '[ (","_tRow.direction_",") { Set tSC = $$$ERROR($$$GeneralError, "Change rule "_tNo_" has an invalid direction '"_tRow.direction_"'")  Quit }
+		If (tRow.floorSeverity < 0) || (tRow.floorSeverity > 3) { Set tSC = $$$ERROR($$$GeneralError, "Change rule "_tNo_" has floorSeverity outside 0 to 3")  Quit }
+		If tSeen [ (","_tRow.analyteCode_",") { Set tSC = $$$ERROR($$$GeneralError, "Change rule "_tNo_" repeats analyte "_tRow.analyteCode)  Quit }
+		Set tSeen = tSeen_","_tRow.analyteCode_","
+		If '##class(Readback.Config.Analyte).CodeIdxExists(tRow.analyteCode, .tAnalyteId) { Set tSC = $$$ERROR($$$GeneralError, "Change rule "_tNo_" names analyte "_tRow.analyteCode_", which is not in the analyte table")  Quit }
+		If ##class(Readback.Config.Analyte).%OpenId(tAnalyteId).ReferenceUnit '= tRow.unit { Set tSC = $$$ERROR($$$GeneralError, "Change rule "_tNo_" uses unit '"_tRow.unit_"' but the reference unit of analyte "_tRow.analyteCode_" is '"_##class(Readback.Config.Analyte).%OpenId(tAnalyteId).ReferenceUnit_"'")  Quit }
+	}
+	Quit:$$$ISERR(tSC) tSC
+	TStart
+	Do ##class(Readback.Config.DeltaRule).%KillExtent()
+	For i = 0:1:tRows.%Size()-1 {
+		Set tRow = tRows.%Get(i)
+		Set tRule = ##class(Readback.Config.DeltaRule).%New()
+		Set tRule.AnalyteCode = tRow.analyteCode, tRule.Unit = tRow.unit, tRule.MaxChange = tRow.maxChange, tRule.WindowHours = tRow.windowHours
+		Set tRule.Direction = tRow.direction, tRule.FloorSeverity = tRow.floorSeverity, tRule.Source = tRow.source
+		Set tSC = tRule.%Save()
 		If $$$ISERR(tSC) { TRollback  Quit }
 		Set pCount = pCount + 1
 	}

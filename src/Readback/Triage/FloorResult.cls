@@ -14,4 +14,8 @@ Property Note As %String(MAXLEN = 300);
 /// True when the unit is not in the rule table for this analyte.
 Property UnitUnknown As %Boolean [ InitialExpression = 0 ];
 
+/// True when a change from the patient's earlier results met the change rule of the analyte (whether or not the
+/// value limits were critical as well).
+Property DeltaTriggered As %Boolean [ InitialExpression = 0 ];
+
 }
