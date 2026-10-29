@@ -1,0 +1,4 @@
+{
+  "settings": "temperature 0; strict JSON schema; output cap 400 tokens; model gpt-5.4",
+  "ceilings": "per result 10000 tokens; per hour 20 USD or 10000000 tokens"
+}
