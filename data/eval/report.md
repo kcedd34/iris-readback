@@ -1,6 +1,6 @@
 # Evaluation report
 
-Dataset seed 2026, 240 subject cases per model, prompt version triage-v2, run date 2026-10-28.
+Dataset seed 2026, 240 subject cases per model, prompt version triage-v2, run date 2026-10-29.
 
 How to read it. Each case went through the whole product (floor, retrieval, agent, composition, budget). The agent matrix compares the decision the agent answered with the expected one; `none` means no valid answer (invalid, refused, timed out, provider error, budget skipped) or a case that was never processed. The final matrix compares the route the product chose (read-back is CRITICAL, recollect is RECOLLECT, review is NEEDS_REVIEW, release is NON_CRITICAL). A silenced critical is a result critical by the rule table whose final route is not read-back; it must be zero. A missed critical is an expected-critical result that was not critical by rule and that no layer sent to read-back: an error of the agent, listed by case. A downgrade attempt is a rule-critical result for which the agent answered less than critical (the composition keeps it critical).
 
@@ -23,7 +23,7 @@ Run settings: temperature 0; strict JSON schema; output cap 400 tokens; model gp
 
 | expected \ decided | CRITICAL | RECOLLECT | NEEDS_REVIEW | NON_CRITICAL | none |
 |---|---|---|---|---|---|
-| CRITICAL | 126 | 0 | 5 | 19 | 0 |
+| CRITICAL | 148 | 0 | 0 | 2 | 0 |
 | RECOLLECT | 0 | 0 | 30 | 0 | 0 |
 | NEEDS_REVIEW | 0 | 0 | 30 | 0 | 0 |
 | NON_CRITICAL | 0 | 0 | 0 | 30 | 0 |
@@ -31,11 +31,11 @@ Run settings: temperature 0; strict JSON schema; output cap 400 tokens; model gp
 ### Figures
 
 - Silenced criticals: **0**
-- Missed criticals (expected CRITICAL, not critical by rule, not sent to read-back): 24 (RB2026-00002, RB2026-00018, RB2026-00026, RB2026-00034, RB2026-00042, RB2026-00050, RB2026-00058, RB2026-00066, RB2026-00082, RB2026-00090, RB2026-00098, RB2026-00106, RB2026-00122, RB2026-00130, RB2026-00138, RB2026-00154, RB2026-00170, RB2026-00186, RB2026-00194, RB2026-00202, RB2026-00210, RB2026-00218, RB2026-00226, RB2026-00234)
-- Downgrade attempts by the agent on rule-critical results: 2
+- Missed criticals (expected CRITICAL, not critical by rule, not sent to read-back): 2 (RB2026-00034, RB2026-00122)
+- Downgrade attempts by the agent on rule-critical results: 24
 - Cost per thousand results (USD): 0.9555 (rows of unknown cost: 0)
 - Latency p50 / p95 (ms, recorded): 1127 / 1553
-- Invalid answer rate: 0.0%; human review rate: 18.4%; rule-versus-agent divergence rate: 5.6%
+- Invalid answer rate: 0.0%; human review rate: 17.3%; rule-versus-agent divergence rate: 9.6%
 - Agent calls: 446 of 446 messages; failures by kind: none
 - Subject cases never processed: 0
 
@@ -44,7 +44,7 @@ Run settings: temperature 0; strict JSON schema; output cap 400 tokens; model gp
 | acute-drop-in-range | 30 | 30 | 30 |
 | ambiguous | 30 | 0 | 30 |
 | clear-critical | 30 | 28 | 30 |
-| contextual-critical | 30 | 6 | 6 |
+| contextual-critical | 30 | 6 | 28 |
 | explainable-false-critical | 30 | 30 | 30 |
 | normal | 30 | 30 | 30 |
 | recollect | 30 | 29 | 0 |
@@ -69,7 +69,7 @@ Run settings: temperature 0; strict JSON schema; output cap 400 tokens; model gp
 
 | expected \ decided | CRITICAL | RECOLLECT | NEEDS_REVIEW | NON_CRITICAL | none |
 |---|---|---|---|---|---|
-| CRITICAL | 132 | 0 | 11 | 7 | 0 |
+| CRITICAL | 148 | 0 | 0 | 2 | 0 |
 | RECOLLECT | 0 | 0 | 30 | 0 | 0 |
 | NEEDS_REVIEW | 0 | 0 | 30 | 0 | 0 |
 | NON_CRITICAL | 0 | 0 | 0 | 30 | 0 |
@@ -77,11 +77,11 @@ Run settings: temperature 0; strict JSON schema; output cap 400 tokens; model gp
 ### Figures
 
 - Silenced criticals: **0**
-- Missed criticals (expected CRITICAL, not critical by rule, not sent to read-back): 18 (RB2026-00002, RB2026-00018, RB2026-00026, RB2026-00034, RB2026-00042, RB2026-00050, RB2026-00058, RB2026-00082, RB2026-00098, RB2026-00106, RB2026-00122, RB2026-00130, RB2026-00138, RB2026-00186, RB2026-00194, RB2026-00202, RB2026-00218, RB2026-00226)
-- Downgrade attempts by the agent on rule-critical results: 2
+- Missed criticals (expected CRITICAL, not critical by rule, not sent to read-back): 2 (RB2026-00034, RB2026-00122)
+- Downgrade attempts by the agent on rule-critical results: 18
 - Cost per thousand results (USD): 3.3272 (rows of unknown cost: 0)
 - Latency p50 / p95 (ms, recorded): 2042 / 2506
-- Invalid answer rate: 0.0%; human review rate: 18.4%; rule-versus-agent divergence rate: 4.0%
+- Invalid answer rate: 0.0%; human review rate: 15.7%; rule-versus-agent divergence rate: 6.5%
 - Agent calls: 446 of 446 messages; failures by kind: none
 - Subject cases never processed: 0
 
@@ -90,7 +90,7 @@ Run settings: temperature 0; strict JSON schema; output cap 400 tokens; model gp
 | acute-drop-in-range | 30 | 30 | 30 |
 | ambiguous | 30 | 0 | 30 |
 | clear-critical | 30 | 28 | 30 |
-| contextual-critical | 30 | 12 | 12 |
+| contextual-critical | 30 | 12 | 28 |
 | explainable-false-critical | 30 | 30 | 30 |
 | normal | 30 | 30 | 30 |
 | recollect | 30 | 30 | 0 |
@@ -104,7 +104,7 @@ Run settings: temperature 0; strict JSON schema; output cap 400 tokens; model gp
 | Latency p50 (ms) | 1127 | 2042 | 2231 |
 | Latency p95 (ms) | 1553 | 2506 | 3268 |
 | Invalid answer rate | 0.0% | 0.0% | n/a |
-| Human review rate | 18.4% | 18.4% | n/a |
+| Human review rate | 17.3% | 15.7% | n/a |
 | Silenced criticals | 0 | 0 | n/a |
 
 ## Limits

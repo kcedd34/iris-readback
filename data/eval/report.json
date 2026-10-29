@@ -13,7 +13,7 @@
     "promptVersions": [
       "triage-v2"
     ],
-    "runDate": "2026-10-28",
+    "runDate": "2026-10-29",
     "seed": 2026,
     "subjectCases": 240
   },
@@ -38,7 +38,7 @@
         "contextual-critical": {
           "agentAgrees": 12,
           "cases": 30,
-          "finalAgrees": 12
+          "finalAgrees": 28
         },
         "explainable-false-critical": {
           "agentAgrees": 30,
@@ -64,8 +64,8 @@
       "budgetCeilings": "per result 10000 tokens; per hour 20 USD or 10000000 tokens",
       "callCount": 446,
       "costPerThousandUsd": 3.32722,
-      "divergenceRate": 0.040359,
-      "downgradeAttempts": 2,
+      "divergenceRate": 0.065022,
+      "downgradeAttempts": 18,
       "failureCounts": {},
       "invalidRate": 0.0,
       "latencyP50Ms": 2042,
@@ -102,9 +102,9 @@
       },
       "matrixFinal": {
         "CRITICAL": {
-          "CRITICAL": 132,
-          "NEEDS_REVIEW": 11,
-          "NON_CRITICAL": 7,
+          "CRITICAL": 148,
+          "NEEDS_REVIEW": 0,
+          "NON_CRITICAL": 2,
           "RECOLLECT": 0,
           "none": 0
         },
@@ -131,24 +131,8 @@
         }
       },
       "missedCriticals": [
-        "RB2026-00002",
-        "RB2026-00018",
-        "RB2026-00026",
         "RB2026-00034",
-        "RB2026-00042",
-        "RB2026-00050",
-        "RB2026-00058",
-        "RB2026-00082",
-        "RB2026-00098",
-        "RB2026-00106",
-        "RB2026-00122",
-        "RB2026-00130",
-        "RB2026-00138",
-        "RB2026-00186",
-        "RB2026-00194",
-        "RB2026-00202",
-        "RB2026-00218",
-        "RB2026-00226"
+        "RB2026-00122"
       ],
       "missingSubjects": [],
       "model": "gpt-5.4",
@@ -160,7 +144,7 @@
       "promptVersions": [
         "triage-v2"
       ],
-      "reviewRate": 0.183857,
+      "reviewRate": 0.156951,
       "rowCount": 446,
       "runSettings": "temperature 0; strict JSON schema; output cap 400 tokens; model gpt-5.4",
       "silencedCriticalIds": [],
@@ -188,7 +172,7 @@
         "contextual-critical": {
           "agentAgrees": 6,
           "cases": 30,
-          "finalAgrees": 6
+          "finalAgrees": 28
         },
         "explainable-false-critical": {
           "agentAgrees": 30,
@@ -214,8 +198,8 @@
       "budgetCeilings": "per result 10000 tokens; per hour 20 USD or 10000000 tokens",
       "callCount": 446,
       "costPerThousandUsd": 0.955547,
-      "divergenceRate": 0.056054,
-      "downgradeAttempts": 2,
+      "divergenceRate": 0.096413,
+      "downgradeAttempts": 24,
       "failureCounts": {},
       "invalidRate": 0.0,
       "latencyP50Ms": 1127,
@@ -252,9 +236,9 @@
       },
       "matrixFinal": {
         "CRITICAL": {
-          "CRITICAL": 126,
-          "NEEDS_REVIEW": 5,
-          "NON_CRITICAL": 19,
+          "CRITICAL": 148,
+          "NEEDS_REVIEW": 0,
+          "NON_CRITICAL": 2,
           "RECOLLECT": 0,
           "none": 0
         },
@@ -281,30 +265,8 @@
         }
       },
       "missedCriticals": [
-        "RB2026-00002",
-        "RB2026-00018",
-        "RB2026-00026",
         "RB2026-00034",
-        "RB2026-00042",
-        "RB2026-00050",
-        "RB2026-00058",
-        "RB2026-00066",
-        "RB2026-00082",
-        "RB2026-00090",
-        "RB2026-00098",
-        "RB2026-00106",
-        "RB2026-00122",
-        "RB2026-00130",
-        "RB2026-00138",
-        "RB2026-00154",
-        "RB2026-00170",
-        "RB2026-00186",
-        "RB2026-00194",
-        "RB2026-00202",
-        "RB2026-00210",
-        "RB2026-00218",
-        "RB2026-00226",
-        "RB2026-00234"
+        "RB2026-00122"
       ],
       "missingSubjects": [],
       "model": "gpt-5.4-mini",
@@ -316,7 +278,7 @@
       "promptVersions": [
         "triage-v2"
       ],
-      "reviewRate": 0.183857,
+      "reviewRate": 0.172646,
       "rowCount": 446,
       "runSettings": "temperature 0; strict JSON schema; output cap 400 tokens; model gpt-5.4-mini",
       "silencedCriticalIds": [],
