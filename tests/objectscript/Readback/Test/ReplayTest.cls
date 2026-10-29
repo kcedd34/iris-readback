@@ -160,6 +160,45 @@ Method TestALatencyThatIsNotANonNegativeIntegerIsRejected()
 	Do ##class(%File).Delete(tFile)
 }
 
+Method TestFailureRowsLoadWithoutAnAnswer()
+{
+	Set tFile = "/tmp/readback-replay-failure.jsonl"
+	Set tStream = ##class(%Stream.FileCharacter).%New()
+	Do tStream.LinkToFile(tFile)
+	Do tStream.WriteLine("{""messageControlId"":""RP-ERR"",""promptVersion"":""triage-v1"",""replaySet"":""unit-fail"",""answer"":"""",""failureKind"":""provider-error"",""failureReason"":""provider said no"",""model"":""m"",""inputTokens"":0,""outputTokens"":0,""latencyMs"":900,""source"":""recorded""}")
+	Do tStream.WriteLine("{""messageControlId"":""RP-NONE"",""promptVersion"":""triage-v1"",""replaySet"":""unit-fail"",""answer"":"""",""model"":""m"",""source"":""recorded""}")
+	Do tStream.%Save()
+	Do $$$AssertStatusNotOK(##class(Readback.Replay.Recording).LoadFile(tFile, .tN), "a row with neither an answer nor a failure kind is rejected")
+	Do tStream.Rewind()
+	Do tStream.Clear()
+	Do tStream.WriteLine("{""messageControlId"":""RP-ERR"",""promptVersion"":""triage-v1"",""replaySet"":""unit-fail"",""answer"":"""",""failureKind"":""provider-error"",""failureReason"":""provider said no"",""model"":""m"",""inputTokens"":0,""outputTokens"":0,""latencyMs"":900,""source"":""recorded""}")
+	Do tStream.%Save()
+	Do $$$AssertStatusOK(##class(Readback.Replay.Recording).LoadFile(tFile, .tN), "a failure row loads")
+	Do ##class(Readback.Replay.Recording).Activate("unit-fail")
+	Set tRec = ##class(Readback.Replay.Recording).Lookup("RP-ERR", "triage-v1")
+	Do $$$AssertEquals(tRec.FailureKind, "provider-error", "the failure kind is kept")
+	Do $$$AssertEquals(tRec.FailureReason, "provider said no", "the failure reason is kept")
+	Do ##class(Readback.Replay.Recording).Activate("default")
+	Do ##class(%File).Delete(tFile)
+}
+
+Method TestTheShippedFileRejectsFixtureRows()
+{
+	Set tFile = "/tmp/readback-replay-shipped.jsonl"
+	Set tStream = ##class(%Stream.FileCharacter).%New()
+	Do tStream.LinkToFile(tFile)
+	Do tStream.WriteLine("{""messageControlId"":""RP-S1"",""promptVersion"":""triage-v1"",""replaySet"":""unit-ship"",""answer"":""{}"",""model"":""m"",""source"":""recorded""}")
+	Do tStream.WriteLine("{""messageControlId"":""RP-S2"",""promptVersion"":""triage-v1"",""replaySet"":""unit-ship"",""answer"":""{}"",""model"":""m"",""source"":""fixture""}")
+	Do tStream.%Save()
+	Set tSC = ##class(Readback.Replay.Recording).LoadFile(tFile, .tN, 1)
+	Do $$$AssertStatusNotOK(tSC, "a fixture row in the shipped file is rejected")
+	Do $$$AssertTrue($System.Status.GetErrorText(tSC) [ "row 2", "the message names the row")
+	&sql(SELECT COUNT(*) INTO :tCount FROM Readback_Replay.Recording WHERE ReplaySet = 'unit-ship')
+	Do $$$AssertEquals(tCount, 0, "a rejected file loads nothing")
+	Do $$$AssertStatusOK(##class(Readback.Replay.Recording).LoadFile(tFile, .tN), "the same file loads as a test file")
+	Do ##class(%File).Delete(tFile)
+}
+
 Method TestMalformedFileIsRejected()
 {
 	Set tFile = "/tmp/readback-replay-bad.jsonl"

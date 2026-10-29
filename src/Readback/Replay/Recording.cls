@@ -21,6 +21,12 @@ Property OutputTokens As %Integer;
 /// The latency in milliseconds of the real call the recording was taken from. Empty for a row without one.
 Property LatencyMs As %Integer;
 
+/// Empty for an answer. provider-error, timeout or empty-output when the live call failed: replay reproduces the failure.
+Property FailureKind As %String(VALUELIST = ",provider-error,timeout,empty-output");
+
+/// The reason of the failure as the trace holds it (redacted); empty for an answer.
+Property FailureReason As %String(MAXLEN = 1000);
+
 Property Source As %String(VALUELIST = ",fixture,recorded") [ InitialExpression = "fixture" ];
 
 Index KeyIdx On (ReplaySet, MessageControlId, PromptVersion) [ Unique ];
@@ -57,7 +63,7 @@ ClassMethod Lookup(pControlId As %String, pPromptVersion As %String) As Readback
 }
 
 /// Replaces every recording of the sets present in a JSON Lines file with the file's rows.
-ClassMethod LoadFile(pFile As %String, Output pCount As %Integer) As %Status
+ClassMethod LoadFile(pFile As %String, Output pCount As %Integer, pRejectFixtures As %Boolean = 0) As %Status
 {
 	Set pCount = 0
 	Quit:'##class(%File).Exists(pFile) $$$ERROR($$$GeneralError, "Recordings file not found: "_pFile)
@@ -84,6 +90,13 @@ ClassMethod LoadFile(pFile As %String, Output pCount As %Integer) As %Status
 		If tObj.%IsDefined("latencyMs") && (tObj.latencyMs '= "") && ((tObj.latencyMs '= +tObj.latencyMs) || (tObj.latencyMs < 0) || (tObj.latencyMs '= (tObj.latencyMs \ 1))) { Set tBadLatency = tRows }
 	}
 	If tBadLine Quit $$$ERROR($$$GeneralError, "Recordings file line "_tBadLine_" is not valid JSON")
+	If pRejectFixtures {
+		Set tFixture = 0
+		For i = 1:1:tRows {
+			If tRows(i).source '= "recorded" { Set tFixture = i  Quit }
+		}
+		If tFixture { Quit $$$ERROR($$$GeneralError, "Recordings file row "_tFixture_": the shipped recordings hold only recorded answers, not source """_tRows(tFixture).source_"""") }
+	}
 	If tBadLatency Quit $$$ERROR($$$GeneralError, "Recordings file row "_tBadLatency_": latencyMs must be a non-negative integer")
 	TStart
 	Set tSet = ""
@@ -92,7 +105,7 @@ ClassMethod LoadFile(pFile As %String, Output pCount As %Integer) As %Status
 	}
 	For i = 1:1:tRows {
 		Set tObj = tRows(i)
-		If (tObj.messageControlId = "") || (tObj.promptVersion = "") || (tObj.answer = "") {
+		If (tObj.messageControlId = "") || (tObj.promptVersion = "") || ((tObj.answer = "") && (tObj.failureKind = "")) {
 			TRollback
 			Quit
 		}
@@ -105,13 +118,14 @@ ClassMethod LoadFile(pFile As %String, Output pCount As %Integer) As %Status
 		Set tRec.InputTokens = tObj.inputTokens
 		Set tRec.OutputTokens = tObj.outputTokens
 		Set tRec.LatencyMs = $Select(tObj.%IsDefined("latencyMs"):tObj.latencyMs, 1:"")
+		Set tRec.FailureKind = tObj.failureKind, tRec.FailureReason = tObj.failureReason
 		Set tRec.Source = $Select(tObj.source'="":tObj.source, 1:"fixture")
 		Set tSC = tRec.%Save()
 		If $$$ISERR(tSC) { TRollback  Quit }
 		Set pCount = pCount + 1
 	}
 	If $$$ISERR(tSC) Quit tSC
-	If pCount '= tRows { Quit $$$ERROR($$$GeneralError, "A recording row is missing messageControlId, promptVersion or answer") }
+	If pCount '= tRows { Quit $$$ERROR($$$GeneralError, "A recording row is missing messageControlId, promptVersion or answer (or a failure kind)") }
 	TCommit
 	Quit $$$OK
 }
@@ -145,6 +159,12 @@ Storage Default
 </Value>
 <Value name="9">
 <Value>LatencyMs</Value>
+</Value>
+<Value name="10">
+<Value>FailureKind</Value>
+</Value>
+<Value name="11">
+<Value>FailureReason</Value>
 </Value>
 </Data>
 <DataLocation>^Readback.Replay.RecordingD</DataLocation>

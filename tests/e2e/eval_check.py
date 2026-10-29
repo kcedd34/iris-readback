@@ -6,6 +6,7 @@ Builds a small dataset (2 cases per category) and test-only recordings in a repl
 attempts listed, a case with no recording counted and not dropped, recorded latency (not measured) in the export, and a second
 run on a cleaned state giving a byte-identical report. Nothing is written to data/eval or to the shipped recordings.
 """
+import glob
 import json
 import os
 import subprocess
@@ -143,7 +144,41 @@ def main():
     wipe_state()
     iris('set rs=##class(%SQL.Statement).%ExecDirect(,"DELETE FROM Readback_Replay.Recording WHERE ReplaySet = \'eval-test\'")\n'
          'do ##class(Readback.Replay.Recording).Activate("default")\nwrite "RB_CLEAN",!')
+    check_shipped_replay()
     return finish()
+
+
+def check_shipped_replay():
+    """The shipped recordings come from real runs and reproduce the published report (FR-015, SC-003, SC-005)."""
+    shipped = os.path.join(ROOT, "data", "replay", "recordings.jsonl")
+    rows = [json.loads(l) for l in open(shipped) if l.strip()]
+    check(rows and not any(r.get("source") != "recorded" for r in rows), "the shipped recordings hold a row that is not a recorded answer")
+    published = json.load(open(os.path.join(ROOT, "data", "eval", "report.json")))
+    # Every shipped sample result has a recording of the real run in the default set.
+    ids = {r["messageControlId"] for r in rows if r.get("replaySet") == "default"}
+    for path in sorted(glob.glob(os.path.join(ROOT, "data", "samples", "**", "*.hl7"), recursive=True)):
+        text = open(path, errors="ignore").read().replace("\r", "\n")
+        if "ORU" not in text.split("\n")[0] or os.path.basename(path).startswith("invalid-"):
+            continue  # a message that carries no result never reaches the agent
+        mid = text.split("\n")[0].split("|")[9]
+        check(mid in ids, "the shipped sample %s has no recording" % os.path.basename(path))
+    for replay_set, model in (("default", "gpt-5.4"), ("gpt-5.4-mini", "gpt-5.4-mini")):
+        wipe_state()
+        with tempfile.TemporaryDirectory() as work:
+            env = dict(os.environ, EVAL_OUT=os.path.join(work, "out"), EVAL_WORK=os.path.join(work, "run"), PYTHON=PYTHON, OPENAI_API_KEY="")
+            code, out = run_replay_set(env, replay_set)
+            check(code == 0, "the replay of %s failed (%s): %s" % (replay_set, code, out[-300:]))
+            path = os.path.join(work, "out", "report.json")
+            if os.path.exists(path):
+                again = json.load(open(path))["models"].get(model)
+                check(again == published["models"].get(model), "the replay of %s differs from the published report" % replay_set)
+    wipe_state()
+    iris('do ##class(Readback.Replay.Recording).Activate("default")\nwrite "RB_CLEAN",!')
+
+
+def run_replay_set(env, replay_set):
+    proc = subprocess.run([os.path.join(ROOT, "src/ops/evaluate.sh"), "replay", replay_set], cwd=ROOT, capture_output=True, text=True, env=env, timeout=1800)
+    return proc.returncode, proc.stdout + proc.stderr
 
 
 def check_report(model, plan, subjects):

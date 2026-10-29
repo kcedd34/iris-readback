@@ -27,7 +27,7 @@ ClassMethod LoadAll(pDir As %String = {..#DATADIR}, Output pCounts) As %Status
 		Set pCounts("escalation") = $Select($$$ISOK(tEsc):##class(Readback.Notify.Escalation).Levels(), 1:0)
 	}
 	If ##class(%File).Exists(pDir_"/replay/recordings.jsonl") {
-		Set tSC = ##class(Readback.Replay.Recording).LoadFile(pDir_"/replay/recordings.jsonl", .tN)
+		Set tSC = ##class(Readback.Replay.Recording).LoadFile(pDir_"/replay/recordings.jsonl", .tN, 1)
 		Quit:$$$ISERR(tSC) tSC
 		Set pCounts("recordings") = tN
 	}

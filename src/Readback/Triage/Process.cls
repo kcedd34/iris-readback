@@ -117,6 +117,21 @@ Method CallAgent(pText As %String, pMode As %String) As Readback.Triage.AgentOut
 	Set tRequest.TextMessage = ##class(EnsLib.AI.Content.Text).%New()
 	Set tRequest.TextMessage.String = pText
 	Set tStart = $ZHorolog
+	// A recording of a failed live call is handed back as that failure, without a request: the replay of a run
+	// equals the run, failures included.
+	Set tRecording = $Select(pMode="replay":##class(Readback.Agent.ReplayOperation).Find(pText), 1:"")
+	If $IsObject(tRecording) && (tRecording.FailureKind '= "") {
+		Set tOutcome.Model = tRecording.Model, tOutcome.RecordedLatencyMs = tRecording.LatencyMs
+		Set tOutcome.LatencyMs = $Justify(($ZHorolog - tStart) * 1000, 0, 0)
+		If tRecording.FailureKind = "timeout" {
+			Set tOutcome.TimedOut = 1
+		} ElseIf tRecording.FailureKind = "provider-error" {
+			Set tOutcome.Status = $System.Status.Error(5001, tRecording.FailureReason)
+		} Else {
+			Set tOutcome.Content = "", tOutcome.InputTokens = +tRecording.InputTokens, tOutcome.OutputTokens = +tRecording.OutputTokens
+		}
+		Quit tOutcome
+	}
 	Try {
 		Set tSC = ..SendRequestSync(tTarget, tRequest, .tResponse, ..AgentTimeoutSeconds)
 	} Catch ex {
@@ -125,12 +140,9 @@ Method CallAgent(pText As %String, pMode As %String) As Readback.Triage.AgentOut
 	Set tOutcome.LatencyMs = $Justify(($ZHorolog - tStart) * 1000, 0, 0)
 	Set tOutcome.Model = ..ModelOf(pMode)
 	// In replay the trace names the model of the recording and keeps the latency of the original call.
-	If pMode = "replay" {
-		Set tRecording = ##class(Readback.Agent.ReplayOperation).Find(pText)
-		If $IsObject(tRecording) {
-			Set:tRecording.Model'="" tOutcome.Model = tRecording.Model
-			Set tOutcome.RecordedLatencyMs = tRecording.LatencyMs
-		}
+	If $IsObject(tRecording) {
+		Set:tRecording.Model'="" tOutcome.Model = tRecording.Model
+		Set tOutcome.RecordedLatencyMs = tRecording.LatencyMs
 	}
 	// A call that ran out of time returns without a response and without an error status.
 	If $System.Status.IsOK(tSC) && '$IsObject($Get(tResponse)) {

@@ -181,6 +181,30 @@ def main():
     if calm:
         check(calm[-1]["FailureKind"] == "no-recorded-answer" and calm[-1]["Route"] == "review" and calm[-1]["FailureReason"] == "no recorded answer", "no recording, not critical: %s" % calm[-1])
 
+    # Failures recorded from a live run are replayed as the same failures: provider error, timeout, empty answer.
+    ftag = "RPF%d" % (int(time.time()) % 100000)
+    failing = {ftag + "-ERR": ("provider-error", "provider said no", "6.9"), ftag + "-TMO": ("timeout", "no answer within 30 seconds", "4.0"),
+               ftag + "-EMP": ("empty-output", "", "4.0")}
+    lines = [DELETE_STANDINS.replace("standin", "standinfail")]
+    for mid, (kind, reason, _) in failing.items():
+        lines.append('set r=##class(Readback.Replay.Recording).%New()  set r.ReplaySet="standinfail", r.MessageControlId="' + mid + '", r.PromptVersion=##class(Readback.Triage.Prompt).#Version, r.AnswerText="", r.Model="fixture", r.InputTokens=0, r.OutputTokens=0, r.LatencyMs=2500, r.FailureKind="'
+                     + kind + '", r.FailureReason="' + reason + '", r.Source="recorded"  do r.%Save()')
+    lines.append('write "RB_FAILREC_OK",!')
+    check("RB_FAILREC_OK" in iris("\n".join(lines)) and activate("standinfail"), "the failure recordings could not be loaded")
+    send([oru(mid, "SYN96001%02d" % i, "2823-3", "Potassium", v, "mmol/L").encode("ascii") for i, (mid, (_, _, v)) in enumerate(failing.items())])
+    got = {mid: wait_for(lambda m=mid: traces(m), 30) for mid in failing}
+    if all(got.values()):
+        e, t, m = got[ftag + "-ERR"][-1], got[ftag + "-TMO"][-1], got[ftag + "-EMP"][-1]
+        check(e["FailureKind"] == "provider-error" and e["FailureReason"] == "ERROR #5001: provider said no" and e["Route"] == "readback" and e["FinalSeverity"] == "3",
+              "a recorded provider error was not replayed as one (rule-critical stays critical): %s" % e)
+        check(t["FailureKind"] == "timeout" and t["Route"] == "review" and t["FailureReason"].startswith("no answer within "), "a recorded timeout was not replayed as one: %s" % t)
+        check(m["FailureKind"] == "empty-or-refused" and m["Route"] == "review", "a recorded empty answer was not replayed as one: %s" % m)
+        check(all(x["RecordedLatencyMs"] == "2500" and x["Mode"] == "replay" for x in (e, t, m)), "the recorded latency of a failed call was not kept")
+    else:
+        check(False, "the failure cases did not reach a decision: %s" % {k: bool(v) for k, v in got.items()})
+    iris(DELETE_STANDINS.replace("standin", "standinfail") + '\nwrite "RB_GONE",!')
+    check(activate("default"), "the default replay set could not be selected again")
+
     # The decision endpoint serves the trace and says replay.
     status, text = api("/decisions/RBSAMPLE0001")
     check(status == 200 and json.loads(text)["mode"] == "replay" and json.loads(text)["provider"] == "replay", "the decision endpoint did not state replay: %s" % text[:150])

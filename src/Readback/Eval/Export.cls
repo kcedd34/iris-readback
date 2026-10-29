@@ -12,7 +12,7 @@ ClassMethod Rows(pFile As %String, pMessageIdPrefix As %String = "", Output pCou
 	Set tStream.TranslateTable = "UTF8"
 	Set tSC = tStream.LinkToFile(pFile)
 	Quit:$System.Status.IsError(tSC) tSC
-	Set tSQL = "SELECT MessageControlId, Mode, Model, PromptVersion, AgentCalled, SchemaValid, FailureKind, FloorSeverity, AgentDecision, AgentSeverity, FinalSeverity, Route, Divergence, InputTokens, OutputTokens, CostUsd, CostKnown, LatencyMs, RecordedLatencyMs, RawOutput FROM Readback_Trace.Decision"
+	Set tSQL = "SELECT MessageControlId, Mode, Model, PromptVersion, AgentCalled, SchemaValid, FailureKind, FailureReason, FloorSeverity, AgentDecision, AgentSeverity, FinalSeverity, Route, Divergence, InputTokens, OutputTokens, CostUsd, CostKnown, LatencyMs, RecordedLatencyMs, RawOutput FROM Readback_Trace.Decision"
 	If pMessageIdPrefix '= "" { Set tRS = ##class(%SQL.Statement).%ExecDirect(, tSQL_" WHERE MessageControlId %STARTSWITH ? ORDER BY ID", pMessageIdPrefix) }
 	Else { Set tRS = ##class(%SQL.Statement).%ExecDirect(, tSQL_" ORDER BY ID") }
 	Quit:tRS.%SQLCODE<0 $System.Status.Error(5001, "the trace could not be read (SQLCODE "_tRS.%SQLCODE_")")
@@ -22,6 +22,7 @@ ClassMethod Rows(pFile As %String, pMessageIdPrefix As %String = "", Output pCou
 		Set tObj.mode = tRS.%Get("Mode"), tObj.model = tRS.%Get("Model"), tObj.promptVersion = tRS.%Get("PromptVersion")
 		Do tObj.%Set("agentCalled", +tRS.%Get("AgentCalled"), "boolean"), tObj.%Set("schemaValid", +tRS.%Get("SchemaValid"), "boolean")
 		Set tObj.failureKind = ##class(Readback.Config.Mode).Redact(tRS.%Get("FailureKind"))
+		Set tObj.failureReason = ##class(Readback.Config.Mode).Redact(tRS.%Get("FailureReason"))
 		Set tObj.floorSeverity = +tRS.%Get("FloorSeverity")
 		Set tObj.agentDecision = tRS.%Get("AgentDecision")
 		Do:tRS.%Get("AgentSeverity")'="" tObj.%Set("agentSeverity", +tRS.%Get("AgentSeverity"), "number")

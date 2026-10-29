@@ -20,14 +20,32 @@ def live(mid, raw='{"decision":"CRITICAL"}', called=1, valid=1, **extra):
 
 def test_a_recording_has_exactly_the_listed_fields():
     rows = record.from_rows([live("A")], "default")
-    assert set(rows[0]) == set(record.FIELDS)
+    assert set(rows[0]) == set(record.FIELDS) - {"failureKind", "failureReason"}
     assert rows[0]["source"] == "recorded" and rows[0]["answer"] == '{"decision":"CRITICAL"}' and rows[0]["latencyMs"] == 2231
     assert rows[0]["replaySet"] == "default" and rows[0]["model"] == "m-large" and rows[0]["inputTokens"] == 708
 
 
-def test_a_call_with_no_output_is_not_recorded_but_an_invalid_answer_is():
-    rows = record.from_rows([live("OK"), live("EMPTY", raw=""), live("SKIPPED", called=0, raw=""), live("INVALID", raw="not json", valid=0)], "default")
+def test_an_invalid_answer_is_recorded_as_it_came_and_a_call_the_budget_skipped_is_not():
+    rows = record.from_rows([live("OK"), live("SKIPPED", called=0, raw=""), live("INVALID", raw="not json", valid=0)], "default")
     assert [r["messageControlId"] for r in rows] == ["OK", "INVALID"]
+    assert all("failureKind" not in r for r in rows)
+
+
+def test_failed_calls_are_recorded_as_failures_with_the_fixed_reason():
+    rows = record.from_rows([
+        live("ERR", raw="", failureKind="provider-error", failureReason="ERROR #5001: ERROR #5001: provider said no", inputTokens=0, outputTokens=0),
+        live("SLOW", raw="", failureKind="timeout", failureReason="no answer within 30 seconds", latencyMs=30010),
+        live("EMPTY", raw="", failureKind="empty-or-refused", failureReason="empty answer")], "default")
+    by_id = {r["messageControlId"]: r for r in rows}
+    assert by_id["ERR"]["failureKind"] == "provider-error" and by_id["ERR"]["answer"] == ""
+    assert by_id["ERR"]["failureReason"] == "ERROR #5001: provider said no", "one prefix the product adds is removed"
+    assert by_id["SLOW"]["failureKind"] == "timeout" and by_id["SLOW"]["latencyMs"] == 30010
+    assert by_id["EMPTY"]["failureKind"] == "empty-output"
+
+
+def test_a_credential_in_a_failure_reason_is_refused():
+    with pytest.raises(ValueError):
+        record.from_rows([live("E", raw="", failureKind="provider-error", failureReason="ERROR #5001: sk-proj-abcdefghijklmnop")], "default")
 
 
 @pytest.mark.parametrize("value", ["sk-proj-abcdefghijklmnop", "Bearer abcdefghijklmnop0123", "api_key: abcdefghijklmnop"])

@@ -30,6 +30,7 @@ SAMPLES = os.path.join(ROOT, "data", "samples")
 PRICES = os.path.join(ROOT, "data", "config", "price-table.json")
 RECORDINGS = os.path.join(ROOT, "data", "replay", "recordings.jsonl")
 OUT = os.environ.get("EVAL_OUT", os.path.join(ROOT, "data", "eval"))
+SHIPPED_EVAL = os.path.join(ROOT, "data", "eval")
 LARGE_MODEL = "gpt-5.4"
 
 # What one call used in the first live run (docs of feature 4, research R7): the basis of the estimate.
@@ -164,8 +165,9 @@ def build_reports():
     for path in sorted(glob.glob(os.path.join(WORK, "rows-*.jsonl"))):
         name = os.path.basename(path)[len("rows-"):-len(".jsonl")]
         runs += ["--run", "{}={}".format(name, path)]
-        meta = os.path.join(WORK, "meta-{}.json".format(name))
-        if os.path.exists(meta):
+        # The settings of a live run are kept beside its report, so a replay states the same header.
+        meta = next((m for m in (os.path.join(WORK, "meta-{}.json".format(name)), os.path.join(SHIPPED_EVAL, "meta-{}.json".format(name))) if os.path.exists(m)), None)
+        if meta:
             metas += ["--meta", "{}={}".format(name, meta)]
     if not runs:
         say("no run to report: the work folder {} has no rows".format(WORK))
@@ -222,8 +224,10 @@ def run_live(model, resume=False, yes=False, output_cap=None, replay_set=None):
         path, name, count = export_rows(model)
     finally:
         restore_ceilings(previous)
-    with open(os.path.join(WORK, "meta-{}.json".format(name)), "w") as handle:
-        json.dump({"settings": "temperature 0; strict JSON schema; output cap {} tokens; model {}".format(cap or 400, model), "ceilings": ceilings}, handle, indent=2)
+    for folder in (WORK, OUT):
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, "meta-{}.json".format(name)), "w") as handle:
+            json.dump({"settings": "temperature 0; strict JSON schema; output cap {} tokens; model {}".format(cap or 400, model), "ceilings": ceilings}, handle, indent=2)
     target = replay_set or ("default" if name == LARGE_MODEL else name)
     try:
         recorded, skipped = record.from_export(path, target, RECORDINGS)

@@ -51,7 +51,7 @@ Method TestTheLineHasTheListedFields()
 	Set tObj = {}.%FromJSON($ListGet(..Lines(), 1))
 	Set tNames = "", tIter = tObj.%GetIterator()
 	While tIter.%GetNext(.tKey) { Set tNames = tNames_$ListBuild(tKey) }
-	Set tExpected = $ListBuild("messageControlId", "mode", "model", "promptVersion", "agentCalled", "schemaValid", "failureKind", "floorSeverity", "agentDecision", "agentSeverity", "finalSeverity", "route", "divergence", "inputTokens", "outputTokens", "costUsd", "costKnown", "latencyMs", "rawOutput")
+	Set tExpected = $ListBuild("messageControlId", "mode", "model", "promptVersion", "agentCalled", "schemaValid", "failureKind", "failureReason", "floorSeverity", "agentDecision", "agentSeverity", "finalSeverity", "route", "divergence", "inputTokens", "outputTokens", "costUsd", "costKnown", "latencyMs", "rawOutput")
 	Do $$$AssertEquals($ListToString($ListFromString($ListToString(tNames))), $ListToString(tExpected), "the fields, in order")
 	Do $$$AssertEquals(tObj.latencyMs, 2400, "live latency is the measured one")
 	Do $$$AssertEquals(tObj.model, "m-test", "the model is exported")
