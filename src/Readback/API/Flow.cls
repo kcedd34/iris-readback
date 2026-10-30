@@ -23,14 +23,28 @@ Parameter MaxInFlight = 10;
 /// A submission is refused when the account submitted less than this many seconds ago.
 Parameter SubmitGapSeconds = 1;
 
-Parameter Scenarios = "/opt/readback/samples/demo-scenarios.json";
+/// The scenario list and the sample messages, under the product's samples folder.
+ClassMethod ScenariosFile() As %String
+{
+	Quit ##class(Readback.Config.Paths).Samples()_"/demo-scenarios.json"
+}
 
-Parameter SampleDir = "/opt/readback/samples";
+ClassMethod SampleDir() As %String
+{
+	Quit ##class(Readback.Config.Paths).Samples()
+}
 
-Parameter Inbox = "/data/in";
+/// The intake folder, and the work folder where files are written first and renamed into the inbox, so the file service
+/// never reads half a file.
+ClassMethod Inbox() As %String
+{
+	Quit ##class(Readback.Config.Paths).Inbox()
+}
 
-/// Files are written here first and renamed into the inbox, so the file service never reads half a file.
-Parameter Staging = "/data/work";
+ClassMethod Staging() As %String
+{
+	Quit ##class(Readback.Config.Paths).Work()
+}
 
 // ----------------------------------------------------------------------------------------------------------
 // REST handlers (called from Readback.API.Status)
@@ -272,7 +286,7 @@ ClassMethod RecentlyConfirmed() As %DynamicArray
 /// The scenario list of data/samples/demo-scenarios.json as a %DynamicArray, or "" when it cannot be read.
 ClassMethod LoadScenarios() As %DynamicArray
 {
-	Set tFile = ..#Scenarios
+	Set tFile = ..ScenariosFile()
 	Quit:'##class(%File).Exists(tFile) ""
 	Set tStream = ##class(%Stream.FileCharacter).%New()
 	Do tStream.LinkToFile(tFile)
@@ -309,11 +323,11 @@ ClassMethod Drop(pScenario As %DynamicObject, Output pControlIds As %DynamicArra
 		If tName '? .1(1"generated/",1"demo/")1.(1AN,1"-",1".",1"_") { Quit }
 		If tName [ ".." { Quit }
 		Set tN = tN + 1
-		Set tSource = ##class(%File).NormalizeFilename(tName, ..#SampleDir)
+		Set tSource = ##class(%File).NormalizeFilename(tName, ..SampleDir())
 		If '##class(%File).Exists(tSource) { Quit }
 		Set tTarget = "flow-"_$Translate($Justify(tSeq, 8), " ", "0")_"-"_$Translate($Justify(tN, 2), " ", "0")_"-"_$Piece(tName, "/", $Length(tName, "/"))
-		Set tStaging = ##class(%File).NormalizeFilename(tTarget, ..#Staging)
-		Set tFinal = ##class(%File).NormalizeFilename(tTarget, ..#Inbox)
+		Set tStaging = ##class(%File).NormalizeFilename(tTarget, ..Staging())
+		Set tFinal = ##class(%File).NormalizeFilename(tTarget, ..Inbox())
 		If '##class(%File).CopyFile(tSource, tStaging) { Quit }
 		If '##class(%File).Rename(tStaging, tFinal) { Quit }
 		Do pControlIds.%Push(..ControlIdOfFile(tFinal))

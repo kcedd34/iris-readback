@@ -3,12 +3,17 @@
 Class Readback.Retrieval.Policy
 {
 
-Parameter File = "/opt/readback/data/policy/passages.jsonl";
+/// The policy file of the product's data folder.
+ClassMethod DefaultFile() As %String
+{
+	Quit ##class(Readback.Config.Paths).Data()_"/policy/passages.jsonl"
+}
 
 /// Reads the file into pPassages (a %DynamicArray of {id, source, title, text}) and returns the version.
 /// A line that is not valid, lacks a field or repeats an id is an error naming the line.
-ClassMethod Read(pFile As %String = {..#File}, Output pPassages As %DynamicArray, Output pVersion As %String) As %Status
+ClassMethod Read(pFile As %String = "", Output pPassages As %DynamicArray, Output pVersion As %String) As %Status
 {
+	Set:pFile="" pFile=..DefaultFile()
 	Set pPassages = [], pVersion = ""
 	If '##class(%File).Exists(pFile) { Quit $System.Status.Error(5001, "Policy file not found: "_pFile) }
 	Set tStream = ##class(%Stream.FileCharacter).%New()
@@ -52,8 +57,9 @@ ClassMethod StoredVersion() As %String
 
 /// Brings the policy table in step with the file: when the stored version differs, the table is emptied first
 /// (no stale passage survives) and every passage is added again. Returns the version in pVersion.
-ClassMethod EnsureIndexed(pEngine As Readback.Retrieval.Engine, pFile As %String = {..#File}, Output pVersion As %String) As %Status
+ClassMethod EnsureIndexed(pEngine As Readback.Retrieval.Engine, pFile As %String = "", Output pVersion As %String) As %Status
 {
+	Set:pFile="" pFile=..DefaultFile()
 	Set tSC = ..Read(pFile, .tPassages, .pVersion)
 	Quit:$System.Status.IsError(tSC) tSC
 	If (..StoredVersion() = pVersion) && (pEngine.PolicyRows() = tPassages.%Size()) { Quit $$$OK }

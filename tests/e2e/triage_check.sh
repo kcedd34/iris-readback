@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs every check of the triage core, units, budget, retrieval, trace, evaluation, notification and the flow interface, in order, from a clean stack. Stops at the first failure.
+# Runs every check of the triage core, units, budget, retrieval, trace, evaluation, notification, the flow interface, the README gate and the package, in order, from a clean stack. Stops at the first failure.
 # Needs: docker, the image irishealth-community:2026.3.0AI.154.0, python3 with pytest, node and npm (the interface checks), network once for the IPM client and the interface build.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -30,4 +30,6 @@ step "ui api";                   (cd tests/e2e && "$PY" ui_api_check.py)
 step "ui proxy";                 (cd tests/e2e && "$PY" ui_proxy_check.py)
 step "ui browser";               "$PY" tests/e2e/ui_check.py
 step "live path against a mock"; "$PY" tests/e2e/live_mock_check.py
-printf '\nAll triage core, units, budget, retrieval, trace, evaluation, notification and flow interface checks passed.\n'
+step "readme gate";              src/ops/check-readme.sh
+step "package on a clean instance"; tests/e2e/ipm_check.sh
+printf '\nAll triage core, units, budget, retrieval, trace, evaluation, notification, flow interface, readme and package checks passed.\n'

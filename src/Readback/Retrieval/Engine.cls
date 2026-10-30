@@ -63,7 +63,7 @@ Method Build(pCacheDir As %String = "", pPolicyFile As %String = "") As %Status
 		}
 		If $System.Status.IsOK(tSC) { Set tSC = ..CaseKB.AddToManager(..Tools) }
 		If $System.Status.IsOK(tSC) {
-			Set tSC = ##class(Readback.Retrieval.Policy).EnsureIndexed($This, $Select(pPolicyFile'="":pPolicyFile, 1:##class(Readback.Retrieval.Policy).#File), .tVersion)
+			Set tSC = ##class(Readback.Retrieval.Policy).EnsureIndexed($This, $Select(pPolicyFile'="":pPolicyFile, 1:##class(Readback.Retrieval.Policy).DefaultFile()), .tVersion)
 		}
 		If $System.Status.IsError(tSC) {
 			Set ..Reason = ..Redact($System.Status.GetErrorText(tSC))

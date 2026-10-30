@@ -3,9 +3,16 @@
 Class Readback.Units.Setup
 {
 
-Parameter Jar = "/opt/readback/java/build/readback-units.jar";
+/// The jar built from java/ and the vendored UCUM library, under the product's Java folder.
+ClassMethod Jar() As %String
+{
+	Quit ##class(Readback.Config.Paths).JavaDir()_"/build/readback-units.jar"
+}
 
-Parameter Ucum = "/opt/readback/java/lib/ucum-1.0.9.jar";
+ClassMethod Ucum() As %String
+{
+	Quit ##class(Readback.Config.Paths).JavaDir()_"/lib/ucum-1.0.9.jar"
+}
 
 Parameter PexJar = "/usr/irissys/dev/java/lib/1.8/intersystems-pex-1.0.0-shaded.jar";
 
@@ -13,10 +20,10 @@ Parameter ProxyClass = "Readback.Units.JavaOperation";
 
 ClassMethod EnsureComponent() As %Status
 {
-	If '##class(%File).Exists(..#Jar) { Quit $System.Status.Error(5001, "unit conversion component not built: "_..#Jar_" is missing") }
-	Set tStamp = ##class(%File).GetFileDateModified(..#Jar)
+	If '##class(%File).Exists(..Jar()) { Quit $System.Status.Error(5001, "unit conversion component not built: "_..Jar()_" is missing") }
+	Set tStamp = ##class(%File).GetFileDateModified(..Jar())
 	If ##class(%Dictionary.ClassDefinition).%ExistsId(..#ProxyClass) && ($Get(^Readback("unitsJar")) = tStamp) { Quit $$$OK }
-	Set tPath = ..#Jar_":"_..#Ucum_":"_..#PexJar
+	Set tPath = ..Jar()_":"_..Ucum()_":"_..#PexJar
 	Set tSC = ##class(EnsLib.PEX.Utils).RegisterComponent("com.readback.units.UnitsOperation", "%Java Server", tPath, 1, ..#ProxyClass, 1)
 	If $System.Status.IsOK(tSC) { Set ^Readback("unitsJar") = tStamp }
 	Quit tSC

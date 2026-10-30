@@ -3,14 +3,13 @@
 Class Readback.Notify.Escalation
 {
 
-Parameter FILE = "/opt/readback/data/config/escalation.json";
-
 Parameter GLOBAL = "^Readback(""escalation"")";
 
 /// Reads and checks the file, and keeps it for the next alert. Returns an error status with the reason when the file is
 /// missing or invalid; the configuration already loaded is then left as it was.
-ClassMethod Load(pFile As %String = {..#FILE}) As %Status
+ClassMethod Load(pFile As %String = "") As %Status
 {
+	Set:pFile="" pFile=##class(Readback.Config.Paths).Data()_"/config/escalation.json"
 	Quit:'##class(%File).Exists(pFile) $System.Status.Error(5001, "escalation file not found: "_pFile)
 	Set tStream = ##class(%Stream.FileCharacter).%New()
 	Set tSC = tStream.LinkToFile(pFile)

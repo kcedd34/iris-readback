@@ -2,12 +2,11 @@
 Class Readback.Config.Loader
 {
 
-Parameter DATADIR = "/opt/readback/data";
-
 /// Reloads ranges, prices and recordings. pCounts(name) holds the number of rows loaded.
-ClassMethod LoadAll(pDir As %String = {..#DATADIR}, Output pCounts) As %Status
+ClassMethod LoadAll(pDir As %String = "", Output pCounts) As %Status
 {
 	Kill pCounts
+	Set:pDir="" pDir=##class(Readback.Config.Paths).Data()
 	Set tSC = ..LoadAnalytes(pDir_"/config/analytes.json", .tN)
 	Quit:$$$ISERR(tSC) tSC
 	Set pCounts("analytes") = tN
@@ -38,8 +37,9 @@ ClassMethod LoadAll(pDir As %String = {..#DATADIR}, Output pCounts) As %Status
 }
 
 /// Reloads everything when the hash of the data files, given by the caller, differs from the stored one.
-ClassMethod LoadIfChanged(pHash As %String, pDir As %String = {..#DATADIR}) As %Status
+ClassMethod LoadIfChanged(pHash As %String, pDir As %String = "") As %Status
 {
+	Set:pDir="" pDir=##class(Readback.Config.Paths).Data()
 	Quit:$Get(^Readback("dataHash"))=pHash $$$OK
 	Set tSC = ..LoadAll(pDir, .tCounts)
 	Set:$$$ISOK(tSC) ^Readback("dataHash") = pHash
