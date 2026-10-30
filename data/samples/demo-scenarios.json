@@ -1,0 +1,68 @@
+{
+  "note": "Scenarios a visitor of the demo can submit. Each lists shipped synthetic messages, earlier results first and the subject result last. Labels are what the policy expects, not a promise about any model.",
+  "scenarios": [
+    {
+      "id": "potassium-critical-value",
+      "label": "Potassium 6.9 mmol/L: critical by value",
+      "analyte": "Potassium",
+      "expected": "CRITICAL",
+      "files": ["valid-oru-1.hl7"]
+    },
+    {
+      "id": "sodium-critical-value",
+      "label": "Sodium far above the limit: critical by value",
+      "analyte": "Sodium",
+      "expected": "CRITICAL",
+      "files": ["generated/RB42-00007.hl7"]
+    },
+    {
+      "id": "hemoglobin-acute-drop",
+      "label": "Hemoglobin falls sharply in a day: critical by change",
+      "analyte": "Hemoglobin",
+      "expected": "CRITICAL",
+      "files": ["generated/RB42-00004H1.hl7", "generated/RB42-00004.hl7"]
+    },
+    {
+      "id": "glucose-sharp-rise",
+      "label": "Glucose jumps from normal to near the limit: the floor raises it",
+      "analyte": "Glucose",
+      "expected": "CRITICAL",
+      "files": ["generated/RB42-00002H1.hl7", "generated/RB42-00002.hl7"]
+    },
+    {
+      "id": "potassium-hemolyzed",
+      "label": "Hemolyzed potassium above the limit: still read back",
+      "analyte": "Potassium",
+      "expected": "CRITICAL",
+      "files": ["generated/RB42-00005.hl7"]
+    },
+    {
+      "id": "potassium-dialysis",
+      "label": "Potassium high for days (dialysis patient): still read back",
+      "analyte": "Potassium",
+      "expected": "CRITICAL",
+      "files": ["generated/RB42-00003H3.hl7", "generated/RB42-00003H2.hl7", "generated/RB42-00003H1.hl7", "generated/RB42-00003.hl7"]
+    },
+    {
+      "id": "potassium-borderline",
+      "label": "Potassium near the limit with borderline hemolysis: a person decides",
+      "analyte": "Potassium",
+      "expected": "NEEDS_REVIEW",
+      "files": ["demo/RB2026-00007H1.hl7", "demo/RB2026-00007.hl7"]
+    },
+    {
+      "id": "potassium-recollect",
+      "label": "Elevated potassium with a hemolyzed sample: a new sample is advised",
+      "analyte": "Potassium",
+      "expected": "RECOLLECT",
+      "files": ["demo/RB2026-00006.hl7"]
+    },
+    {
+      "id": "hemoglobin-low-not-critical",
+      "label": "Low hemoglobin, not critical: released",
+      "analyte": "Hemoglobin",
+      "expected": "NON_CRITICAL",
+      "files": ["valid-oru-2.hl7"]
+    }
+  ]
+}
