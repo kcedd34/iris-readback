@@ -89,7 +89,7 @@ ClassMethod EnsureApiRole() As %Status
 		Quit:$System.Status.IsError(tSC) tSC
 	}
 	Set $Namespace = tNs
-	For tTable = "Readback_Config.Range", "Readback_Config.Price", "Readback_Replay.Recording", "Readback_Trace.Decision", "Readback_Config.Budget", "Readback_Trace.Notification" {
+	For tTable = "Readback_Config.Range", "Readback_Config.Price", "Readback_Replay.Recording", "Readback_Trace.Decision", "Readback_Config.Budget", "Readback_Trace.Notification", "Readback_Msg.LabResult", "Readback_Trace.ReadbackAttempt", "Readback_Config.Analyte" {
 		Set tRS = ##class(%SQL.Statement).%ExecDirect(, "GRANT SELECT ON "_tTable_" TO ReadbackApi")
 		If tRS.%SQLCODE < 0 { Quit }
 	}
@@ -97,7 +97,7 @@ ClassMethod EnsureApiRole() As %Status
 	// The status endpoint counts the vector tables. They exist only once the retrieval engine has been built, so a
 	// failed grant here is not an error: the next start grants them.
 	// The alerts endpoints read the platform's managed alerts.
-	For tTable = "Readback_Retrieval.PolicyVec", "Readback_Retrieval.CaseVec", "Ens_Alerting.ManagedAlert" {
+	For tTable = "Readback_Retrieval.PolicyVec", "Readback_Retrieval.CaseVec", "Ens_Alerting.ManagedAlert", "Readback_Workflow.ReadbackTask" {
 		Do ##class(%SQL.Statement).%ExecDirect(, "GRANT SELECT ON "_tTable_" TO ReadbackApi")
 	}
 	Quit $$$OK

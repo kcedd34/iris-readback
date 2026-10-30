@@ -43,6 +43,9 @@ Property BirthDate As %Date;
 /// Empty when BirthDate is empty or after the collection time.
 Property AgeYears As %Integer;
 
+/// When the product stored the result (UTC). Lets the flow panel tell a result still being decided from an old one.
+Property ReceivedAt As %TimeStamp [ InitialExpression = {$ZDateTime($ZTimeStamp, 3, 1, 3)} ];
+
 Storage Default
 {
 <Data name="LabResultDefaultData">
@@ -85,6 +88,9 @@ Storage Default
 </Value>
 <Value name="13">
 <Value>AgeYears</Value>
+</Value>
+<Value name="14">
+<Value>ReceivedAt</Value>
 </Value>
 </Data>
 <DefaultData>LabResultDefaultData</DefaultData>

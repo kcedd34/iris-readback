@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Runs every check of the triage core, units, budget, retrieval, trace, evaluation and notification, in order, from a clean stack. Stops at the first failure.
-# Needs: docker, the image irishealth-community:2026.3.0AI.154.0, python3 with pytest, network once for the IPM client.
+# Runs every check of the triage core, units, budget, retrieval, trace, evaluation, notification and the flow interface, in order, from a clean stack. Stops at the first failure.
+# Needs: docker, the image irishealth-community:2026.3.0AI.154.0, python3 with pytest, node and npm (the interface checks), network once for the IPM client and the interface build.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 export READBACK_DEMO_PASSWORD="${READBACK_DEMO_PASSWORD:-demo-pass-for-tests}"
@@ -26,5 +26,8 @@ step "intake (feature 1)";       tests/e2e/flow_check.sh
 step "trace and indicators";     "$PY" tests/e2e/trace_check.py
 step "evaluation (replay)";      PYTHON="$PY" "$PY" tests/e2e/eval_check.py
 step "notification";             PYTHON="$PY" "$PY" tests/e2e/notify_check.py
+step "ui api";                   (cd tests/e2e && "$PY" ui_api_check.py)
+step "ui proxy";                 (cd tests/e2e && "$PY" ui_proxy_check.py)
+step "ui browser";               "$PY" tests/e2e/ui_check.py
 step "live path against a mock"; "$PY" tests/e2e/live_mock_check.py
-printf '\nAll triage core, units, budget, retrieval, trace, evaluation and notification checks passed.\n'
+printf '\nAll triage core, units, budget, retrieval, trace, evaluation, notification and flow interface checks passed.\n'

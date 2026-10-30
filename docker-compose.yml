@@ -17,5 +17,23 @@ services:
       - readback-inbox:/data/in
     restart: unless-stopped
 
+  # The interface and the reverse proxy: serves the built frontend and forwards only the Readback paths.
+  # The host bind is loopback by default; the public demo sets READBACK_UI_BIND.
+  ui:
+    build:
+      context: .
+      dockerfile: src/ops/proxy/Dockerfile
+    image: iris-readback-ui:local
+    environment:
+      # Names only; the values come from the shell or an untracked .env file.
+      READBACK_DEMO_PASSWORD: ${READBACK_DEMO_PASSWORD:-}
+      READBACK_PUBLISH_DEMO_ACCOUNTS: ${READBACK_PUBLISH_DEMO_ACCOUNTS:-0}
+    ports:
+      - "${READBACK_UI_BIND:-127.0.0.1}:${READBACK_UI_PORT:-8080}:80"
+    depends_on:
+      iris:
+        condition: service_healthy
+    restart: on-failure:5
+
 volumes:
   readback-inbox:

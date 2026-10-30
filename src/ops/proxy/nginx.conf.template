@@ -1,0 +1,107 @@
+# Only the Readback paths pass (contracts/proxy-paths.md). Everything else is refused with a plain English JSON
+# 404. The platform's own error pages and headers never reach the browser: they can name the server, the container
+# and the build (docs/probes.md Probe 13).
+
+limit_req_zone $binary_remote_addr zone=submit:1m rate=1r/s;
+
+server {
+    listen 80;
+    server_tokens off;
+    root /usr/share/nginx/html;
+    default_type application/json;
+    merge_slashes on;
+
+    # The page and the API share one origin, so the policy can forbid every other address (FR-018).
+    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Cache-Control "no-store" always;
+
+    # Fixed error bodies. A platform error body is never passed on.
+    error_page 401 = @e401;
+    error_page 403 = @e403;
+    error_page 404 = @e404;
+    error_page 405 = @e405;
+    error_page 413 = @e413;
+    error_page 414 = @e414;
+    error_page 429 = @e429;
+    error_page 500 501 502 503 504 = @e5xx;
+    location @e401 { default_type application/json; return 401 '{"error":"sign-in required or credentials refused"}'; }
+    location @e403 { default_type application/json; return 403 '{"error":"forbidden"}'; }
+    location @e404 { default_type application/json; return 404 '{"error":"not found"}'; }
+    location @e405 { default_type application/json; return 405 '{"error":"method not allowed"}'; }
+    location @e413 { default_type application/json; return 413 '{"error":"request too large"}'; }
+    location @e414 { default_type application/json; return 414 '{"error":"not found"}'; }
+    location @e429 { default_type application/json; return 429 '{"error":"too many requests"}'; }
+    location @e5xx { default_type application/json; return 500 '{"error":"the product could not complete the request"}'; }
+
+    # Static page. No client-side routes exist, so there is no fallback to index.html: an unknown path is a 404.
+    location = / {
+        default_type text/html;
+        try_files /index.html =404;
+    }
+    location /assets/ {
+        default_type application/octet-stream;
+        try_files $uri =404;
+        add_header Cache-Control "public, max-age=3600" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Content-Security-Policy "default-src 'self'" always;
+    }
+    location = /ui-config.json {
+        default_type application/json;
+        try_files /ui-config.json =404;
+    }
+
+    # Read-only paths of the product: the proxy adds the read-only account on the server side.
+    location ~ ^/readback/api/(status|flow|flow/samples|alerts|indicators)$ {
+        if ($request_method !~ ^(GET|HEAD)$) { return 405; }
+        proxy_intercept_errors on;
+        proxy_set_header Authorization "Basic ${READONLY_AUTH}";
+        include /etc/nginx/readback-proxy.inc;
+        proxy_pass http://${IRIS_UPSTREAM};
+    }
+    location ~ ^/readback/api/decisions/[A-Za-z0-9._-]+$ {
+        if ($request_method !~ ^(GET|HEAD)$) { return 405; }
+        proxy_intercept_errors on;
+        proxy_set_header Authorization "Basic ${READONLY_AUTH}";
+        include /etc/nginx/readback-proxy.inc;
+        proxy_pass http://${IRIS_UPSTREAM};
+    }
+    location = /readback/api/flow/submit {
+        if ($request_method != POST) { return 405; }
+        client_max_body_size 256;
+        limit_req zone=submit burst=3 nodelay;
+        limit_req_status 429;
+        proxy_intercept_errors on;
+        proxy_set_header Authorization "Basic ${READONLY_AUTH}";
+        include /etc/nginx/readback-proxy.inc;
+        proxy_pass http://${IRIS_UPSTREAM};
+    }
+
+    # The person's own paths: their own Authorization header only, nothing is added.
+    location ~ ^/readback/api/taskview/[A-Za-z0-9._-]+$ {
+        if ($request_method !~ ^(GET|HEAD)$) { return 405; }
+        proxy_intercept_errors on;
+        include /etc/nginx/readback-proxy.inc;
+        proxy_pass http://${IRIS_UPSTREAM};
+    }
+    location ~ "^/workflow/rest/(tasks(/[0-9]+){0,2}|user-info)$" {
+        if ($request_method !~ ^(GET|HEAD)$) { return 405; }
+        proxy_intercept_errors on;
+        include /etc/nginx/readback-proxy.inc;
+        proxy_pass http://${IRIS_UPSTREAM};
+    }
+    location ~ ^/workflow/rest/task/[0-9]+\|\|[A-Za-z0-9._-]+$ {
+        if ($request_method !~ ^(GET|HEAD|POST)$) { return 405; }
+        client_max_body_size 4k;
+        proxy_intercept_errors on;
+        include /etc/nginx/readback-proxy.inc;
+        proxy_pass http://${IRIS_UPSTREAM};
+    }
+
+    # Everything else: the management portal, /csp/, /api/, the other workflow paths, any other method or shape.
+    location / {
+        return 404;
+    }
+}

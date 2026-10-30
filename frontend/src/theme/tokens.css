@@ -1,0 +1,43 @@
+/* Colour and type tokens for both themes. Each token is declared once with light-dark(light, dark), so the two
+   themes cannot drift apart; scripts/check-contrast.mjs reads this file and checks every pair below it.
+   The severity palette is semantic and fixed (critical, recollect, review, normal): a theme may change the shade
+   so it stays readable, never the meaning. Severity is always shown as colour plus icon plus text. */
+:root {
+  color-scheme: light dark;
+
+  --bg: light-dark(#f5f6f7, #0e1215);
+  --surface: light-dark(#ffffff, #161b20);
+  --surface-2: light-dark(#eceef0, #1e252b);
+  --ink: light-dark(#13171a, #e9edf0);
+  --ink-2: light-dark(#444c54, #a8b1b9);
+  --line: light-dark(#7d868e, #6b757e);
+  --focus: light-dark(#0b57d0, #8ab4ff);
+  --accent: light-dark(#0b57d0, #8ab4ff);
+  --accent-ink: light-dark(#ffffff, #0e1215);
+
+  --sev-critical: light-dark(#a8201a, #ff9992);
+  --sev-critical-bg: light-dark(#fde8e6, #3b1a18);
+  --sev-recollect: light-dark(#8a4b00, #f0b45c);
+  --sev-recollect-bg: light-dark(#fdeed9, #36270f);
+  --sev-review: light-dark(#1b4f9c, #94bbff);
+  --sev-review-bg: light-dark(#e3edfb, #172a47);
+  --sev-normal: light-dark(#1d6b36, #7fd69a);
+  --sev-normal-bg: light-dark(#e1f3e6, #14301d);
+
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-size: 15px;
+  --radius: 6px;
+  --gap: 12px;
+}
+
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+
+html { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: var(--font-size); }
+body { margin: 0; background: var(--bg); color: var(--ink); }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+}

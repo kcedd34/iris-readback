@@ -11,6 +11,10 @@ XData UrlMap
   <Route Url="/decisions/:controlId" Method="GET" Call="GetDecision"/>
   <Route Url="/indicators" Method="GET" Call="GetIndicators"/>
   <Route Url="/alerts" Method="GET" Call="GetAlerts"/>
+  <Route Url="/flow" Method="GET" Call="GetFlow"/>
+  <Route Url="/flow/samples" Method="GET" Call="GetSamples"/>
+  <Route Url="/flow/submit" Method="POST" Call="PostSubmit"/>
+  <Route Url="/taskview/:decisionId" Method="GET" Call="GetTaskView"/>
 </Routes>
 }
 
@@ -61,6 +65,7 @@ ClassMethod GetDecision(pControlId As %String) As %Status
 	Set tRes.failureKind = tTrace.FailureKind, tRes.failureReason = tTrace.FailureReason
 	Set tRes.floorSeverity = tTrace.FloorSeverity, tRes.floorNote = tTrace.FloorNote
 	Set tRes.agentDecision = tTrace.AgentDecision, tRes.agentSeverity = tTrace.AgentSeverity, tRes.agentConfidence = tTrace.AgentConfidence
+	Set tRes.evidence = ##class(Readback.API.Flow).EvidenceList(tTrace.Evidence)
 	Set tRes.rationale = tTrace.Rationale, tRes.finalSeverity = tTrace.FinalSeverity, tRes.route = tTrace.Route, tRes.divergence = tTrace.Divergence
 	Set tRes.inputTokens = tTrace.InputTokens, tRes.outputTokens = tTrace.OutputTokens
 	Do tRes.%Set("costKnown", ''tTrace.CostKnown, "boolean")
@@ -96,6 +101,27 @@ ClassMethod Notifications(pSessionId As %Integer) As %DynamicArray
 	Quit tList
 }
 
+/// The flow panel and the read-back task screen (Readback.API.Flow holds the views).
+ClassMethod GetFlow() As %Status
+{
+	Quit ##class(Readback.API.Flow).GetFlow()
+}
+
+ClassMethod GetSamples() As %Status
+{
+	Quit ##class(Readback.API.Flow).GetSamples()
+}
+
+ClassMethod PostSubmit() As %Status
+{
+	Quit ##class(Readback.API.Flow).PostSubmit()
+}
+
+ClassMethod GetTaskView(pDecisionId As %String) As %Status
+{
+	Quit ##class(Readback.API.Flow).GetTaskView(pDecisionId)
+}
+
 ClassMethod GetAlerts() As %Status
 {
 	Write ##class(Readback.Notify.Alerts).Open().%ToJSON()
@@ -125,7 +151,7 @@ ClassMethod GetIndicators() As %Status
 ClassMethod ErrorBody(pHttpStatus As %String, pText As %String = "") As %String
 {
 	Set tCode = +pHttpStatus
-	Set tText = $Case(tCode, 400:"bad request", 403:"forbidden", 404:"not found", 405:"method not allowed", :"internal error")
+	Set tText = $Case(tCode, 400:"bad request", 403:"forbidden", 404:"not found", 405:"method not allowed", 429:"too many requests", :"internal error")
 	// 500 never repeats the failure text to the caller: it can hold routine names and values. It goes, redacted, to the console log.
 	If (tCode '= 500) && (pText '= "") { Set tText = pText }
 	If (tCode = 500) && (pText '= "") { Do ##class(%SYS.System).WriteToConsoleLog("Readback API: "_$Extract(##class(Readback.Config.Mode).Redact(pText), 1, 500), 0, 1) }
