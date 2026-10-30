@@ -1,7 +1,7 @@
 """Browser checks of the flow UI against the running replay stack (no provider key).
 
 Needs the stack up (docker compose up -d --build, key empty, READBACK_DEMO_PASSWORD set) and Node. Installs the frontend
-packages with `npm ci --ignore-scripts` and the test browser once. Parts run: flow, task, public, a11y, demo (PARTS env, default all).
+packages with `npm ci --ignore-scripts` and the test browser once. Parts run: flow, task, public, a11y, demo, alerts (PARTS env, default all).
 RUNS sets how many times the critical case is submitted in the flow part (default 5; the full measure of SC-002 and SC-003 is 20).
 Screenshots go to .local/ui/ (not committed).
 """
@@ -32,7 +32,7 @@ def main():
     if proc.returncode:
         print("FAIL: the test browser could not be installed:", proc.stderr[-400:])
         return 1
-    parts = os.environ.get("PARTS", "flow,task,public,a11y,demo").split(",")
+    parts = os.environ.get("PARTS", "flow,task,public,a11y,demo,alerts").split(",")
     env = dict(os.environ, SHOT_DIR=os.path.join(ROOT, ".local", "ui"), OPENAI_API_KEY="")
     code = 0
     plain = [p for p in parts if p != "public"]

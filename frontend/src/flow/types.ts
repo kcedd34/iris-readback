@@ -76,6 +76,7 @@ export interface FlowItem {
   waitingSince?: string;
   assignedTo?: string;
   alertState?: string;
+  alertLevel?: number;
   confirmedBy?: string;
   readbackMatch?: boolean;
 }

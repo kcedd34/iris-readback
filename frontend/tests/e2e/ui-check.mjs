@@ -7,7 +7,7 @@ import { mkdirSync } from "node:fs";
 
 const BASE = process.env.BASE_URL || "http://127.0.0.1:8080";
 const RUNS = Number(process.env.RUNS || 5);
-const PARTS = (process.env.PARTS || "flow,task,public,a11y,demo").split(",");
+const PARTS = (process.env.PARTS || "flow,task,public,a11y,demo,alerts").split(",");
 const SHOTS = process.env.SHOT_DIR || ".local/ui";
 const PASSWORD = process.env.READBACK_DEMO_PASSWORD || "";
 const failures = [];
@@ -418,13 +418,42 @@ async function demoPart(browser) {
   await waitFor(() => posts.length >= 2, 12000);
   check(posts.length === 2 && posts[0].includes("potassium-critical-value") && posts[1].includes("potassium-borderline"), `the demo sequence sent ${JSON.stringify(posts)}`);
   check((await page.locator(".demo-sequence button").count()) === 1, "there is no Run demo sequence button");
-  check((await page.getByText("Rules check first, then the AI agent").count()) === 1, "the agent station hint is not the plain-language one");
+  // While a case is at the agent station the hint reads "Deciding now"; wait for the node to be idle again.
+  const hinted = await waitFor(async () => (await page.getByText("Rules check first, then the AI agent").count()) === 1, 10000);
+  check(hinted, "the agent station hint is not the plain-language one");
+  await page.close();
+}
+
+// The second first-class screen: the queue of critical alerts, with the escalation history of the open one. The menu switches
+// between it and the agent flow, and the flow stays a canvas (not a summary).
+async function alertsPart(browser) {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await page.goto(BASE);
+  await page.waitForSelector(".canvas .react-flow__node");
+  check((await page.locator(".indicators li").count()) === 5, "the readings strip does not show five readings");
+  await page.click('.tabs button:has-text("Critical alerts")');
+  await page.waitForSelector(".q-row", { timeout: 15000 });
+  check((await page.locator(".tabs button[aria-current=page]").innerText()).includes("Critical alerts"), "the menu does not mark the alerts screen");
+  const row = page.locator(".q-row").first();
+  check(await waitFor(async () => /\d/.test(await row.locator(".value-num").innerText().catch(() => "")), 10000), "the queue row shows no value");
+  check((await row.locator(".sev svg").count()) === 1 && (await row.innerText()).includes("Critical"), "the queue row does not show the critical state as icon and text");
+  check(/\d+ (s|min)/.test(await row.locator(".q-wait-time").innerText()), "the queue row shows no wait time");
+  await row.getByRole("button", { name: "Timeline" }).click();
+  check(await waitFor(async () => (await page.locator(".tl li").count()) >= 2, 10000), "the escalation timeline shows no events");
+  check((await page.locator(".tl").innerText()).includes("Alert opened"), "the timeline does not start with the alert opening");
+  await row.getByRole("button", { name: "Open read-back" }).click();
+  await page.waitForSelector("dialog.drawer[open]");
+  await page.keyboard.press("Escape");
+  await page.click('.tabs button:has-text("Agent flow")');
+  await page.waitForSelector(".canvas .react-flow__node");
+  check((await page.locator(".canvas").count()) === 1, "the agent flow is not a canvas after switching back");
   await page.close();
 }
 
 const browser = await chromium.launch();
 try {
   if (PARTS.includes("demo")) await demoPart(browser);
+  if (PARTS.includes("alerts")) await alertsPart(browser);
   if (PARTS.includes("flow")) await flowPart(browser);
   if (PARTS.includes("task")) await taskPart(browser);
   if (PARTS.includes("public")) await publicPart(browser);

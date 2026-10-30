@@ -10,12 +10,12 @@ export interface StationInfo {
 
 /** The stations of the flow, left to right, with the layout of the canvas. */
 export const STATIONS: StationInfo[] = [
-  { station: "intake", title: "Result intake", hint: "HL7 results arrive", x: 0, y: 150 },
-  { station: "agent", title: "Agent decision", hint: "Rules check first, then the AI agent", x: 235, y: 150 },
-  { station: "readback", title: "Read-back", hint: "Waits for a person", x: 480, y: 0 },
-  { station: "confirmed", title: "Read-back confirmed", hint: "Value repeated and matched", x: 715, y: 0 },
-  { station: "review", title: "Human review", hint: "Review and recollect advice", x: 480, y: 250 },
-  { station: "release", title: "Release", hint: "Not critical by rule or agent", x: 480, y: 430 },
+  { station: "intake", title: "Result intake", hint: "HL7 results arrive", x: 0, y: 250 },
+  { station: "agent", title: "Agent decision", hint: "Rules check first, then the AI agent", x: 320, y: 250 },
+  { station: "readback", title: "Read-back", hint: "Waits for a person", x: 660, y: 0 },
+  { station: "confirmed", title: "Read-back confirmed", hint: "Value repeated and matched", x: 940, y: 0 },
+  { station: "review", title: "Human review", hint: "Review and recollect advice", x: 660, y: 290 },
+  { station: "release", title: "Release", hint: "Not critical by rule or agent", x: 660, y: 520 },
 ];
 
 export const EDGES: Array<{ id: string; source: Station; target: Station }> = [

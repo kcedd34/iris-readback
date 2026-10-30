@@ -86,7 +86,7 @@ function applyWaiting(state: FlowState, entry: WaitingEntry, now: number): FlowS
   const existing = state.items[key];
   if (existing) {
     // Already walking or sitting: add what only the waiting list knows and keep the walk as it is.
-    return withItem(state, { ...existing, waitingSince: entry.since, assignedTo: entry.assignedTo || undefined, alertState: entry.alertState });
+    return withItem(state, { ...existing, waitingSince: entry.since, assignedTo: entry.assignedTo || undefined, alertState: entry.alertState, alertLevel: entry.alertLevel });
   }
   // Seen only in the waiting list (the page was opened after the decision): it is at read-back, no walk.
   return withItem(state, {
@@ -97,6 +97,7 @@ function applyWaiting(state: FlowState, entry: WaitingEntry, now: number): FlowS
     waitingSince: entry.since,
     assignedTo: entry.assignedTo || undefined,
     alertState: entry.alertState,
+    alertLevel: entry.alertLevel,
   });
 }
 

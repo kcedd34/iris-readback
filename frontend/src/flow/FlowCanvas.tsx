@@ -6,18 +6,26 @@ import { StationNode, type StationNodeData } from "./StationNode";
 import { itemsAt } from "./reducer";
 import type { FlowItem, FlowState } from "./types";
 
-const nodeTypes = { station: StationNode };
+/** Two invisible corner points that fix the framing of the whole layout, so the view does not jump as cases arrive. */
+const Anchor = () => <span aria-hidden="true" />;
+const nodeTypes = { station: StationNode, anchor: Anchor };
+const ANCHORS: Node[] = [
+  { id: "anchor-start", type: "anchor", position: { x: 0, y: 0 }, data: {}, style: { width: 1, height: 1, opacity: 0, pointerEvents: "none" }, draggable: false, selectable: false, focusable: false },
+  { id: "anchor-end", type: "anchor", position: { x: 1170, y: 720 }, data: {}, style: { width: 1, height: 1, opacity: 0, pointerEvents: "none" }, draggable: false, selectable: false, focusable: false },
+];
 /** An edge moves for this long after something arrived at the station it leads to. */
 const RECENT_MS = 2000;
 
 export function FlowCanvas({ state, now, reducedMotion, onSelect }: { state: FlowState; now: number; reducedMotion: boolean; onSelect?: (item: FlowItem) => void }) {
   const nodes = useMemo<Node[]>(
-    () =>
-      STATIONS.map((s) => {
+    () => [
+      ...ANCHORS,
+      ...STATIONS.map((s) => {
         const items = itemsAt(state, s.station);
         const data: StationNodeData = { station: s.station, title: s.title, hint: s.hint, items, active: s.station === "agent" && items.length > 0, onSelect };
         return { id: s.station, type: "station", position: { x: s.x, y: s.y }, data, draggable: false, selectable: false, connectable: false, focusable: false };
       }),
+    ],
     [state, onSelect],
   );
   const edges = useMemo<Edge[]>(

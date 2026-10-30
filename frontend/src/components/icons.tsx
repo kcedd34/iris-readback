@@ -32,3 +32,6 @@ export const SunIcon = (p: P) => (
 export const MoonIcon = (p: P) => (
   <svg {...base} {...p}><path d="M13.8 10.3A6 6 0 0 1 5.7 2.2a6.2 6.2 0 1 0 8.1 8.1Z" /></svg>
 );
+export const SimulationIcon = (p: P) => (
+  <svg {...base} {...p}><path d="M5.5 1h5v1.4L9.3 3.6v3.2l3.9 6.1A1.5 1.5 0 0 1 11.9 15H4.1a1.5 1.5 0 0 1-1.3-2.1l3.9-6.1V3.6L5.5 2.4V1Zm.6 8.3-1.5 2.4h6.8L9.9 9.3H6.1Z" fillRule="evenodd" /></svg>
+);

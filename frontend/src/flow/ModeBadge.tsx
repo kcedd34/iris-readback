@@ -1,14 +1,17 @@
 import type { Mode } from "./types";
+import { SimulationIcon } from "../components/icons";
 
-/** The product's mode, always in view: a replayed decision must never be taken for a live one. */
+/** The product's mode, always in view: a replayed decision must never be taken for a live one. Amber with an icon in replay. */
 export function ModeBadge({ mode }: { mode: Mode }) {
   return mode === "replay" ? (
     <p className="mode mode-replay" role="status">
-      <strong>Replay mode.</strong> Decisions come from recorded answers of a real run, not from a live provider.
+      <SimulationIcon />
+      <span><strong>Simulation. Replay mode.</strong> Synthetic data, not real patients. Decisions come from recorded answers of a real run, not from a live provider.</span>
     </p>
   ) : (
     <p className="mode mode-live" role="status">
-      <strong>Live mode.</strong> Decisions come from a live provider call.
+      <SimulationIcon />
+      <span><strong>Live mode.</strong> Decisions come from a live provider call.</span>
     </p>
   );
 }

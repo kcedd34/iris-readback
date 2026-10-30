@@ -19,6 +19,7 @@ const pairs = [
   ["ink", "bg", TEXT], ["ink", "surface", TEXT], ["ink", "surface-2", TEXT],
   ["ink-2", "bg", TEXT], ["ink-2", "surface", TEXT], ["ink-2", "surface-2", TEXT],
   ["accent", "surface", TEXT], ["accent-ink", "accent", TEXT],
+  ["ink", "canvas", TEXT], ["ink-2", "canvas", TEXT], ["line", "canvas", UI],
   ["line", "bg", UI], ["line", "surface", UI], ["focus", "bg", UI], ["focus", "surface", UI],
   ...sevs.flatMap((s) => [[`sev-${s}`, "surface", TEXT], [`sev-${s}`, "bg", TEXT], [`sev-${s}`, `sev-${s}-bg`, TEXT], [`ink`, `sev-${s}-bg`, TEXT]]),
 ];
