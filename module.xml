@@ -4,11 +4,24 @@
     <Module>
       <Name>iris-readback</Name>
       <Version>0.1.0</Version>
-      <Description>Critical lab result notification with an AI Hub agent and human read-back.</Description>
-      <Keywords>interoperability hl7 ai-hub</Keywords>
+      <Description>Critical lab result triage with an AI Hub agent that can raise a severity but never lower a critical, and a human read-back before anyone is notified.</Description>
+      <Keywords>interoperability hl7 ai-hub workflow lab critical-results</Keywords>
       <Packaging>module</Packaging>
+      <Dependencies>
+        <ModuleReference>
+          <Name>workflow-rest</Name>
+          <Version>*</Version>
+        </ModuleReference>
+      </Dependencies>
       <SourcesRoot>src</SourcesRoot>
       <Resource Name="Readback.PKG"/>
+      <!-- The product's files go under the instance's manager directory; Readback.Install records that root. -->
+      <FileCopy Name="data/config/" Target="${mgrdir}readback/data/config/"/>
+      <FileCopy Name="data/policy/" Target="${mgrdir}readback/data/policy/"/>
+      <FileCopy Name="data/replay/" Target="${mgrdir}readback/data/replay/"/>
+      <FileCopy Name="data/samples/" Target="${mgrdir}readback/samples/"/>
+      <FileCopy Name="java/" Target="${mgrdir}readback/java/"/>
+      <Invoke Class="Readback.Install" Method="Run" Phase="Activate" When="After"/>
       <Author>
         <Person>Carlos Eduardo Dias Duarte</Person>
         <License>MIT</License>
