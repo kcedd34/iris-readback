@@ -145,6 +145,13 @@ def check(text, report):
             fail("demo", f"the demonstration account '{account}' is missing")
     if "replay" not in demo.lower() or "reset every hour" not in demo.lower():
         fail("demo", "the demo must say it runs in replay mode and is reset every hour")
+    for needle in ("%DB_USER", "%EnsRole_AlertAdministrator", "port 80", "404"):
+        if needle not in demo:
+            fail("demo", f"the demo section must state the accounts' roles and the exposure: '{needle}' is missing")
+    if not re.search(r"(?i)deliberately broader", demo) or not re.search(r"(?i)\bnot always the owner\b", demo):
+        fail("demo", "the demo section must say the roles are deliberately broader than production and why the confirming person is not always the owner of the alert")
+    if not re.search(r"(?i)specific to the Readback", demo) or not re.search(r"(?i)system context", demo):
+        fail("demo", "the demo section must say what production would use: roles specific to the Readback and closing the alert in a system context")
 
     # 4. The figures equal the report; the claims about it hold.
     for label, block in figure_blocks(report):

@@ -26,6 +26,10 @@ Password: `hVWrjsSnttT8AYIn9acJ`
 
 The demo runs in replay mode against a real IRIS instance: the decisions are the recorded answers of a real run of the agent, so no key is needed and no provider is called. The data is synthetic. The demo is plain HTTP, and it is reset every hour, on the hour; it is unavailable for about half a minute while it resets.
 
+The demonstration accounts are deliberately broader than a production deployment would use, because the credential is shared and the demo has to show the escalation working. They hold `%DB_USER` on the USER database, and the two communicator accounts also hold `%EnsRole_AlertAdministrator`, so that they can close alerts they do not own: the read-back task goes by rotation to either communicator, so the person who confirms is not always the owner of the alert. None of them holds `%All`, `%Manager` or `%Admin`. In a production deployment each of these would be a role specific to the Readback, and the alert would be closed in a system context on behalf of the person who confirmed.
+
+The exposure is minimal: only port 80 is open, and the proxy answers 404 for every native IRIS route (`/csp/sys`, `/api/admin`, `/api/mgmnt` and the Atelier API).
+
 ## Required by the organizers
 
 ### Early Access image and build

@@ -112,3 +112,15 @@ def test_the_printed_tables_are_what_the_readme_holds():
     out = subprocess.run([sys.executable, os.path.join(ROOT, "src", "ops", "check_readme.py"), "--print-tables"], capture_output=True, text=True).stdout
     for _, block in gate.figure_blocks(REPORT):
         assert block in out and block in README
+
+
+@pytest.mark.parametrize("needle", ["%DB_USER", "%EnsRole_AlertAdministrator", "port 80", "404"])
+def test_the_accounts_roles_and_the_exposure_are_required(needle):
+    out = failing(README.replace(needle, "X"))
+    assert any("demo" in line and needle in line for line in out)
+
+
+@pytest.mark.parametrize("phrase", ["deliberately broader", "not always the owner", "specific to the Readback", "system context"])
+def test_the_framing_of_the_broad_roles_is_required(phrase):
+    out = failing(README.replace(phrase, "something else"))
+    assert any("demo" in line for line in out)
