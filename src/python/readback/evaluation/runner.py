@@ -33,10 +33,13 @@ OUT = os.environ.get("EVAL_OUT", os.path.join(ROOT, "data", "eval"))
 SHIPPED_EVAL = os.path.join(ROOT, "data", "eval")
 LARGE_MODEL = "gpt-5.4"
 
-# What one call used in the first live run (docs of feature 4, research R7): the basis of the estimate.
-TOKENS_PER_CALL = (708, 100)
-# The ceilings a run sets so that nothing is skipped by the budget; they are written in the report.
-RUN_CEILINGS = (10000, 20, 10000000)
+# What one result used, as the basis of the estimate: the whole investigation (every round), input and output tokens. The first live run,
+# before the agent had tools, used 708 and 100. The default is the estimate made before any run with tools; a pilot measures the real
+# figure and EVAL_TOKENS_PER_CALL="input,output" replaces it.
+TOKENS_PER_CALL = tuple(int(x) for x in os.environ.get("EVAL_TOKENS_PER_CALL", "3200,200").split(","))
+# The ceilings a run sets so that nothing is skipped by the budget; they are written in the report. The hourly cost ceiling is the
+# author's authorization for the round (EVAL_HOURLY_COST): once the cost of the last hour reaches it the budget guard stops the calls.
+RUN_CEILINGS = (10000, float(os.environ.get("EVAL_HOURLY_COST", "6")), 10000000)
 
 _MASKS = (re.compile(r"sk-[A-Za-z0-9_*.\-]{3,}"), re.compile(r"Bearer\s+\S+"))
 
@@ -94,6 +97,21 @@ def shipped_messages():
             text = handle.read().replace("\r\n", "\r").replace("\n", "\r")
         out.append((message_id(text), text))
     return out
+
+
+def pilot_messages(count):
+    """A small run for measuring: about count subject cases, balanced across the categories, each with the earlier results that
+    explain it (the history rows of its patient), so the change tool has something to compare."""
+    with open(DATASET) as handle:
+        rows = [json.loads(l) for l in handle if l.strip()]
+    categories = sorted({r["category"] for r in rows if r["role"] == "subject"})
+    per = max(1, count // len(categories))
+    picked = []
+    for category in categories:
+        picked += [r for r in rows if r["role"] == "subject" and r["category"] == category][:per]
+    patients = {r["patientId"] for r in picked}
+    chosen = [r for r in rows if r["patientId"] in patients and (r["role"] == "history" or r in picked)]
+    return [(r["messageId"], r["text"]) for r in chosen]
 
 
 def dataset_messages():
@@ -172,15 +190,18 @@ def build_reports():
     if not runs:
         say("no run to report: the work folder {} has no rows".format(WORK))
         return 2
-    return report.main(runs + metas + ["--dataset", DATASET, "--prices", PRICES, "--out", OUT])
+    # The report of the previous round, when there is one, so that the new report states how each figure moved.
+    previous = os.environ.get("EVAL_PREVIOUS") or next((p for p in (os.path.join(SHIPPED_EVAL, "report-before-tools.json"),) if os.path.exists(p)), None)
+    extra = ["--previous", previous] if previous else []
+    return report.main(runs + metas + extra + ["--dataset", DATASET, "--prices", PRICES, "--out", OUT])
 
 
-def run_live(model, resume=False, yes=False, output_cap=None, replay_set=None):
+def run_live(model, resume=False, yes=False, output_cap=None, replay_set=None, pilot=None, record_answers=True):
     mode = container_mode()
     if mode != "live":
         say("refusing: the product is in {} mode, so no provider key is configured in the container. Nothing was sent.".format(mode or "unknown"))
         return 2
-    messages = all_messages()
+    messages = pilot_messages(pilot) if pilot else all_messages()
     ids = {m[0] for m in messages}
     clean, why = clean_state()
     if not clean and not resume:
@@ -228,6 +249,9 @@ def run_live(model, resume=False, yes=False, output_cap=None, replay_set=None):
         os.makedirs(folder, exist_ok=True)
         with open(os.path.join(folder, "meta-{}.json".format(name)), "w") as handle:
             json.dump({"settings": "temperature 0; strict JSON schema; output cap {} tokens; model {}".format(cap or 400, model), "ceilings": ceilings}, handle, indent=2)
+    if not record_answers:
+        say("exported {} rows to {}; nothing was recorded (a pilot never touches the recordings that ship)".format(count, path))
+        return 0 if complete else 1
     target = replay_set or ("default" if name == LARGE_MODEL else name)
     try:
         recorded, skipped = record.from_export(path, target, RECORDINGS)
@@ -291,17 +315,20 @@ def main(argv=None):
     live.add_argument("--resume", action="store_true")
     live.add_argument("--output-cap", type=int, default=None)
     live.add_argument("--set", dest="replay_set", default=None)
+    live.add_argument("--pilot", type=int, default=None, help="send only about N subject cases (balanced across categories) with their history, record nothing")
     rep = sub.add_parser("replay")
     rep.add_argument("replay_set", nargs="?", default="default")
     sub.add_parser("report")
     args = parser.parse_args(argv)
     if args.command == "live":
-        code = run_live(args.model, args.resume, args.yes, args.output_cap, args.replay_set)
+        code = run_live(args.model, args.resume, args.yes, args.output_cap, args.replay_set, args.pilot, record_answers=not args.pilot)
     elif args.command == "replay":
         code = run_replay(args.replay_set)
     else:
         return build_reports()
     ran = args.command == "replay" or args.yes
+    if args.command == "live" and args.pilot:
+        return code  # a pilot measures; it never writes a report
     return (build_reports() or code) if (code == 0 and ran) else code
 
 

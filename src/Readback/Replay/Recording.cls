@@ -22,7 +22,7 @@ Property OutputTokens As %Integer;
 Property LatencyMs As %Integer;
 
 /// Empty for an answer. provider-error, timeout or empty-output when the live call failed: replay reproduces the failure.
-Property FailureKind As %String(VALUELIST = ",provider-error,timeout,empty-output");
+Property FailureKind As %String(VALUELIST = ",provider-error,timeout,empty-output,tool-failure,tool-limit");
 
 /// The reason of the failure as the trace holds it (redacted); empty for an answer.
 Property FailureReason As %String(MAXLEN = 1000);

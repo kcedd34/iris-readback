@@ -101,6 +101,10 @@ Method CallAgent(pText As %String, pMode As %String) As Readback.Triage.AgentOut
 			Set tOutcome.TimedOut = 1
 		} ElseIf tRecording.FailureKind = "provider-error" {
 			Set tOutcome.Status = $System.Status.Error(5001, tRecording.FailureReason)
+		} ElseIf (tRecording.FailureKind = "tool-failure") || (tRecording.FailureKind = "tool-limit") {
+			// The investigation itself failed in the recorded run: the answer, if there was one, was reached with information missing.
+			Set tOutcome.ToolFailureKind = tRecording.FailureKind, tOutcome.ToolFailureReason = tRecording.FailureReason
+			Set tOutcome.Content = tRecording.AnswerText, tOutcome.InputTokens = +tRecording.InputTokens, tOutcome.OutputTokens = +tRecording.OutputTokens
 		} Else {
 			Set tOutcome.Content = "", tOutcome.InputTokens = +tRecording.InputTokens, tOutcome.OutputTokens = +tRecording.OutputTokens
 		}

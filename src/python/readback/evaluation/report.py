@@ -122,7 +122,26 @@ def compute_model(rows, expected):
     if known:
         cost = round(sum(_float(r.get("costUsd"), 0.0) for r in known) / len(known) * 1000, 6)
     models = sorted({r.get("model") for r in by_id.values() if r.get("model")})
+    # The investigation with tools: calls and rounds per result the agent was asked about, the calls that did not succeed, the
+    # floor policy's refusals, and the answers rejected for evidence no tool returned (counted as invalid answers too).
+    calls_made = sum(_int(r.get("toolCallCount"), 0) for r in called)
+    rounds = [_int(r.get("rounds"), 1) for r in called]
+    refused_calls = sum(1 for r in called for c in (r.get("toolCalls") or []) if c.get("status") == "refused")
+    invalid_answers = sum(1 for r in called if r.get("failureKind") in ("schema-invalid", "empty-or-refused", "evidence-not-from-tools"))
+    tools = {
+        "toolCalls": calls_made,
+        "toolCallsPerResult": round(calls_made / len(called), 4) if called else None,
+        "roundsMean": round(sum(rounds) / len(rounds), 4) if rounds else None,
+        "roundsMax": max(rounds) if rounds else None,
+        "toolFailures": sum(1 for r in called if _int(r.get("toolFailureCount"), 0) > 0),
+        "toolRefusals": refused_calls,
+        "floorPolicyRefusals": sum(1 for r in called if r.get("policyRefusal")),
+        "evidenceRejected": sum(1 for r in called if r.get("evidenceCheck") == "not-from-tools"),
+        "limitReached": sum(1 for r in called if r.get("failureKind") == "tool-limit"),
+        "invalidAnswerRate": round(invalid_answers / len(called), 6) if called else None,
+    }
     return {
+        **tools,
         "model": models[0] if len(models) == 1 else ",".join(models),
         "rowCount": count,
         "subjectCount": len(expected),
@@ -147,7 +166,38 @@ def compute_model(rows, expected):
     }
 
 
-def build_report(runs, dataset_rows, prices, header, meta=None):
+MOVEMENT_KEYS = (("missedCriticals", lambda m: len(m["missedCriticals"])), ("silencedCriticals", lambda m: m["silencedCriticals"]),
+                 ("downgradeAttempts", lambda m: m["downgradeAttempts"]), ("reviewRate", lambda m: m["reviewRate"]),
+                 ("divergenceRate", lambda m: m["divergenceRate"]), ("invalidRate", lambda m: m["invalidRate"]),
+                 ("costPerThousandUsd", lambda m: m["costPerThousandUsd"]), ("latencyP50Ms", lambda m: m["latencyP50Ms"]),
+                 ("latencyP95Ms", lambda m: m["latencyP95Ms"]),
+                 ("expectedCriticalReadback", lambda m: m["matrixFinal"]["CRITICAL"]["CRITICAL"]),
+                 ("expectedCriticalAgentAlone", lambda m: m["matrixAgent"]["CRITICAL"]["CRITICAL"]))
+
+
+def movement(current, previous):
+    """Each headline figure of a model against the same figure of the previous report: previous, current and the difference, the
+    ones that got worse included. A model that has no previous figure is listed with the previous value empty."""
+    out = {}
+    for name, now in current["models"].items():
+        before = (previous or {}).get("models", {}).get(name)
+        figures = {}
+        for key, getter in MOVEMENT_KEYS:
+            try:
+                new = getter(now)
+            except (KeyError, TypeError):
+                new = None
+            try:
+                old = getter(before) if before else None
+            except (KeyError, TypeError):
+                old = None
+            delta = round(new - old, 6) if isinstance(new, (int, float)) and isinstance(old, (int, float)) else None
+            figures[key] = {"previous": old, "current": new, "delta": delta}
+        out[name] = figures
+    return out
+
+
+def build_report(runs, dataset_rows, prices, header, meta=None, previous=None):
     """runs: model name -> exported rows. prices: the rows of price-table.json. header: seed, run date, prompt versions.
     meta: model name -> {"settings": text, "ceilings": text}, the settings and budget ceilings of that model's run."""
     meta = meta or {}
@@ -162,7 +212,11 @@ def build_report(runs, dataset_rows, prices, header, meta=None):
         figures["runSettings"] = meta.get(name, {}).get("settings", "")
         figures["budgetCeilings"] = meta.get(name, {}).get("ceilings", "")
         models[name] = figures
-    return {"header": header, "models": models, "firstLiveRun": FIRST_LIVE_RUN}
+    report = {"header": header, "models": models, "firstLiveRun": FIRST_LIVE_RUN}
+    if previous:
+        report["movement"] = movement(report, previous)
+        report["previousPromptVersions"] = previous.get("header", {}).get("promptVersions", [])
+    return report
 
 
 def _fmt(value, digits=None):
@@ -220,6 +274,10 @@ def write_markdown(report, path):
                 "- Invalid answer rate: {}; human review rate: {}; rule-versus-agent divergence rate: {}".format(
                     _fmt(m["invalidRate"], "rate"), _fmt(m["reviewRate"], "rate"), _fmt(m["divergenceRate"], "rate")),
                 "- Agent calls: {} of {} messages; failures by kind: {}".format(m["callCount"], m["rowCount"], m["failureCounts"] or "none"),
+                "- Investigation with tools: {} tool calls ({} per result), {} rounds a result on average (most {}), {} results with a call that did not succeed ({} refused by a policy), {} stopped at the limit".format(
+                    m.get("toolCalls", 0), _fmt(m.get("toolCallsPerResult")), _fmt(m.get("roundsMean")), _fmt(m.get("roundsMax")), m.get("toolFailures", 0), m.get("toolRefusals", 0), m.get("limitReached", 0)),
+                "- Floor policy refusals of an answer that would have lowered a critical: {}; answers rejected for evidence no tool returned: {}; invalid answer rate with the evidence rule: {}".format(
+                    m.get("floorPolicyRefusals", 0), m.get("evidenceRejected", 0), _fmt(m.get("invalidAnswerRate"), "rate")),
                 "- Subject cases never processed: {}".format(len(m["missingSubjects"])), "",
                 "| category | cases | agent agrees | final agrees |", "|---|---|---|---|"]
         for category, t in m["agreementByCategory"].items():
@@ -234,6 +292,15 @@ def write_markdown(report, path):
         base = b.get(key, "")
         out.append("| {} | ".format(label) + " | ".join(_fmt(m[key], digits) for m in report["models"].values()) + " | {} |".format(
             _fmt(base, digits) if base != "" else "n/a"))
+    if report.get("movement"):
+        out += ["", "## Movement against the previous report", "",
+                "Prompt version before: {}; now: {}. Every figure is listed, the ones that got worse included.".format(
+                    ", ".join(report.get("previousPromptVersions", [])) or "n/a", ", ".join(report["header"].get("promptVersions", [])) or "n/a"), ""]
+        for name, figs in report["movement"].items():
+            out += ["### {}".format(name), "", "| figure | previous | current | change |", "|---|---|---|---|"]
+            for key, f in figs.items():
+                out.append("| {} | {} | {} | {} |".format(key, _fmt(f["previous"]), _fmt(f["current"]), _fmt(f["delta"])))
+            out.append("")
     out += ["", "## Limits", "",
             "- The expected decision of every case comes from construction rules written in `DATASET.md`, by one author; there was no second annotator.",
             "- The provider is not guaranteed to be deterministic at the settings used. The recorded run is the published one, and replay reproduces it.",
@@ -251,6 +318,7 @@ def main(argv=None):
     parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument("--run-date", default=None, help="date of the recorded run; defaults to the one in an existing report, else today")
     parser.add_argument("--meta", action="append", default=[], help="MODEL=FILE.json with {settings, ceilings} of that model's run; optional")
+    parser.add_argument("--previous", default=None, help="the report of the previous round (report.json); the report then carries the movement of each figure against it")
     args = parser.parse_args(argv)
     runs = {}
     for item in args.run:
@@ -273,7 +341,8 @@ def main(argv=None):
     header = {"seed": args.seed, "subjectCases": sum(1 for r in dataset_rows if r["role"] == "subject"), "promptVersions": versions,
               "runDate": run_date}
     prices = json.load(open(args.prices))["prices"]
-    report = build_report(runs, dataset_rows, prices, header, meta)
+    older = json.load(open(args.previous)) if args.previous else None
+    report = build_report(runs, dataset_rows, prices, header, meta, older)
     os.makedirs(args.out, exist_ok=True)
     write_json(report, os.path.join(args.out, "report.json"))
     write_markdown(report, os.path.join(args.out, "report.md"))

@@ -12,7 +12,7 @@ import os
 import re
 import sys
 
-FIELDS = ("replaySet", "messageControlId", "promptVersion", "model", "answer", "inputTokens", "outputTokens", "latencyMs", "source", "failureKind", "failureReason")
+FIELDS = ("replaySet", "messageControlId", "promptVersion", "model", "answer", "inputTokens", "outputTokens", "latencyMs", "source", "failureKind", "failureReason", "toolCalls", "rounds")
 KEY_PATTERNS = (re.compile(r"sk-[A-Za-z0-9_*.\-]{8,}"), re.compile(r"Bearer\s+[A-Za-z0-9._~+/=\-]{8,}"), re.compile(r"(?i)api[_ -]?key\s*[:=]\s*\S{8,}"))
 
 
@@ -43,8 +43,11 @@ def from_rows(rows, replay_set):
         if not _truthy(row.get("agentCalled")):
             continue
         failure = None
-        if not row.get("rawOutput"):
-            kind = row.get("failureKind")
+        kind = row.get("failureKind")
+        if kind in ("tool-failure", "tool-limit"):
+            # The investigation failed: replay hands back the same failure, and keeps the answer if there was one.
+            failure = kind
+        elif not row.get("rawOutput"):
             failure = kind if kind in ("provider-error", "timeout") else "empty-output"
         recording = {
             "replaySet": replay_set,
@@ -56,10 +59,17 @@ def from_rows(rows, replay_set):
             "outputTokens": int(row.get("outputTokens") or 0),
             "latencyMs": int(row["latencyMs"]) if row.get("latencyMs") not in (None, "") else 0,
             "source": "recorded",
+            "rounds": int(row.get("rounds") or 1),
         }
+        calls = [{"seq": c["seq"], "tool": c["tool"], "arguments": c.get("arguments", ""), "result": c.get("result", ""), "status": c["status"],
+                  "reason": c.get("reason", ""), "durationMs": int(c.get("durationMs") or 0)} for c in (row.get("toolCalls") or [])]
+        if calls:
+            recording["toolCalls"] = calls
         if failure:
             recording["failureKind"] = failure
             recording["failureReason"] = _reason(failure, row.get("failureReason") or "")
+        if calls and has_key_shape(json.dumps(calls)):
+            raise ValueError("a credential-shaped value in the tool calls of {}".format(row["messageControlId"]))
         for name, value in recording.items():
             if isinstance(value, str) and has_key_shape(value):
                 raise ValueError("a credential-shaped value in {} of {}".format(name, row["messageControlId"]))

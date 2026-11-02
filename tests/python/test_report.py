@@ -181,3 +181,26 @@ def test_a_regeneration_keeps_the_settings_and_date_of_the_report_already_writte
     first = (tmp_path / "out" / "report.json").read_bytes()
     report.main(args)  # no date and no meta: both come from the report already there
     assert (tmp_path / "out" / "report.json").read_bytes() == first
+
+
+def test_the_tool_figures_and_the_movement_against_the_previous_report():
+    expected = {"A": ("CRITICAL", "clear-critical"), "B": ("CRITICAL", "clear-critical"), "C": ("NON_CRITICAL", "normal")}
+    rows = [
+        {"messageControlId": "A", "agentCalled": 1, "schemaValid": 1, "route": "readback", "floorSeverity": 3, "agentDecision": "CRITICAL", "agentSeverity": 3,
+         "rounds": 2, "toolCallCount": 3, "toolFailureCount": 0, "evidenceCheck": "ok", "policyRefusal": "", "toolCalls": [{"status": "ok"}] * 3, "costKnown": 1, "costUsd": 0.01, "latencyMs": 1000},
+        {"messageControlId": "B", "agentCalled": 1, "schemaValid": 1, "route": "readback", "floorSeverity": 3, "agentDecision": "NON_CRITICAL", "agentSeverity": 0,
+         "rounds": 2, "toolCallCount": 2, "toolFailureCount": 1, "evidenceCheck": "ok", "policyRefusal": "refused: lowered", "failureKind": "floor-policy-refusal",
+         "toolCalls": [{"status": "ok"}, {"status": "refused"}], "costKnown": 1, "costUsd": 0.02, "latencyMs": 2000},
+        {"messageControlId": "C", "agentCalled": 1, "schemaValid": 0, "route": "review", "floorSeverity": 0, "failureKind": "evidence-not-from-tools",
+         "rounds": 1, "toolCallCount": 0, "toolFailureCount": 0, "evidenceCheck": "not-from-tools", "policyRefusal": "", "costKnown": 1, "costUsd": 0.01, "latencyMs": 500},
+    ]
+    m = report.compute_model(rows, expected)
+    assert m["toolCalls"] == 5 and m["roundsMax"] == 2 and abs(m["roundsMean"] - 5 / 3) < 1e-3 and abs(m["toolCallsPerResult"] - 5 / 3) < 1e-3
+    assert m["toolFailures"] == 1 and m["toolRefusals"] == 1 and m["floorPolicyRefusals"] == 1 and m["evidenceRejected"] == 1
+    assert abs(m["invalidAnswerRate"] - 1 / 3) < 1e-5, "an answer rejected for evidence counts as invalid"
+    before = {"models": {"m": dict(m, missedCriticals=["A", "B"], reviewRate=0.5, costPerThousandUsd=1.0, latencyP50Ms=900)}}
+    after = {"models": {"m": dict(m, missedCriticals=[], reviewRate=0.25, costPerThousandUsd=3.0, latencyP50Ms=1500)}}
+    mv = report.movement(after, before)["m"]
+    assert mv["missedCriticals"] == {"previous": 2, "current": 0, "delta": -2}
+    assert mv["costPerThousandUsd"]["delta"] == 2.0 and mv["latencyP50Ms"]["delta"] == 600, "a figure that got worse is listed like any other"
+    assert report.movement(after, None)["m"]["reviewRate"]["previous"] is None, "no previous report means no previous value"

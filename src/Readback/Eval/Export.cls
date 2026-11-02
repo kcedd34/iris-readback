@@ -12,7 +12,7 @@ ClassMethod Rows(pFile As %String, pMessageIdPrefix As %String = "", Output pCou
 	Set tStream.TranslateTable = "UTF8"
 	Set tSC = tStream.LinkToFile(pFile)
 	Quit:$System.Status.IsError(tSC) tSC
-	Set tSQL = "SELECT MessageControlId, Mode, Model, PromptVersion, AgentCalled, SchemaValid, FailureKind, FailureReason, FloorSeverity, AgentDecision, AgentSeverity, FinalSeverity, Route, Divergence, InputTokens, OutputTokens, CostUsd, CostKnown, LatencyMs, RecordedLatencyMs, RawOutput FROM Readback_Trace.Decision"
+	Set tSQL = "SELECT ID, Rounds, ToolCallCount, ToolFailureCount, PolicyRefusal, EvidenceCheck, MessageControlId, Mode, Model, PromptVersion, AgentCalled, SchemaValid, FailureKind, FailureReason, FloorSeverity, AgentDecision, AgentSeverity, FinalSeverity, Route, Divergence, InputTokens, OutputTokens, CostUsd, CostKnown, LatencyMs, RecordedLatencyMs, RawOutput FROM Readback_Trace.Decision"
 	If pMessageIdPrefix '= "" { Set tRS = ##class(%SQL.Statement).%ExecDirect(, tSQL_" WHERE MessageControlId %STARTSWITH ? ORDER BY ID", pMessageIdPrefix) }
 	Else { Set tRS = ##class(%SQL.Statement).%ExecDirect(, tSQL_" ORDER BY ID") }
 	Quit:tRS.%SQLCODE<0 $System.Status.Error(5001, "the trace could not be read (SQLCODE "_tRS.%SQLCODE_")")
@@ -34,6 +34,11 @@ ClassMethod Rows(pFile As %String, pMessageIdPrefix As %String = "", Output pCou
 		Set tLatency = $Select((tRS.%Get("Mode")="replay") && (tRS.%Get("RecordedLatencyMs")'=""):tRS.%Get("RecordedLatencyMs"), 1:tRS.%Get("LatencyMs"))
 		Do:tLatency'="" tObj.%Set("latencyMs", +tLatency, "number")
 		Set tObj.rawOutput = ##class(Readback.Config.Mode).Redact(tRS.%Get("RawOutput"))
+		// The investigation: rounds, how many calls and how many did not succeed, the floor policy's refusal, the evidence check, and the calls themselves in order.
+		Set tObj.rounds = $Select(tRS.%Get("Rounds")'="":+tRS.%Get("Rounds"), 1:1)
+		Set tObj.toolCallCount = +tRS.%Get("ToolCallCount"), tObj.toolFailureCount = +tRS.%Get("ToolFailureCount")
+		Set tObj.policyRefusal = ##class(Readback.Config.Mode).Redact(tRS.%Get("PolicyRefusal")), tObj.evidenceCheck = tRS.%Get("EvidenceCheck")
+		Set tObj.toolCalls = ##class(Readback.Trace.Rebuild).CallsOf(##class(Readback.Trace.Decision).%OpenId(tRS.%Get("ID")))
 		Do tStream.WriteLine(tObj.%ToJSON())
 		Set pCount = pCount + 1
 	}
