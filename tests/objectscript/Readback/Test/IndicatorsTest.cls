@@ -80,7 +80,7 @@ Method TestEmptyWindowGivesNullFigures()
 {
 	Set tRes = ##class(Readback.Trace.Indicators).Compute("1999-01-01 00:00:00", "1999-01-02 00:00:00")
 	Do $$$AssertEquals(tRes.recordCount, 0, "no record")
-	For tName = "costPerThousandResults", "unknownCostRecords", "latencyP50Ms", "latencyP95Ms", "reviewRate", "divergenceRate", "invalidRate" {
+	For tName = "costPerThousandResults", "unknownCostRecords", "latencyP50Ms", "latencyP95Ms", "reviewRate", "divergenceRate", "invalidRate", "policyRefusalRate", "toolFailureRate", "meanRounds", "meanToolCalls" {
 		Do $$$AssertEquals(tRes.%GetTypeOf(tName), "null", tName_" is null")
 	}
 }

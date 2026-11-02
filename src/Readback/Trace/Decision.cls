@@ -121,6 +121,20 @@ Property ReviewedAt As %TimeStamp;
 /// False when the budget stopped the agent call.
 Property AgentCalled As %Boolean [ InitialExpression = 1 ];
 
+/// The model rounds the investigation used (1 when the agent called no tool).
+Property Rounds As %Integer;
+
+/// Tool calls of the investigation and how many of them did not succeed (refused, failed or unknown).
+Property ToolCallCount As %Integer;
+
+Property ToolFailureCount As %Integer;
+
+/// Empty, or the formal refusal of the floor policy: the answer that would have lowered a critical floor.
+Property PolicyRefusal As %String(MAXLEN = 300);
+
+/// ok, not-from-tools or not-applicable: whether every evidence identifier was returned by a tool of this investigation.
+Property EvidenceCheck As %String(MAXLEN = 20);
+
 Index CreatedIdx On CreatedAt;
 
 Index ControlIdIdx On MessageControlId;
@@ -284,6 +298,21 @@ Storage Default
 </Value>
 <Value name="51">
 <Value>RecordedLatencyMs</Value>
+</Value>
+<Value name="52">
+<Value>Rounds</Value>
+</Value>
+<Value name="53">
+<Value>ToolCallCount</Value>
+</Value>
+<Value name="54">
+<Value>ToolFailureCount</Value>
+</Value>
+<Value name="55">
+<Value>PolicyRefusal</Value>
+</Value>
+<Value name="56">
+<Value>EvidenceCheck</Value>
 </Value>
 </Data>
 <DataLocation>^Readback.Trace.DecisionD</DataLocation>

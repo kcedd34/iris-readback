@@ -29,7 +29,22 @@ ClassMethod ExplainRecord(pTrace As Readback.Trace.Decision) As %DynamicObject
 	Set tAgent.Decision = pTrace.AgentDecision, tAgent.Severity = pTrace.AgentSeverity, tAgent.Confidence = pTrace.AgentConfidence
 	Set tAgent.FailureKind = pTrace.FailureKind, tAgent.FailureReason = pTrace.FailureReason
 	Set tFinal = ##class(Readback.Triage.Composer).Compose(tFloor, tAgent)
-	Quit {"ok":true,"finalSeverity":(tFinal.FinalSeverity),"route":(tFinal.Route),"reason":(tFinal.Reason),"divergence":(tFinal.Divergence)}
+	Set tOut = {"ok":true,"finalSeverity":(tFinal.FinalSeverity),"route":(tFinal.Route),"reason":(tFinal.Reason),"divergence":(tFinal.Divergence)}
+	Set tOut.rounds = +pTrace.Rounds, tOut.policyRefusal = pTrace.PolicyRefusal, tOut.evidenceCheck = pTrace.EvidenceCheck
+	Set tOut.toolCalls = ..CallsOf(pTrace)
+	Quit tOut
+}
+
+
+/// The tool calls of a decision in order, read from the trace table.
+ClassMethod CallsOf(pTrace As Readback.Trace.Decision) As %DynamicArray
+{
+	Set tList = []
+	Set tRS = ##class(%SQL.Statement).%ExecDirect(, "SELECT Seq, Tool, ArgumentsJson, ResultJson, Status, Reason, DurationMs FROM Readback_Trace.ToolCall WHERE Decision = ? ORDER BY Seq", pTrace.%Id())
+	While tRS.%Next() {
+		Do tList.%Push({"seq":(tRS.%Get("Seq")),"tool":(tRS.%Get("Tool")),"arguments":(tRS.%Get("ArgumentsJson")),"result":(tRS.%Get("ResultJson")),"status":(tRS.%Get("Status")),"reason":(tRS.%Get("Reason")),"durationMs":(+tRS.%Get("DurationMs"))})
+	}
+	Quit tList
 }
 
 }

@@ -1,6 +1,6 @@
-"""Retrieval end to end, replay mode, fresh stack: policy passages reach the agent text and are traced, a
-human-confirmed case becomes an example and an unconfirmed one never does, a completed review feeds the pool,
-and no identifier is in either vector table.
+"""Retrieval end to end, through the agent's policy search tool against a local mock (no real key, no cost): the passages the
+tool returns are traced, a human-confirmed case becomes an example and an unconfirmed one never does, a completed review feeds
+the pool, and no identifier is in either vector table.
 """
 import json
 import os
@@ -26,24 +26,24 @@ def check(condition, message):
         print("FAIL:", message)
 
 
+import live_mock_check as live
+from tools_check import calls_of
+
+
 def start_stack():
-    compose("up", "-d", "--build", "--force-recreate", extra_env={"OPENAI_API_KEY": "", "READBACK_DEMO_PASSWORD": PASSWORD})
-    subprocess.run([os.path.join(ROOT, "src/ops/verify.sh"), "240"], cwd=ROOT, check=True, capture_output=True)
+    live.start_stack(live.FILES, env={"READBACK_DEMO_PASSWORD": PASSWORD})
+    compose("exec", "-d", "iris", "python3", "/opt/readback/tests/e2e/mock_openai.py")
+    time.sleep(2)
+    check(live.set_setting("Readback.Agent", "Adapter", "ProviderConfig", '{"api_key":"@{env:OPENAI_API_KEY}","base_url":"http://127.0.0.1:8099/v1/"}'), "could not point the agent item at the mock")
+    time.sleep(3)
 
 
-def load_recordings(ids):
-    with tempfile.TemporaryDirectory() as work:
-        path = os.path.join(work, "retrieval.jsonl")
-        with open(path, "wb") as handle:
-            for mid in ids:
-                row = {"messageControlId": mid, "promptVersion": make_hostile.prompt_version(), "replaySet": "retrieval", "answer": CALM,
-                       "model": "fixture", "inputTokens": 100, "outputTokens": 50, "source": "fixture"}
-                handle.write((json.dumps(row, sort_keys=True) + "\n").encode("ascii"))
-        compose("cp", path, "iris:/tmp/retrieval.jsonl")
-    lines = iris('set sc=##class(Readback.Replay.Recording).LoadFile("/tmp/retrieval.jsonl",.n)\n'
-                 'write "RB_LOAD="_$select($system.Status.IsOK(sc):n,1:$system.Status.GetErrorText(sc)),!\n'
-                 'do ##class(Readback.Replay.Recording).Activate("retrieval")')
-    return any(l == "RB_LOAD=%d" % len(ids) for l in lines)
+def search_result(trace_id):
+    """The parsed result of the policy search tool of a decision, or None."""
+    for row in calls_of(trace_id):
+        if row["Tool"] == "search_policy" and row["Status"] == "ok":
+            return json.loads(row["ResultJson"])
+    return None
 
 
 def send(texts):
@@ -66,7 +66,7 @@ def trace(control_id):
 
 
 def hemolysis(control_id, n):
-    return oru(control_id, "SYN94%05d" % n, "2823-3", "Potassium", "6.8", "mmol/L", indices=[("HEMOLYSIS_INDEX", "250")])
+    return oru(control_id, "SYN94%05d" % n, "2823-3", "Potassium", "6.8", "mmol/L", ref="MODE:toolhemo", indices=[("HEMOLYSIS_INDEX", "250")])
 
 
 def main():
@@ -78,7 +78,6 @@ def main():
     similar = tag + "-S1"
     review_src = tag + "-REV"
     review_sim = tag + "-S2"
-    check(load_recordings(hemo + [similar, review_sim]), "the recording set did not load")
     if failures:
         return 1
 
@@ -90,10 +89,10 @@ def main():
         return 1
     with_passage = [m for m in hemo if "recollect-hemolysis" in t[m]["PassageIds"]]
     check(len(with_passage) >= 18, "recollect-hemolysis retrieved for only %d of 20 hemolysis cases" % len(with_passage))
-    check(all("[recollect-hemolysis]" in t[m]["InputText"] for m in with_passage), "a retrieved passage is not in the agent text with its id")
+    check(all("recollect-hemolysis" in json.dumps(search_result(t[m]["ID"]) or {}) for m in with_passage), "a passage in the trace is not in the result the agent was handed")
     check(all(t[m]["IndexVersion"] != "" and t[m]["RetrievalNote"] == "" for m in hemo), "index version or retrieval note wrong in the trace")
     first = t[sorted(hemo, key=lambda m: int(t[m]["ID"]))[0]]
-    check("No similar confirmed case." in first["InputText"], "a fresh pool must say there is no similar confirmed case")
+    check((search_result(first["ID"]) or {}).get("similarCases") == [], "a fresh pool must hand the agent no similar confirmed case")
     check(all(json.loads(t[m]["CaseTraceIds"] or "[]") == [] for m in sorted(hemo, key=lambda m: int(t[m]["ID"]))[:1]), "the first case had a case example on a fresh pool")
 
     # 2. A matched read-back makes its case an example; unconfirmed ones never are.
@@ -125,19 +124,28 @@ def main():
             check(str(confirmed_trace) in [str(i) for i in ids], "the confirmed case is not an example for a similar result: %s" % ids)
             others = {str(t[m]["ID"]) for m in hemo if m != confirmed_id}
             check(not (others & {str(i) for i in ids}), "an unconfirmed case was used as an example")
-            check("similar-case-1:" in s1["InputText"] and "Decision: critical. Route: readback." in s1["InputText"], "the case example is not in the agent text in its shape")
+            sim = (search_result(s1["ID"]) or {}).get("similarCases") or [{}]
+            check(sim[0].get("id") == "similar-case-1" and sim[0].get("decision") == "critical" and sim[0].get("route") == "readback", "the case example is not handed to the agent in its shape: %s" % sim[0])
             check(json.loads(s1["CaseLabels"] or "[]")[:1] == ["similar-case-1"], "case labels not traced")
 
     # 3. A completed review feeds the pool.
-    send([oru(review_src, "SYN9400200", "2823-3", "Potassium", "4.2", "mmol/L")])
+    # A case whose agent asks for a tool that does not exist goes to a person: that is the review the test completes.
+    send([oru(review_src, "SYN9400200", "2823-3", "Potassium", "4.2", "mmol/L", ref="MODE:toolunknown")])
     rev = wait_for(lambda: tasks_of("reviewer1", PASSWORD) and next((i for i in tasks_of("reviewer1", PASSWORD) if review_src in i.get("subject", "")), None), 60)
     check(bool(rev), "no review task appeared for the case without a recording")
     if rev:
+        # The trace records the task only after the assignment: completing it before that leaves nothing to record against.
+        check(bool(wait_for(lambda: (trace(review_src) or {}).get("TaskId", "") not in ("", "UNASSIGNED"), 30)), "the review task was not recorded in the trace in time")
         status, text = call("reviewer1", PASSWORD, "POST", "/task/" + rev["id"], {"action": "Reviewed", "formFields": {"Note": "Looked at it"}})
         done = wait_for(lambda: scalar("SELECT ReviewedBy FROM Readback_Trace.Decision WHERE MessageControlId = '%s'" % review_src) == "reviewer1", 20)
         check(bool(done), "the review was not recorded in the trace: %s %s" % (status, text[:100]))
         reviewed_trace = trace(review_src)["ID"]
-        send([oru(review_sim, "SYN9400201", "2823-3", "Potassium", "4.2", "mmol/L")])
+        # The agent searches for the description of the reviewed case; the pool must hand that case back as an example.
+        description = iris('set l=##class(Readback.Msg.LabResult).%New() set l.AnalyteCode="2823-3", l.ValueText="4.2", l.ValueNumeric=4.2, l.Unit="mmol/L", l.PatientId="SYN9400200", l.MessageControlId="x"\n'
+                           'write "RB_DESC="_##class(Readback.Retrieval.Describe).Text(l),!')
+        text = description[0].split("=", 1)[1] if description else "potassium 4.2 mmol/L"
+        subprocess.run(["docker", "compose", "exec", "-T", "iris", "sh", "-c", "cat > /tmp/mock-query"], cwd=ROOT, text=True, input=text, check=True)
+        send([oru(review_sim, "SYN9400201", "2823-3", "Potassium", "4.2", "mmol/L", ref="MODE:toolquery")])
         s2 = wait_for(lambda: trace(review_sim), 60)
         check(bool(s2), "no trace for the result similar to the reviewed one")
         if s2:
@@ -155,6 +163,7 @@ def main():
         for item in failures[:25]:
             print(" -", item)
         return 1
+    live.start_stack(["docker-compose.yml"], env={"OPENAI_API_KEY": "", "READBACK_DEMO_PASSWORD": PASSWORD})
     print("retrieval check passed: %d of 20 hemolysis cases retrieved the recollect passage" % len(with_passage))
     return 0
 

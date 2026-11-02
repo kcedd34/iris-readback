@@ -111,9 +111,6 @@ Method TestNothingRelevantIsAnAvailableEmptyAnswer()
 	Do $$$AssertEquals(tResp.Available, 1, "finding nothing is not a failure")
 	Do $$$AssertEquals(tResp.Passages.Count(), 0, "no passage")
 	Do $$$AssertEquals(tResp.Cases.Count(), 0, "no case")
-	Set tText = ##class(Readback.Triage.Context).RetrievalSection(tResp)
-	Do $$$AssertTrue(tText["No policy passage matched.", "the agent text says nothing matched")
-	Do $$$AssertTrue(tText["No similar confirmed case.", "and no similar confirmed case")
 }
 
 Method TestOnlyConfirmedCasesAreRetrievable()
@@ -199,7 +196,6 @@ Method TestMissingModelIsUnavailableWithAReasonAndNoException()
 	Do $$$AssertEquals(tResp.Available, 0, "a search on an unavailable engine says unavailable, not 'nothing found'")
 	Do $$$AssertEquals(tResp.Passages.Count(), 0, "with no items")
 	Do $$$AssertTrue(tResp.Reason'="", "and a reason")
-	Do $$$AssertTrue(##class(Readback.Triage.Context).RetrievalSection(tResp)["not available", "the agent text states that retrieval is not available")
 }
 
 }

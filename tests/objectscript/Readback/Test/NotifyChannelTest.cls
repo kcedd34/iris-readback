@@ -113,7 +113,8 @@ Method TestTheTextHasTheCaseAndNoValueOrPatient()
 	Do $$$AssertTrue(tEsc [ "Escalation Level of this alert has changed", "an escalation carries the platform's own line")
 	Set tRem = tOp.TextFor(..Request(tAlert, "communicator2", $$$eAlertNotificationReminder), tAlert)
 	Do $$$AssertTrue(tRem [ "reminder message", "a reminder carries the platform's own line")
-	Do $$$AssertNotTrue(tRem [ "6.9", "no value in any text")
+	// The alert holds no value; look for the value with its unit, since a bare "6.9" can turn up inside a time stamp.
+	Do $$$AssertNotTrue((tFirst_tEsc_tRem) [ "mmol", "no value in any text")
 }
 
 }

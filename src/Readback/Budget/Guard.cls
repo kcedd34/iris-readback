@@ -10,39 +10,45 @@ ClassMethod EstimateTokens(pChars As %Integer) As %Integer
 	Quit $Select(pChars#4=0:pChars\4, 1:pChars\4+1)
 }
 
-/// The decision for one call. pText is the full request text; pPassageChars and pCaseChars are $Lists with
-/// the number of characters each retrieved item adds to the text (empty when nothing was retrieved). Items are
-/// dropped from the end, similar cases first, until the estimate fits the per-result ceiling.
-ClassMethod Check(pText As %String, pPassageChars As %List = "", pCaseChars As %List = "", pModel As %String = "") As Readback.Budget.State
+/// Tokens the tool definitions add to every round of the request: a deliberate over-estimate, since the definitions are
+/// sent again on each round.
+Parameter ToolDefinitionTokens = 450;
+
+/// The decision for one investigation. pText is the user text of the case. The estimate counts every round the agent is
+/// expected to use (the configuration says how many), because each round sends the whole conversation again plus the
+/// tool definitions, and each tool round adds a result. A ceiling that is reached means no call. The iteration limit set
+/// on the session is the hard stop; the real tokens of the whole investigation come from the session statistics.
+ClassMethod Check(pText As %String, pModel As %String = "") As Readback.Budget.State
 {
 	Set tState = ##class(Readback.Budget.State).%New()
 	Set tBudget = ##class(Readback.Config.Budget).Current()
-	If '$IsObject(tBudget) {
-		// No ceilings loaded: refuse the call rather than run without a budget.
+	Set tBounds = ##class(Readback.Config.AgentTools).Current()
+	If '$IsObject(tBudget) || '$IsObject(tBounds) {
+		// No ceilings or no bounds loaded: refuse the call rather than run without a budget.
 		Set tState.State = "result-ceiling", tState.Basis = "tokens"
 		Quit tState
 	}
-	Set tPassages = $ListLength(pPassageChars), tCases = $ListLength(pCaseChars)
-	Set tChars = $Length(pText)
-	Set tMax = ##class(Readback.Triage.Schema).#MaxTokens
-	Set tEstimate = ..EstimateTokens(tChars) + tMax
-	While (tEstimate > tBudget.PerResultTokens) && ((tCases > 0) || (tPassages > 0)) {
-		If tCases > 0 {
-			Set tChars = tChars - $ListGet(pCaseChars, tCases), tCases = tCases - 1
-		} Else {
-			Set tChars = tChars - $ListGet(pPassageChars, tPassages), tPassages = tPassages - 1
-		}
-		Set tState.Reduced = tState.Reduced + 1
-		Set tEstimate = ..EstimateTokens(tChars) + tMax
-	}
-	Set tState.EstimatedTokens = tEstimate, tState.PassagesKept = tPassages, tState.CasesKept = tCases
+	Set tState.EstimatedTokens = ..EstimateInvestigation(pText, tBounds)
 	Do ..Window(pModel, tBudget, tState)
-	If tEstimate > tBudget.PerResultTokens {
+	If tState.EstimatedTokens > tBudget.PerResultTokens {
 		Set tState.State = "result-ceiling"
 	} ElseIf tState.Used >= tState.Ceiling {
 		Set tState.State = "hourly-ceiling"
 	}
 	Quit tState
+}
+
+/// The tokens an investigation of the expected number of rounds may use: the request of each round (system prompt, case
+/// text, tool definitions and the results gathered so far) and the answers (short for a tool round, up to the cap for the
+/// last one).
+ClassMethod EstimateInvestigation(pText As %String, pBounds As Readback.Config.AgentTools) As %Integer
+{
+	Set tRounds = pBounds.ExpectedRounds
+	Set tBase = ..EstimateTokens($Length(##class(Readback.Triage.Prompt).Text()) + $Length(pText)) + ..#ToolDefinitionTokens
+	Set tResultTokens = ..EstimateTokens(pBounds.ToolResultMaxChars)
+	Set tOutput = (tRounds - 1) * 80 + ##class(Readback.Triage.Schema).#MaxTokens
+	// ObjectScript evaluates left to right, so every product is parenthesized before it is added.
+	Quit (tRounds * tBase) + (((tRounds - 1) * tRounds / 2) * tResultTokens) + tOutput
 }
 
 /// Fills Basis, Used and Ceiling of pState from the agent calls of the last 60 minutes in the trace.

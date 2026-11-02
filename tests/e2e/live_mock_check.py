@@ -84,11 +84,11 @@ def main():
         "ok": oru(tag + "-OK", "SYN9000001", "2823-3", "Potassium", "6.9", "mmol/L", ref="3.5-5.1"),
         "hist": oru(tag + "-H1", "SYN9000002", "718-7", "Hemoglobin", "12.4", "g/dL", collected="20260228080000"),
         "drop": oru(tag + "-DROP", "SYN9000002", "718-7", "Hemoglobin", "8.1", "g/dL", ref="12.0-17.0"),
-        "e500": oru(tag + "-E500", "SYN9000003", "2823-3", "Potassium", "4.0", "mmol/L", indices=[("HEMOLYSIS_INDEX", "MODE:500")]),
-        "refusal": oru(tag + "-REF", "SYN9000004", "2823-3", "Potassium", "4.0", "mmol/L", indices=[("HEMOLYSIS_INDEX", "MODE:refusal")]),
-        "badjson": oru(tag + "-BAD", "SYN9000005", "2823-3", "Potassium", "4.0", "mmol/L", indices=[("HEMOLYSIS_INDEX", "MODE:badjson")]),
-        "e500crit": oru(tag + "-E500C", "SYN9000007", "2823-3", "Potassium", "6.9", "mmol/L", indices=[("HEMOLYSIS_INDEX", "MODE:500")]),
-        "slow": oru(tag + "-SLOW", "SYN9000006", "2823-3", "Potassium", "4.0", "mmol/L", indices=[("HEMOLYSIS_INDEX", "MODE:slow")]),
+        "e500": oru(tag + "-E500", "SYN9000003", "2823-3", "Potassium", "4.0", "mmol/L", ref="MODE:500"),
+        "refusal": oru(tag + "-REF", "SYN9000004", "2823-3", "Potassium", "4.0", "mmol/L", ref="MODE:refusal"),
+        "badjson": oru(tag + "-BAD", "SYN9000005", "2823-3", "Potassium", "4.0", "mmol/L", ref="MODE:badjson"),
+        "e500crit": oru(tag + "-E500C", "SYN9000007", "2823-3", "Potassium", "6.9", "mmol/L", ref="MODE:500"),
+        "slow": oru(tag + "-SLOW", "SYN9000006", "2823-3", "Potassium", "4.0", "mmol/L", ref="MODE:slow"),
     }
     # One connection, history first: the acknowledgement is sent after the result is stored, so the earlier
     # result is stored before the later one is triaged.
@@ -126,7 +126,11 @@ def main():
         check(t["FloorSeverity"] == "3" and t["AgentSeverity"] == "3" and t["FinalSeverity"] == "3" and t["Route"] == "readback",
               "the acute drop did not end at severity 3 through read-back: %s" % t)
     req = request_for(tag + "-DROP")
-    check(req is not None and "12.4 g/dL" in json.dumps(req["body"]["messages"]), "the earlier result did not reach the agent")
+    check(req is not None, "the mock saw no request for the acute drop")
+    if req:
+        body = req["body"]
+        check("12.4" not in json.dumps(body["messages"]), "the earlier result is in the text: it must come through the history tool")
+        check(sorted(x["function"]["name"] for x in body.get("tools", [])) == ["get_delta_assessment", "get_patient_history", "get_sample_quality", "search_policy"], "the four tools are not offered to the agent")
 
     expected = {"e500": "provider-error", "refusal": "empty-or-refused", "badjson": "schema-invalid", "slow": "timeout"}
     for key, kind in expected.items():

@@ -43,6 +43,17 @@ Property BudgetCeiling As %Numeric(SCALE = 6);
 
 Property BudgetEstimate As %Integer;
 
+/// The model rounds the investigation used (1 when the agent called no tool).
+Property Rounds As %Integer [ InitialExpression = 1 ];
+
+/// JSON array text of the ordered tool calls (seq, tool, arguments, result, status, reason, durationMs), or empty.
+Property ToolCallsJson As %String(MAXLEN = "");
+
+/// tool-failure or tool-limit when the investigation itself failed, else empty. The agent's answer is not used then.
+Property ToolFailureKind As %String;
+
+Property ToolFailureReason As %String(MAXLEN = 500);
+
 /// converted, not-needed, not-convertible, unavailable or skipped.
 Property ConversionOutcome As %String;
 

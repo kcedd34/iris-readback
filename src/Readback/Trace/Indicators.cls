@@ -16,9 +16,15 @@ ClassMethod Compute(pFrom As %String = "", pTo As %String = "") As %DynamicObjec
 	     FROM Readback_Trace.Decision WHERE CreatedAt >= :tLow AND CreatedAt <= :tHigh)
 	If SQLCODE < 0 { Throw ##class(%Exception.General).%New("indicators query failed", SQLCODE) }
 	Set tCount = +$Get(tCount), tKnown = +$Get(tKnown)
+	// The investigation: how often the floor policy refused a lowering answer, how often a tool call did not succeed, and how many rounds and tool calls a decision takes.
+	&sql(SELECT SUM(CASE WHEN PolicyRefusal IS NOT NULL AND PolicyRefusal <> '' THEN 1 ELSE 0 END), SUM(CASE WHEN ToolFailureCount > 0 THEN 1 ELSE 0 END),
+	            AVG(CAST(COALESCE(Rounds, 1) AS DOUBLE)), AVG(CAST(COALESCE(ToolCallCount, 0) AS DOUBLE))
+	     INTO :tRefused, :tToolFail, :tRounds, :tCalls
+	     FROM Readback_Trace.Decision WHERE CreatedAt >= :tLow AND CreatedAt <= :tHigh)
+	If SQLCODE < 0 { Throw ##class(%Exception.General).%New("indicators query failed", SQLCODE) }
 	Set tRes.recordCount = tCount
 	If tCount = 0 {
-		For tName = "costPerThousandResults", "unknownCostRecords", "latencyP50Ms", "latencyP95Ms", "reviewRate", "divergenceRate", "invalidRate" { Do tRes.%Set(tName, "", "null") }
+		For tName = "costPerThousandResults", "unknownCostRecords", "latencyP50Ms", "latencyP95Ms", "reviewRate", "divergenceRate", "invalidRate", "policyRefusalRate", "toolFailureRate", "meanRounds", "meanToolCalls" { Do tRes.%Set(tName, "", "null") }
 		Quit tRes
 	}
 	If tKnown > 0 { Set tRes.costPerThousandResults = +$FNumber(tCostSum / tKnown * 1000, "", 6) } Else { Do tRes.%Set("costPerThousandResults", "", "null") }
@@ -26,6 +32,10 @@ ClassMethod Compute(pFrom As %String = "", pTo As %String = "") As %DynamicObjec
 	Set tRes.reviewRate = +$FNumber(+$Get(tReview) / tCount, "", 6)
 	Set tRes.divergenceRate = +$FNumber(+$Get(tDiverge) / tCount, "", 6)
 	Set tRes.invalidRate = +$FNumber(+$Get(tInvalid) / tCount, "", 6)
+	Set tRes.policyRefusalRate = +$FNumber(+$Get(tRefused) / tCount, "", 6)
+	Set tRes.toolFailureRate = +$FNumber(+$Get(tToolFail) / tCount, "", 6)
+	Set tRes.meanRounds = +$FNumber(+$Get(tRounds), "", 4)
+	Set tRes.meanToolCalls = +$FNumber(+$Get(tCalls), "", 4)
 	Do ..Latencies(tLow, tHigh, tRes)
 	Quit tRes
 }

@@ -1,0 +1,7 @@
+{
+  "note": "Bounds of the agent investigation. maxIterations is the number of model rounds one case may use and is set on every session; maxToolCalls caps the tool calls of one case; toolResultMaxChars bounds what a tool hands back; expectedRounds is what the budget estimate assumes. There is no provider timeout here on purpose: the platform does not cut a slow answer, so the iteration bound is the real bound.",
+  "maxIterations": 6,
+  "maxToolCalls": 6,
+  "toolResultMaxChars": 2000,
+  "expectedRounds": 3
+}

@@ -22,6 +22,12 @@ ClassMethod LoadAll(pDir As %String = "", Output pCounts) As %Status
 	Set tSC = ..LoadBudget(pDir_"/config/budget.json", .tN)
 	Quit:$$$ISERR(tSC) tSC
 	Set pCounts("budget") = tN
+	// The bounds of the agent investigation. Not loaded means no agent call is made (Readback.Config.AgentTools.Current).
+	If ##class(%File).Exists(pDir_"/config/agent-tools.json") {
+		Set tSC = ..LoadAgentTools(pDir_"/config/agent-tools.json", .tN)
+		Quit:$$$ISERR(tSC) tSC
+		Set pCounts("agentTools") = tN
+	}
 	// The escalation list is an addition to the read-back task: a file that is not valid is reported and the product goes on.
 	If ##class(%File).Exists(pDir_"/config/escalation.json") {
 		Set tEsc = ##class(Readback.Notify.Escalation).Load(pDir_"/config/escalation.json")
@@ -194,6 +200,28 @@ ClassMethod LoadBudget(pFile As %String, Output pCount As %Integer) As %Status
 	Set tBudget = ##class(Readback.Config.Budget).%New()
 	Set tBudget.PerResultTokens = tDoc.perResultTokens, tBudget.HourlyCostUsd = tDoc.hourlyCostUsd, tBudget.HourlyTokens = tDoc.hourlyTokens
 	Set tSC = tBudget.%Save()
+	If $$$ISERR(tSC) { TRollback  Quit tSC }
+	TCommit
+	Set pCount = 1
+	Quit $$$OK
+}
+
+/// Loads the bounds of the agent investigation. Each must be a whole number greater than 0.
+ClassMethod LoadAgentTools(pFile As %String, Output pCount As %Integer) As %Status
+{
+	Set pCount = 0
+	Set tSC = ..ReadJSON(pFile, .tDoc)
+	Quit:$$$ISERR(tSC) tSC
+	For tField = "maxIterations", "maxToolCalls", "toolResultMaxChars", "expectedRounds" {
+		If (tDoc.%GetTypeOf(tField) '= "number") || (tDoc.%Get(tField) '> 0) || (tDoc.%Get(tField) # 1 '= 0) { Set tSC = $$$ERROR($$$GeneralError, "Agent bound '"_tField_"' must be a whole number greater than 0")  Quit }
+	}
+	Quit:$$$ISERR(tSC) tSC
+	TStart
+	Do ##class(Readback.Config.AgentTools).%KillExtent()
+	Set tRow = ##class(Readback.Config.AgentTools).%New()
+	Set tRow.MaxIterations = tDoc.maxIterations, tRow.MaxToolCalls = tDoc.maxToolCalls, tRow.ToolResultMaxChars = tDoc.toolResultMaxChars
+	Set tRow.ExpectedRounds = tDoc.expectedRounds
+	Set tSC = tRow.%Save()
 	If $$$ISERR(tSC) { TRollback  Quit tSC }
 	TCommit
 	Set pCount = 1

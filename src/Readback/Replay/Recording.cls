@@ -29,6 +29,13 @@ Property FailureReason As %String(MAXLEN = 1000);
 
 Property Source As %String(VALUELIST = ",fixture,recorded") [ InitialExpression = "fixture" ];
 
+/// JSON array text of the ordered tool calls of the investigation (seq, tool, arguments, result, status, reason,
+/// durationMs), or empty for a case where the agent called no tool. Replay shows these without running any tool.
+Property ToolCallsJson As %String(MAXLEN = "");
+
+/// The model rounds the investigation used; empty is read as 1.
+Property Rounds As %Integer;
+
 Index KeyIdx On (ReplaySet, MessageControlId, PromptVersion) [ Unique ];
 
 /// Name of the active replay set (default "default").
@@ -120,6 +127,8 @@ ClassMethod LoadFile(pFile As %String, Output pCount As %Integer, pRejectFixture
 		Set tRec.LatencyMs = $Select(tObj.%IsDefined("latencyMs"):tObj.latencyMs, 1:"")
 		Set tRec.FailureKind = tObj.failureKind, tRec.FailureReason = tObj.failureReason
 		Set tRec.Source = $Select(tObj.source'="":tObj.source, 1:"fixture")
+		If $IsObject(tObj.%Get("toolCalls")) { Set tRec.ToolCallsJson = tObj.toolCalls.%ToJSON() }
+		If tObj.%IsDefined("rounds") { Set tRec.Rounds = tObj.rounds }
 		Set tSC = tRec.%Save()
 		If $$$ISERR(tSC) { TRollback  Quit }
 		Set pCount = pCount + 1
@@ -165,6 +174,12 @@ Storage Default
 </Value>
 <Value name="11">
 <Value>FailureReason</Value>
+</Value>
+<Value name="12">
+<Value>ToolCallsJson</Value>
+</Value>
+<Value name="13">
+<Value>Rounds</Value>
 </Value>
 </Data>
 <DataLocation>^Readback.Replay.RecordingD</DataLocation>

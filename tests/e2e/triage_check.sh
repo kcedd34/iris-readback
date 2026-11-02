@@ -30,6 +30,8 @@ step "ui api";                   (cd tests/e2e && "$PY" ui_api_check.py)
 step "ui proxy";                 (cd tests/e2e && "$PY" ui_proxy_check.py)
 step "ui browser";               "$PY" tests/e2e/ui_check.py
 step "live path against a mock"; "$PY" tests/e2e/live_mock_check.py
+step "agent tools against a mock"; (cd tests/e2e && "$PY" tools_check.py)
+step "agent governance against a mock"; (cd tests/e2e && "$PY" governance_check.py)
 step "readme gate";              src/ops/check-readme.sh
 step "package on a clean instance"; tests/e2e/ipm_check.sh
 printf '\nAll triage core, units, budget, retrieval, trace, evaluation, notification, flow interface, readme and package checks passed.\n'

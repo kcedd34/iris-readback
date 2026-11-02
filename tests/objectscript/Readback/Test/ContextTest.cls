@@ -1,4 +1,5 @@
-/// The text sent to the agent, and the lookup of the patient's earlier stored results.
+/// The text sent to the agent (the case and its value, nothing more) and the lookup of the patient's earlier stored
+/// results that the history tool uses.
 Class Readback.Test.ContextTest Extends %UnitTest.TestCase
 {
 
@@ -30,120 +31,77 @@ ClassMethod Save(pControlId As %String, pPatient As %String, pCode As %String, p
 	Quit tLab
 }
 
-Method TestNoEarlierResults()
+Method TestTheTextIsTheCaseAndItsValue()
 {
 	Set tLab = ..Save("CTX-A-1", "CTX0000001", "718-7", 8.1, "2026-03-01 08:00:00")
 	Set tText = ##class(Readback.Triage.Context).Build(tLab)
-	Do $$$AssertTrue(tText["No earlier results for this patient and analyte in the last 7 days.", "says explicitly that there are none")
 	Do $$$AssertTrue(tText["Case id: CTX-A-1", "carries the case id")
 	Do $$$AssertTrue(tText["Value: 8.1 g/dL (current-result)", "carries the value with unit")
 	Do $$$AssertTrue(tText["Reference range: 12.0-17.0", "carries the reference range")
-	Do $$$AssertTrue(tText["age 56 years", "carries the age")
-	Do $$$AssertTrue(tText["Sample quality indices: none", "says there are no indices")
+	Do $$$AssertTrue(tText["Patient age: 56 years", "carries the age")
+	Do $$$AssertTrue(tText["Collected at: 2026-03-01 08:00:00", "carries the collection time")
+	Do $$$AssertTrue(tText["Analyte code: 718-7", "carries the analyte")
 }
 
-Method TestEarlierResultsNewestFirstMaxThree()
+Method TestTheTextHoldsNothingTheToolsProvide()
 {
 	Do ..Save("CTX-B-1", "CTX0000002", "718-7", 12.4, "2026-02-28 08:00:00")
-	Do ..Save("CTX-B-2", "CTX0000002", "718-7", 12.0, "2026-02-27 08:00:00")
-	Do ..Save("CTX-B-3", "CTX0000002", "718-7", 11.9, "2026-02-26 08:00:00")
-	Do ..Save("CTX-B-4", "CTX0000002", "718-7", 11.8, "2026-02-25 08:00:00")
-	Set tLab = ..Save("CTX-B-5", "CTX0000002", "718-7", 8.1, "2026-03-01 08:00:00", "HEMOLYSIS_INDEX=12")
+	Set tLab = ..Save("CTX-B-0", "CTX0000002", "718-7", 8.1, "2026-03-01 08:00:00", "HEMOLYSIS_INDEX=120")
 	Set tText = ##class(Readback.Triage.Context).Build(tLab)
-	Do $$$AssertTrue(tText["1. 12.4 g/dL collected 2026-02-28 08:00:00 (earlier-result-1)", "the newest earlier result is first")
-	Do $$$AssertTrue(tText["3. 11.9 g/dL", "the third is the third newest")
-	Do $$$AssertTrue(tText'["11.8", "a fourth earlier result is not included")
-	Do $$$AssertTrue(tText["Sample quality indices: HEMOLYSIS_INDEX=12", "sample indices are included")
+	Do $$$AssertTrue(tText'["12.4", "the earlier results come through the history tool, not the text")
+	Do $$$AssertTrue(tText'["HEMOLYSIS", "the sample quality comes through its tool, not the text")
+	Do $$$AssertTrue(tText'["Policy passages", "the policy comes through its tool, not the text")
+	Do $$$AssertTrue(tText'["CTX0000002", "no patient identifier is in the text: no tool takes one")
 }
 
-Method TestOnlySameAnalyteSamePatientAndWithinSevenDays()
+Method TestUnknownAgeAndConversion()
 {
-	Do ..Save("CTX-C-1", "CTX0000003", "718-7", 13.0, "2026-02-20 08:00:00")
-	Do ..Save("CTX-C-2", "CTX0000003", "2823-3", 4.0, "2026-02-28 08:00:00")
-	Do ..Save("CTX-C-3", "CTX0000009", "718-7", 14.0, "2026-02-28 08:00:00")
-	Do ..Save("CTX-C-4", "CTX0000003", "718-7", 15.0, "2026-03-02 08:00:00")
-	Set tLab = ..Save("CTX-C-5", "CTX0000003", "718-7", 8.1, "2026-03-01 08:00:00")
-	Set tText = ##class(Readback.Triage.Context).Build(tLab)
-	Do $$$AssertTrue(tText["No earlier results", "older than 7 days, other analyte, other patient and later results are all left out")
-}
-
-Method TestTheResultItselfIsNeverIncluded()
-{
-	Set tLab = ..Save("CTX-D-1", "CTX0000004", "718-7", 8.1, "2026-03-01 08:00:00")
-	Do ..Save("CTX-D-1", "CTX0000004", "718-7", 8.1, "2026-02-28 08:00:00")
-	Set tText = ##class(Readback.Triage.Context).Build(tLab)
-	Do $$$AssertTrue(tText["No earlier results", "a stored result with the same control id is the result itself")
+	Set tLab = ..Save("CTX-C-1", "CTX0000003", "718-7", 8.1, "2026-03-01 08:00:00")
+	Set tLab.AgeYears = ""
+	Do $$$AssertTrue(##class(Readback.Triage.Context).Build(tLab)["Patient age: unknown", "an unknown age is stated")
+	Do $$$AssertTrue(##class(Readback.Triage.Context).Build(tLab, {"outcome":"converted","value":"10.0","unit":"mmol/L"})["Converted value: 10.0 mmol/L (reference unit of the analyte)", "a conversion is stated")
+	Do $$$AssertTrue(##class(Readback.Triage.Context).Build(tLab, {"outcome":"not-convertible"})["unit not convertible", "an unconvertible unit is stated")
+	Do $$$AssertTrue(##class(Readback.Triage.Context).Build(tLab, {"outcome":"unavailable"})["unit conversion unavailable", "an unavailable conversion is stated")
 }
 
 Method TestTextIsDeterministic()
 {
-	Do ..Save("CTX-E-1", "CTX0000005", "718-7", 12.4, "2026-02-28 08:00:00")
-	Set tLab = ..Save("CTX-E-2", "CTX0000005", "718-7", 8.1, "2026-03-01 08:00:00")
+	Set tLab = ..Save("CTX-D-1", "CTX0000004", "718-7", 8.1, "2026-03-01 08:00:00")
 	Do $$$AssertEquals(##class(Readback.Triage.Context).Build(tLab), ##class(Readback.Triage.Context).Build(tLab), "the same input gives the same text")
 }
 
-Method TestUnknownAge()
+Method TestEarlierRowsNewestFirstMaxThree()
 {
-	Set tLab = ..Save("CTX-F-1", "CTX0000006", "718-7", 8.1, "2026-03-01 08:00:00")
-	Set tLab.AgeYears = ""
-	Do $$$AssertTrue(##class(Readback.Triage.Context).Build(tLab)["age unknown", "an unknown age is stated")
+	Do ..Save("CTX-E-1", "CTX0000005", "718-7", 12.4, "2026-02-28 08:00:00")
+	Do ..Save("CTX-E-2", "CTX0000005", "718-7", 12.0, "2026-02-27 08:00:00")
+	Do ..Save("CTX-E-3", "CTX0000005", "718-7", 11.9, "2026-02-26 08:00:00")
+	Do ..Save("CTX-E-4", "CTX0000005", "718-7", 11.8, "2026-02-25 08:00:00")
+	Set tRows = ##class(Readback.Triage.Context).EarlierRows("CTX0000005", "718-7", "CTX-E-0", "2026-03-01 08:00:00")
+	Do $$$AssertEquals(tRows.%Size(), 3, "at most three")
+	Do $$$AssertEquals(tRows.%Get(0).value, "12.4", "newest first")
+	Do $$$AssertEquals(tRows.%Get(2).value, "11.9", "the third is the third newest")
+	Do $$$AssertEquals(tRows.%Get(0).id, "earlier-result-1", "with an identifier to cite")
+	Do $$$AssertEquals(##class(Readback.Triage.Context).EarlierRows("CTX0000005", "718-7", "CTX-E-0", "2026-03-01 08:00:00", 1).%Size(), 1, "a smaller limit is honored")
 }
 
-ClassMethod Response(pPassages As %Integer, pCases As %Integer, pAvailable As %Boolean = 1) As Readback.Msg.RetrievalResponse
+Method TestEarlierRowsKeepsToTheWindowPatientAndAnalyte()
 {
-	Set tResp = ##class(Readback.Msg.RetrievalResponse).%New()
-	Set tResp.Available = pAvailable, tResp.IndexVersion = "abc123def4567890", tResp.Reason = $Select(pAvailable:"", 1:"model missing")
-	For i = 1:1:pPassages {
-		Set tItem = ##class(Readback.Msg.RetrievalItem).%New()
-		Set tItem.Id = "pass-"_i, tItem.Text = "Passage text "_i_"."
-		Do tResp.Passages.Insert(tItem)
-	}
-	For i = 1:1:pCases {
-		Set tItem = ##class(Readback.Msg.RetrievalItem).%New()
-		Set tItem.Id = "similar-case-"_i, tItem.Text = "Potassium 7.1 mmol/L, adult.", tItem.Decision = "critical", tItem.Route = "readback"
-		Do tResp.Cases.Insert(tItem)
-	}
-	Quit tResp
+	Do ..Save("CTX-F-1", "CTX0000006", "718-7", 12.4, "2026-02-28 08:00:00")
+	Do ..Save("CTX-F-OLD", "CTX0000006", "718-7", 13.0, "2026-02-10 08:00:00")
+	Do ..Save("CTX-F-OTHER", "CTX0000006", "2823-3", 4.0, "2026-02-28 09:00:00")
+	Do ..Save("CTX-F-PAT", "CTX0000007", "718-7", 12.9, "2026-02-28 08:00:00")
+	Do ..Save("CTX-F-LATER", "CTX0000006", "718-7", 7.0, "2026-03-02 08:00:00")
+	Set tRows = ##class(Readback.Triage.Context).EarlierRows("CTX0000006", "718-7", "CTX-F-0", "2026-03-01 08:00:00")
+	Do $$$AssertEquals(tRows.%Size(), 1, "older than 7 days, other analyte, other patient and later results are all left out")
+	Do $$$AssertEquals(tRows.%Get(0).value, "12.4", "only the one inside the window")
 }
 
-Method TestV2TextWithPassagesAndCases()
+Method TestTheResultItselfIsNeverAnEarlierResult()
 {
-	Set tLab = ..Save("CTX-V2-1", "CTXP9", "718-7", "8.1", "2026-05-01 08:00:00")
-	Set tText = ##class(Readback.Triage.Context).Build(tLab, {"outcome":"converted","value":"29.97","unit":"mmol/L"}, ..Response(2, 2))
-	Do $$$AssertTrue(tText["Value: 8.1 g/dL", "the original value line")
-	Do $$$AssertTrue(tText["Converted value: 29.97 mmol/L", "the converted value line")
-	Do $$$AssertTrue(tText["Policy passages (abc123def4567890):"_$Char(10)_"[pass-1] Passage text 1."_$Char(10)_"[pass-2] Passage text 2.", "policy lines as [id] text under the index version")
-	Do $$$AssertTrue(tText["Similar confirmed cases:"_$Char(10)_"similar-case-1: Potassium 7.1 mmol/L, adult. Decision: critical. Route: readback."_$Char(10)_"similar-case-2:", "case lines in the fixed shape")
-	Do $$$AssertTrue(tText'["No policy passage matched", "no empty-policy sentence when there are passages")
+	Do ..Save("CTX-G-1", "CTX0000008", "718-7", 12.4, "2026-02-28 08:00:00")
+	Set tLab = ..Save("CTX-G-0", "CTX0000008", "718-7", 8.1, "2026-03-01 08:00:00")
+	Set tRows = ##class(Readback.Triage.Context).EarlierRows("CTX0000008", "718-7", "CTX-G-0", "2026-03-01 08:00:00")
+	Do $$$AssertEquals(tRows.%Size(), 1, "the result itself is not an earlier result")
 }
-
-Method TestV2FixedSentences()
-{
-	Set tLab = ..Save("CTX-V2-2", "CTXP8", "718-7", "8.1", "2026-05-02 08:00:00")
-	Set tNone = ##class(Readback.Triage.Context).Build(tLab, "", ..Response(0, 0))
-	Do $$$AssertTrue(tNone["No policy passage matched.", "the fixed sentence for no passage")
-	Do $$$AssertTrue(tNone["No similar confirmed case.", "and for no case")
-	Set tDown = ##class(Readback.Triage.Context).Build(tLab, "", ..Response(0, 0, 0))
-	Do $$$AssertTrue(tDown["Policy and case retrieval is not available for this result.", "retrieval that failed says so")
-	Do $$$AssertTrue(tDown'["No policy passage matched", "and does not claim that nothing matched")
-	Do $$$AssertTrue(tDown'["model missing", "the reason stays in the trace, not in the agent text")
-}
-
-Method TestRetrievedPartsCarryNoIdentifier()
-{
-	Set tLab = ..Save("CTX-V2-3", "CTXPATIENT3", "718-7", "8.1", "2026-05-03 08:00:00")
-	Set tPart = ##class(Readback.Triage.Context).RetrievalSection(..Response(3, 3))
-	Do $$$AssertTrue(tPart'["CTXPATIENT3", "no patient id in the retrieved parts")
-	Do $$$AssertTrue(tPart'["CTX-V2-3", "no message id in the retrieved parts")
-}
-
-Method TestWithoutRetrievalTheTextIsTheV1Text()
-{
-	Set tLab = ..Save("CTX-V2-4", "CTXP7", "718-7", "8.1", "2026-05-04 08:00:00")
-	Set tText = ##class(Readback.Triage.Context).Build(tLab)
-	Do $$$AssertTrue(tText'["Policy passages", "no policy section when no retrieval was asked")
-	Do $$$AssertTrue(tText'["not available for this result", "and no unavailable sentence")
-}
-
 
 }

@@ -14,15 +14,7 @@ Property Used As %Numeric(SCALE = 6);
 /// The ceiling in the unit of the basis.
 Property Ceiling As %Numeric(SCALE = 6);
 
-/// The estimate of this call in tokens, after any items were dropped.
+/// The estimate of this investigation in tokens, over the expected number of rounds.
 Property EstimatedTokens As %Integer;
-
-/// How many retrieved items were dropped to fit the per-result ceiling.
-Property Reduced As %Integer [ InitialExpression = 0 ];
-
-/// How many policy passages and similar cases remain after the drops.
-Property PassagesKept As %Integer;
-
-Property CasesKept As %Integer;
 
 }

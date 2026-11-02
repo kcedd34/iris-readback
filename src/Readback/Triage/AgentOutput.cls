@@ -20,8 +20,15 @@ Property Evidence As %String(MAXLEN = 1000);
 /// low, medium or high.
 Property Confidence As %String;
 
+/// ok, not-from-tools or not-applicable: whether every evidence identifier was returned by a tool of this investigation.
+Property EvidenceCheck As %String [ InitialExpression = "not-applicable" ];
+
+/// Empty, or the formal refusal of the floor policy: what the agent answered and the floor it would have lowered.
+Property PolicyRefusal As %String(MAXLEN = 300);
+
 /// Empty when the answer is usable; otherwise one of schema-invalid, empty-or-refused, timeout,
-/// provider-error, low-confidence, no-recorded-answer.
+/// provider-error, low-confidence, no-recorded-answer, tool-failure, tool-limit, evidence-not-from-tools,
+/// floor-policy-refusal.
 Property FailureKind As %String;
 
 /// The literal reason for the failure.

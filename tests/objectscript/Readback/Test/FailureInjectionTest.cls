@@ -96,11 +96,37 @@ Method TestAValidAnswerFlowsThrough()
 {
 	Set tLab = ##class(Readback.Msg.LabResult).%New()
 	Set tO = ##class(Readback.Triage.AgentOutcome).%New()
-	Set tO.Content = "{""decision"":""CRITICAL"",""severity"":3,""rationale"":""big drop"",""evidence"":[""earlier-result""],""confidence"":""high""}"
+	Set tO.Content = "{""decision"":""CRITICAL"",""severity"":3,""rationale"":""big drop"",""evidence"":[""current-result"",""earlier-result-1""],""confidence"":""high""}"
+	Set tO.ToolCallsJson = ..HistoryCall()
 	Set tFinal = ##class(Readback.Triage.Pipeline).Decide(tLab, ..Floor(0), tO, .tAgent)
 	Do $$$AssertEquals(tAgent.Valid, 1, "valid")
+	Do $$$AssertEquals(tAgent.EvidenceCheck, "ok", "every cited identifier was returned by a tool")
 	Do $$$AssertEquals(tFinal.Route, "readback", "the agent raise opens a read-back")
 	Do $$$AssertEquals(tFinal.FinalSeverity, 3, "final severity 3")
+}
+
+/// The history tool's call as the operation records it: one result that carries the identifier earlier-result-1.
+ClassMethod HistoryCall() As %String
+{
+	Quit "[{""seq"":1,""tool"":""get_patient_history"",""arguments"":""{}"",""result"":""{\""found\"":1,\""earlier\"":[{\""id\"":\""earlier-result-1\"",\""value\"":\""12.4\""}]}"",""status"":""ok"",""reason"":""""}]"
+}
+
+Method TestEvidenceNoToolReturnedIsInvalid()
+{
+	Set tLab = ##class(Readback.Msg.LabResult).%New()
+	Set tO = ##class(Readback.Triage.AgentOutcome).%New()
+	Set tO.Content = "{""decision"":""CRITICAL"",""severity"":3,""rationale"":""big drop"",""evidence"":[""earlier-result-1""],""confidence"":""high""}"
+	Set tFinal = ##class(Readback.Triage.Pipeline).Decide(tLab, ..Floor(0), tO, .tAgent)
+	Do $$$AssertEquals(tAgent.Valid, 0, "an identifier no tool returned makes the answer invalid")
+	Do $$$AssertEquals(tAgent.FailureKind, "evidence-not-from-tools", "with its own failure kind")
+	Do $$$AssertEquals(tAgent.EvidenceCheck, "not-from-tools", "and the check says so")
+	Do $$$AssertEquals(tFinal.Route, "review", "a case with a floor of 0 goes to a person")
+	Set tFinal = ##class(Readback.Triage.Pipeline).Decide(tLab, ..Floor(3), tO, .tAgent)
+	Do $$$AssertEquals(tFinal.Route, "readback", "and a critical floor still reaches the read-back")
+	Set tO.ToolCallsJson = ..HistoryCall()
+	Set tO.Content = "{""decision"":""CRITICAL"",""severity"":3,""rationale"":""big drop"",""evidence"":[""earlier-result-2""],""confidence"":""high""}"
+	Do ##class(Readback.Triage.Pipeline).Decide(tLab, ..Floor(0), tO, .tAgent)
+	Do $$$AssertEquals(tAgent.Valid, 0, "an identifier the tool did not return (earlier-result-2) is invalid even when a tool ran")
 }
 
 Method TestBudgetReachedTenTimesBothCeilings()

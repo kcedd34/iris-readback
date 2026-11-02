@@ -18,6 +18,8 @@ import time
 
 from common import ROOT, compose, iris, query, scalar, wait_for
 from readback_check import call, tasks_of
+import dev_fixtures
+import make_hostile
 import send_tcp
 
 PASSWORD = "demo-pass-for-tests"
@@ -89,6 +91,15 @@ def load_standins(answers):
     return "RB_STANDIN_OK" in iris("\n".join(lines))
 
 
+def use_current_version_recordings():
+    """The shipped recordings are of an earlier prompt version until the evaluation is redone: see dev_fixtures."""
+    try:
+        return dev_fixtures.use_current_version_recordings()
+    except RuntimeError as error:
+        check(False, str(error))
+        return False
+
+
 def activate(replay_set):
     return any(l == "RB_ACTIVE=ok" for l in iris('set sc=##class(Readback.Replay.Recording).Activate("%s")\nwrite "RB_ACTIVE="_$select($system.Status.IsOK(sc):"ok",1:"failed"),!' % replay_set))
 
@@ -97,6 +108,7 @@ def main():
     start_stack()
     ready = wait_for(lambda: call("communicator1", PASSWORD, "GET", "/user-info")[0] == 200, 240, 3)
     check(bool(ready), "workflow-rest is not answering")
+    use_current_version_recordings()
     status, text = (0, "")
     import urllib.request, base64, urllib.error
     def api(path):
@@ -137,7 +149,9 @@ def main():
         check(first["RawOutput"] == second["RawOutput"] and first["RawOutput"] != "", "%s: the two runs gave different agent answers" % mid)
         check(first["Mode"] == "replay" and first["Provider"] == "replay", "%s: not labeled replay: %s/%s" % (mid, first["Mode"], first["Provider"]))
         check(first["Route"] in ("readback", "review", "recollect", "release"), "%s: no final route" % mid)
-        check(first["FailureKind"] in ("", "low-confidence", "schema-invalid"), "%s: unexpected failure %s %s" % (mid, first["FailureKind"], first["FailureReason"]))
+        # A recorded answer below a critical floor is refused formally by the floor policy; that is not a failure of the replay.
+        allowed = ("", "low-confidence", "schema-invalid") + (("floor-policy-refusal",) if first["FloorSeverity"] == "3" else ())
+        check(first["FailureKind"] in allowed, "%s: unexpected failure %s %s" % (mid, first["FailureKind"], first["FailureReason"]))
         if first["FloorSeverity"] == "3":
             check(first["FinalSeverity"] == "3" and first["Route"] == "readback", "%s: a rule-critical result did not stay critical: %s" % (mid, first))
         if first["AgentSeverity"] != "" and int(first["AgentSeverity"]) < int(first["FloorSeverity"] or 0):

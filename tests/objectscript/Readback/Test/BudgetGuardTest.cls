@@ -56,36 +56,51 @@ ClassMethod Row(pMinutes As %Integer, pTokensIn As %Integer, pTokensOut As %Inte
 	If $System.Status.IsError(tSC) { Throw ##class(%Exception.StatusException).CreateFromStatus(tSC) }
 }
 
-Method TestEstimateIsCharsOverFourRoundedUpPlusLongestAnswer()
+ClassMethod SetRounds(pRounds As %Integer)
 {
-	Do ..SetBudget(100000, 5, 2000000)
+	Do ##class(Readback.Test.LoaderTest).Write(..#DIR_"/a.json", "{""maxIterations"":6,""maxToolCalls"":6,""toolResultMaxChars"":2000,""expectedRounds"":"_pRounds_"}")
+	Do ##class(Readback.Config.Loader).LoadAgentTools(..#DIR_"/a.json")
+}
+
+Method TestEstimateIsCharsOverFourRoundedUp()
+{
 	Do $$$AssertEquals(##class(Readback.Budget.Guard).EstimateTokens(400), 100, "400 characters are 100 tokens")
 	Do $$$AssertEquals(##class(Readback.Budget.Guard).EstimateTokens(401), 101, "401 characters round up to 101")
 	Do $$$AssertEquals(##class(Readback.Budget.Guard).EstimateTokens(0), 0, "nothing is 0")
-	Set tBase = ..Base()
-	Do ..SetBudget(100000, 5, tBase + 2000000)
-	Set tState = ##class(Readback.Budget.Guard).Check($Justify("", 401))
-	Do $$$AssertEquals(tState.EstimatedTokens, 101 + ##class(Readback.Triage.Schema).#MaxTokens, "the estimate adds the output cap of the session config")
-	Do $$$AssertEquals(tState.State, "ok", "under the ceilings is ok")
 }
 
-Method TestResultCeilingDropsCasesThenPassagesLastFirst()
+Method TestEstimateCountsEveryRound()
 {
-	// text 4000 chars = 1000 tokens, plus 400 = 1400. Items: passages 400,400 chars, cases 400,400 chars.
-	Do ..SetBudget(1250, 5, 2000000)
-	Set tState = ##class(Readback.Budget.Guard).Check($Justify("", 4000), $ListBuild(400, 400), $ListBuild(400, 400))
-	Do $$$AssertEquals(tState.State, "ok", "dropping 800 characters (two items) fits: 1200 + 400 is above 1250? no, 800/4=200 so 1000-200+400=1200")
-	Do $$$AssertEquals(tState.Reduced, 2, "two items were dropped")
-	Do $$$AssertEquals(tState.CasesKept, 0, "cases go first")
-	Do $$$AssertEquals(tState.PassagesKept, 2, "passages are kept while cases can still be dropped")
-	Do ..SetBudget(1100, 5, 2000000)
-	Set tState = ##class(Readback.Budget.Guard).Check($Justify("", 4000), $ListBuild(400, 400), $ListBuild(400, 400))
-	Do $$$AssertEquals(tState.Reduced, 3, "a tighter ceiling drops a passage too")
-	Do $$$AssertEquals(tState.PassagesKept, 1, "the last passage is the one dropped")
-	Do ..SetBudget(100, 5, 2000000)
-	Set tState = ##class(Readback.Budget.Guard).Check($Justify("", 4000), $ListBuild(400), $ListBuild(400))
-	Do $$$AssertEquals(tState.State, "result-ceiling", "still too big with nothing left to drop is result-ceiling")
-	Do $$$AssertEquals(tState.Reduced, 2, "everything droppable was dropped first")
+	Do ..SetBudget(1000000, 5, 2000000)
+	Set tBase = ##class(Readback.Budget.Guard).EstimateTokens($Length(##class(Readback.Triage.Prompt).Text()) + 401) + ##class(Readback.Budget.Guard).#ToolDefinitionTokens
+	Do ..SetRounds(1)
+	Set tOne = ##class(Readback.Budget.Guard).Check($Justify("", 401)).EstimatedTokens
+	Do $$$AssertEquals(tOne, tBase + ##class(Readback.Triage.Schema).#MaxTokens, "one round: one request and the longest answer")
+	Do ..SetRounds(3)
+	Set tThree = ##class(Readback.Budget.Guard).Check($Justify("", 401)).EstimatedTokens
+	Do $$$AssertTrue(tThree > 3 * tBase, "three rounds send the conversation three times and add the tool results")
+	Do $$$AssertTrue(tThree > tOne, "the estimate grows with the rounds")
+	Do ..SetRounds(6)
+	Do $$$AssertTrue(##class(Readback.Budget.Guard).Check($Justify("", 401)).EstimatedTokens > tThree, "and keeps growing")
+	Do ..SetRounds(3)
+}
+
+Method TestResultCeilingRefusesAnInvestigationThatCannotFit()
+{
+	Do ..SetRounds(3)
+	Do ..SetBudget(1000000, 5, 2000000)
+	Set tNeeds = ##class(Readback.Budget.Guard).Check("short").EstimatedTokens
+	Do ..SetBudget(tNeeds, 5, 2000000)
+	Do $$$AssertEquals(##class(Readback.Budget.Guard).Check("short").State, "ok", "exactly at the ceiling fits")
+	Do ..SetBudget(tNeeds - 1, 5, 2000000)
+	Do $$$AssertEquals(##class(Readback.Budget.Guard).Check("short").State, "result-ceiling", "one token over is the result ceiling")
+}
+
+Method TestNoAgentBoundsMeansNoCall()
+{
+	Do ##class(Readback.Config.AgentTools).%KillExtent()
+	Do $$$AssertEquals(##class(Readback.Budget.Guard).Check("short").State, "result-ceiling", "without the agent bounds no call is made")
+	Do ..SetRounds(3)
 }
 
 Method TestHourlyTokensWhenPriceUnknown()
@@ -95,16 +110,16 @@ Method TestHourlyTokensWhenPriceUnknown()
 	Set tBase = ..Base()
 	Do ..SetBudget(100000, 5, tBase + 1000)
 	Do ..Row(5, 300, 100)
-	Set tState = ##class(Readback.Budget.Guard).Check("short", "", "", "no-such-model")
+	Set tState = ##class(Readback.Budget.Guard).Check("short", "no-such-model")
 	Do $$$AssertEquals(tState.Basis, "tokens", "no price means the token basis")
 	Do $$$AssertEquals(tState.Used, tBase + 400, "input plus output tokens are summed")
 	Do $$$AssertEquals(tState.Ceiling, tBase + 1000, "against the token ceiling")
 	Do $$$AssertEquals(tState.State, "ok", "below the ceiling is ok")
 	Do ..Row(10, 500, 99)
-	Set tState = ##class(Readback.Budget.Guard).Check("short", "", "", "no-such-model")
+	Set tState = ##class(Readback.Budget.Guard).Check("short", "no-such-model")
 	Do $$$AssertEquals(tState.State, "ok", "999 of 1000 is still ok")
 	Do ..Row(1, 1, 0)
-	Set tState = ##class(Readback.Budget.Guard).Check("short", "", "", "no-such-model")
+	Set tState = ##class(Readback.Budget.Guard).Check("short", "no-such-model")
 	Do $$$AssertEquals(tState.State, "hourly-ceiling", "exactly at the ceiling is the ceiling")
 }
 
@@ -115,10 +130,10 @@ Method TestWindowIgnoresOldRowsAndCallsThatDidNotHappen()
 	Set tBase = ..Base()
 	Do ..Row(61, 900, 900)
 	Do ..Row(59, 100, 100, 0)
-	Set tState = ##class(Readback.Budget.Guard).Check("short", "", "", "no-such-model")
+	Set tState = ##class(Readback.Budget.Guard).Check("short", "no-such-model")
 	Do $$$AssertEquals(tState.Used, tBase, "a row older than 60 minutes and a row with no agent call are not counted")
 	Do ..Row(59, 100, 100)
-	Set tState = ##class(Readback.Budget.Guard).Check("short", "", "", "no-such-model")
+	Set tState = ##class(Readback.Budget.Guard).Check("short", "no-such-model")
 	Do $$$AssertEquals(tState.Used, tBase + 200, "a row 59 minutes old is counted")
 }
 
@@ -133,12 +148,12 @@ Method TestCostBasisWhenPriceKnown()
 	Do ..SetBudget(100000, tBaseCost + 0.5, 10)
 	Do ..Row(3, 1000000, 0, 1, 0.3, "bgt-priced")
 	Do ..Row(4, 5000000, 5000000, 1, "", "bgt-priced")
-	Set tState = ##class(Readback.Budget.Guard).Check("short", "", "", "bgt-priced")
+	Set tState = ##class(Readback.Budget.Guard).Check("short", "bgt-priced")
 	Do $$$AssertEquals(tState.Basis, "cost", "a known price means the cost basis")
 	Do $$$AssertEquals(tState.Used, tBaseCost + 0.3, "only known costs are summed")
 	Do $$$AssertEquals(tState.State, "ok", "0.3 of 0.5 is ok even though the token ceiling of 10 is far exceeded")
 	Do ..Row(2, 1, 1, 1, 0.2, "bgt-priced")
-	Set tState = ##class(Readback.Budget.Guard).Check("short", "", "", "bgt-priced")
+	Set tState = ##class(Readback.Budget.Guard).Check("short", "bgt-priced")
 	Do $$$AssertEquals(tState.State, "hourly-ceiling", "0.5 of 0.5 is the ceiling")
 	Do tPrice.%DeleteId(tPrice.%Id())
 }
@@ -150,9 +165,9 @@ Method TestChangedCeilingAppliesAfterReload()
 	Set tBase = ..Base()
 	Do ..SetBudget(100000, 5, tBase + 100)
 	Do ..Row(1, 80, 80)
-	Do $$$AssertEquals(##class(Readback.Budget.Guard).Check("x", "", "", "none").State, "hourly-ceiling", "over a low ceiling")
+	Do $$$AssertEquals(##class(Readback.Budget.Guard).Check("x", "none").State, "hourly-ceiling", "over a low ceiling")
 	Do ..SetBudget(100000, 5, tBase + 100000)
-	Do $$$AssertEquals(##class(Readback.Budget.Guard).Check("x", "", "", "none").State, "ok", "a higher ceiling applies at the next check")
+	Do $$$AssertEquals(##class(Readback.Budget.Guard).Check("x", "none").State, "ok", "a higher ceiling applies at the next check")
 }
 
 Method TestNowForTheStatusEndpoint()

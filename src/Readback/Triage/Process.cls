@@ -21,31 +21,27 @@ Method OnRequest(pRequest As Readback.Msg.LabResult, Output pResponse As Ens.Res
 	Set tFloor = ##class(Readback.Triage.Floor).Compute(tEffective)
 	// The floor also holds the change rule: a large move from the patient's earlier results raises it like a limit.
 	Do ##class(Readback.Triage.Delta).Apply(pRequest, tEffective, tFloor)
-	// Policy passages and confirmed cases, found by meaning from an identifier-free description of the result.
-	Set tRetr = ..Retrieve(tEffective)
-	Set tText = ##class(Readback.Triage.Context).Build(pRequest, tConv, tRetr)
+	// The agent gets the case and asks for the rest through its tools (history, change, policy, sample quality).
+	Set tText = ##class(Readback.Triage.Context).Build(pRequest, tConv)
 	Set tMode = ##class(Readback.Config.Mode).Current()
 	// P-7: the budget is decided before the call. A reached ceiling means no call at all. The guard works from
-	// the size estimate only; the real token counts come back from the provider after the call.
-	Do ##class(Readback.Triage.Context).ItemChars(tRetr, .tPassageChars, .tCaseChars)
-	Set tBudget = ##class(Readback.Budget.Guard).Check(tText, tPassageChars, tCaseChars, ..ModelOf(tMode))
-	If tBudget.Reduced > 0 {
-		Do ..Trim(tRetr, tBudget.PassagesKept, tBudget.CasesKept)
-		Set tText = ##class(Readback.Triage.Context).Build(pRequest, tConv, tRetr)
-	}
-	If (tBudget.State = "ok") && tRetr.Available {
+	// the size estimate and the expected rounds; the real token counts of the whole investigation come back from
+	// the session statistics after the call.
+	Set tBudget = ##class(Readback.Budget.Guard).Check(tText, ..ModelOf(tMode))
+	If tBudget.State = "ok" {
+		// The server fixes the case before the session: the tools read it, none takes an identifier.
+		Do ##class(Readback.Tools.Binding).Publish(pRequest, tEffective, tFloor)
 		Set tOutcome = ..CallAgent(tText, tMode)
+		Do ##class(Readback.Tools.Binding).Unpublish(pRequest.MessageControlId)
 	} Else {
 		Set tOutcome = ##class(Readback.Triage.AgentOutcome).%New()
 		Set tOutcome.Mode = tMode, tOutcome.Model = ..ModelOf(tMode), tOutcome.AgentCalled = 0
-		Set tOutcome.RetrievalFailed = ('tRetr.Available)
 	}
-	Set tOutcome.RetrievalNote = tRetr.Reason
 	Set tOutcome.BudgetState = tBudget.State, tOutcome.BudgetBasis = tBudget.Basis, tOutcome.BudgetUsed = tBudget.Used
 	Set tOutcome.BudgetCeiling = tBudget.Ceiling, tOutcome.BudgetEstimate = tBudget.EstimatedTokens
 	Set tOutcome.ConversionOutcome = tConv.outcome
 	Set tFinal = ##class(Readback.Triage.Pipeline).Decide(pRequest, tFloor, tOutcome, .tAgent)
-	Set tTrace = ..SaveTrace(pRequest, tFloor, tAgent, tFinal, tOutcome, tText, tMode, tConv, tRetr)
+	Set tTrace = ..SaveTrace(pRequest, tFloor, tAgent, tFinal, tOutcome, tText, tMode, tConv)
 	Quit ..Route(pRequest, tFinal, tAgent, tMode, tTrace)
 }
 
@@ -66,32 +62,6 @@ Method Convert(pLab As Readback.Msg.LabResult) As %DynamicObject
 	Set tConv = ##class(Readback.Units.Client).ParseResponse($Get(tResponse), tSC)
 	If tConv.outcome = "unavailable" { $$$LOGWARNING(tConv.message) }
 	Quit tConv
-}
-
-/// Asks the retrieval operation. A failure of any kind is an answer with Available false and a reason; the case
-/// then goes to a person (P-3). Finding nothing is a different answer (Available true, empty lists).
-Method Retrieve(pLab As Readback.Msg.LabResult) As Readback.Msg.RetrievalResponse
-{
-	Set tRequest = ##class(Readback.Msg.RetrievalRequest).%New()
-	Set tRequest.Query = ##class(Readback.Retrieval.Describe).Text(pLab)
-	Try {
-		Set tSC = ..SendRequestSync("Readback.Retrieval", tRequest, .tResponse, 10)
-	} Catch ex {
-		Set tSC = ex.AsStatus()
-	}
-	If $System.Status.IsOK(tSC) && $IsObject($Get(tResponse)) { Quit tResponse }
-	Set tFail = ##class(Readback.Msg.RetrievalResponse).%New()
-	Set tFail.Available = 0
-	Set tFail.Reason = $Select($System.Status.IsError(tSC):##class(Readback.Config.Mode).Redact($System.Status.GetErrorText(tSC)), 1:"retrieval did not answer in time")
-	$$$LOGWARNING("Retrieval failed for "_pLab.MessageControlId_": "_tFail.Reason)
-	Quit tFail
-}
-
-/// Keeps the first pPassages passages and the first pCases cases.
-ClassMethod Trim(pRetr As Readback.Msg.RetrievalResponse, pPassages As %Integer, pCases As %Integer)
-{
-	For i = pRetr.Passages.Count():-1:pPassages+1 { Do pRetr.Passages.RemoveAt(i) }
-	For i = pRetr.Cases.Count():-1:pCases+1 { Do pRetr.Cases.RemoveAt(i) }
 }
 
 /// A JSON array text of the ids (or the trace ids of cases) of a list of retrieved items.
@@ -119,9 +89,11 @@ Method CallAgent(pText As %String, pMode As %String) As Readback.Triage.AgentOut
 	Set tRequest.TextMessage = ##class(EnsLib.AI.Content.Text).%New()
 	Set tRequest.TextMessage.String = pText
 	Set tStart = $ZHorolog
+	Kill ^Readback.AgentResult(##class(Readback.Agent.ReplayOperation).CaseId(pText))
 	// A recording of a failed live call is handed back as that failure, without a request: the replay of a run
 	// equals the run, failures included.
 	Set tRecording = $Select(pMode="replay":##class(Readback.Agent.ReplayOperation).Find(pText), 1:"")
+	If $IsObject(tRecording) { Set tOutcome.ToolCallsJson = tRecording.ToolCallsJson, tOutcome.Rounds = $Select(tRecording.Rounds'="":tRecording.Rounds, 1:1) }
 	If $IsObject(tRecording) && (tRecording.FailureKind '= "") {
 		Set tOutcome.Model = tRecording.Model, tOutcome.RecordedLatencyMs = tRecording.LatencyMs
 		Set tOutcome.LatencyMs = $Justify(($ZHorolog - tStart) * 1000, 0, 0)
@@ -141,6 +113,7 @@ Method CallAgent(pText As %String, pMode As %String) As Readback.Triage.AgentOut
 	}
 	Set tOutcome.LatencyMs = $Justify(($ZHorolog - tStart) * 1000, 0, 0)
 	Set tOutcome.Model = ..ModelOf(pMode)
+	If pMode = "live" { Do ..ReadInvestigation(pText, tOutcome) }
 	// In replay the trace names the model of the recording and keeps the latency of the original call.
 	If $IsObject(tRecording) {
 		Set:tRecording.Model'="" tOutcome.Model = tRecording.Model
@@ -173,7 +146,7 @@ Method CallAgent(pText As %String, pMode As %String) As Readback.Triage.AgentOut
 }
 
 /// Saves the trace record with every field the decision can be rebuilt from. Never touches the key.
-Method SaveTrace(pLab As Readback.Msg.LabResult, pFloor As Readback.Triage.FloorResult, pAgent As Readback.Triage.AgentOutput, pFinal As Readback.Triage.FinalDecision, pOutcome As Readback.Triage.AgentOutcome, pText As %String, pMode As %String, pConv As %DynamicObject, pRetr As Readback.Msg.RetrievalResponse) As Readback.Trace.Decision
+Method SaveTrace(pLab As Readback.Msg.LabResult, pFloor As Readback.Triage.FloorResult, pAgent As Readback.Triage.AgentOutput, pFinal As Readback.Triage.FinalDecision, pOutcome As Readback.Triage.AgentOutcome, pText As %String, pMode As %String, pConv As %DynamicObject) As Readback.Trace.Decision
 {
 	Set tTrace = ##class(Readback.Trace.Decision).%New()
 	Set tTrace.MessageControlId = pLab.MessageControlId
@@ -199,12 +172,71 @@ Method SaveTrace(pLab As Readback.Msg.LabResult, pFloor As Readback.Triage.Floor
 	Set tTrace.ConversionOutcome = pConv.outcome
 	If (pConv.outcome = "converted") || (pConv.outcome = "not-needed") { Set tTrace.ConvertedValue = pConv.value, tTrace.ConvertedUnit = pConv.unit }
 	Set tTrace.AgentCalled = pOutcome.AgentCalled
-	Set tTrace.IndexVersion = pRetr.IndexVersion, tTrace.RetrievalNote = pOutcome.RetrievalNote
-	Set tTrace.PassageIds = ..ItemIds(pRetr.Passages, 0), tTrace.CaseLabels = ..ItemIds(pRetr.Cases, 0), tTrace.CaseTraceIds = ..ItemIds(pRetr.Cases, 1)
+	Do ..ApplyInvestigation(tTrace, pOutcome, pAgent)
 	Set tTrace.BudgetState = pOutcome.BudgetState, tTrace.BudgetBasis = pOutcome.BudgetBasis, tTrace.BudgetUsed = pOutcome.BudgetUsed
 	Set tTrace.BudgetCeiling = pOutcome.BudgetCeiling, tTrace.BudgetEstimate = pOutcome.BudgetEstimate
 	Do tTrace.%Save()
+	Do ..SaveToolCalls(tTrace, pOutcome)
 	Quit tTrace
+}
+
+/// What the investigation adds to the trace record: rounds, the tool call counts, the policy refusal, the evidence check,
+/// and the policy passages and similar cases the agent asked for (taken from the result of its policy search).
+ClassMethod ApplyInvestigation(pTrace As Readback.Trace.Decision, pOutcome As Readback.Triage.AgentOutcome, pAgent As Readback.Triage.AgentOutput)
+{
+	Set tCalls = $Select(pOutcome.ToolCallsJson'="":[].%FromJSON(pOutcome.ToolCallsJson), 1:[])
+	Set pTrace.Rounds = pOutcome.Rounds, pTrace.ToolCallCount = tCalls.%Size()
+	Set tFailed = 0
+	Set tPassages = [], tCases = [], tCaseTraceIds = []
+	For i = 0:1:tCalls.%Size()-1 {
+		Set tCall = tCalls.%Get(i)
+		If tCall.status '= "ok" { Set tFailed = tFailed + 1  Continue }
+		Continue:tCall.tool'="search_policy"
+		Try {
+			Set tResult = {}.%FromJSON(tCall.result)
+			Set pTrace.IndexVersion = tResult.indexVersion
+			For j = 0:1:tResult.passages.%Size()-1 { Do tPassages.%Push(tResult.passages.%Get(j).id) }
+			For j = 0:1:tResult.similarCases.%Size()-1 {
+				Do tCases.%Push(tResult.similarCases.%Get(j).id)
+				Do tCaseTraceIds.%Push(tResult.similarCases.%Get(j).traceId)
+			}
+		} Catch ex {}
+	}
+	Set pTrace.ToolFailureCount = tFailed
+	Set pTrace.PassageIds = tPassages.%ToJSON(), pTrace.CaseLabels = tCases.%ToJSON(), pTrace.CaseTraceIds = tCaseTraceIds.%ToJSON()
+	Set pTrace.PolicyRefusal = pAgent.PolicyRefusal, pTrace.EvidenceCheck = pAgent.EvidenceCheck
+	Set pTrace.RetrievalNote = $Select(pOutcome.ToolFailureKind'="":pOutcome.ToolFailureReason, 1:"")
+}
+
+/// One row per tool call of the decision, in order.
+ClassMethod SaveToolCalls(pTrace As Readback.Trace.Decision, pOutcome As Readback.Triage.AgentOutcome)
+{
+	Quit:pOutcome.ToolCallsJson=""
+	Set tCalls = [].%FromJSON(pOutcome.ToolCallsJson)
+	For i = 0:1:tCalls.%Size()-1 {
+		Set tCall = tCalls.%Get(i)
+		Set tRow = ##class(Readback.Trace.ToolCall).%New()
+		Set tRow.Decision = pTrace, tRow.Seq = i + 1, tRow.Tool = $Extract(tCall.tool, 1, 50)
+		Set tRow.ArgumentsJson = tCall.arguments, tRow.ResultJson = tCall.result, tRow.Status = tCall.status
+		Set tRow.Reason = ##class(Readback.Config.Mode).Redact($Extract(tCall.reason, 1, 500)), tRow.DurationMs = +tCall.durationMs
+		Do tRow.%Save()
+	}
+}
+
+/// The result of the investigation the agent operation left for this case: the case totals of tokens, the rounds, the
+/// ordered tool calls and the failure the product must act on. The operation writes it even when the call failed.
+ClassMethod ReadInvestigation(pText As %String, pOutcome As Readback.Triage.AgentOutcome)
+{
+	Set tCaseId = ##class(Readback.Agent.ReplayOperation).CaseId(pText)
+	Quit:tCaseId=""
+	Set tText = $Get(^Readback.AgentResult(tCaseId))
+	Kill ^Readback.AgentResult(tCaseId)
+	Quit:tText=""
+	Set tResult = {}.%FromJSON(tText)
+	Set pOutcome.InputTokens = +tResult.promptTokens, pOutcome.OutputTokens = +tResult.completionTokens
+	Set pOutcome.Rounds = $Select(tResult.rounds>0:tResult.rounds, 1:1)
+	Set pOutcome.ToolCallsJson = tResult.toolCalls.%ToJSON()
+	Set pOutcome.ToolFailureKind = tResult.failureKind, pOutcome.ToolFailureReason = tResult.failureReason
 }
 
 /// Opens a read-back or review task when the route needs a person, then logs the outcome.

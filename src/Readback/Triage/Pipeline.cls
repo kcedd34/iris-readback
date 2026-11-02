@@ -7,11 +7,35 @@ Class Readback.Triage.Pipeline
 ClassMethod Decide(pLab As Readback.Msg.LabResult, pFloor As Readback.Triage.FloorResult, pOutcome As Readback.Triage.AgentOutcome, Output pAgent As Readback.Triage.AgentOutput) As Readback.Triage.FinalDecision
 {
 	Set pAgent = ..Classify(pOutcome)
+	Do ..Govern(pFloor, pOutcome, pAgent)
 	// A rule that cannot judge the unit sends the case to a human unless the floor is already critical.
 	If pFloor.UnitUnknown && (pFloor.Severity < 3) && pAgent.Valid && (pAgent.FailureKind = "") && (pAgent.Severity < 3) {
 		Set pAgent.FailureKind = "unit-not-in-rule-table", pAgent.FailureReason = ..UnitReason(pOutcome.ConversionOutcome)
 	}
 	Quit ##class(Readback.Triage.Composer).Compose(pFloor, pAgent)
+}
+
+/// The two checks that sit between the answer and the composition. First the evidence rule: every identifier the answer
+/// cites must have been returned by a tool of this investigation, else the answer is handled as an invalid one. Then the
+/// floor policy: an answer that would lower a critical floor is refused formally and the refusal is recorded. The
+/// composition runs afterwards and does not depend on either.
+ClassMethod Govern(pFloor As Readback.Triage.FloorResult, pOutcome As Readback.Triage.AgentOutcome, pAgent As Readback.Triage.AgentOutput) [ Private ]
+{
+	Quit:'pAgent.Valid
+	Set tCalls = $Select(pOutcome.ToolCallsJson'="":[].%FromJSON(pOutcome.ToolCallsJson), 1:[])
+	Set tBad = ##class(Readback.Governance.Evidence).Unsupported(pAgent.Evidence, tCalls)
+	If tBad '= "" {
+		Set pAgent.EvidenceCheck = "not-from-tools"
+		Set pAgent.Valid = 0, pAgent.FailureKind = "evidence-not-from-tools"
+		Set pAgent.FailureReason = $Extract("the answer cites evidence that no tool returned: "_tBad, 1, 500)
+		Quit
+	}
+	Set pAgent.EvidenceCheck = "ok"
+	Set tRefusal = ##class(Readback.Governance.FloorPolicy).Review(pFloor, pAgent)
+	If tRefusal '= "" {
+		Set pAgent.PolicyRefusal = $Extract(tRefusal, 1, 300)
+		If pAgent.FailureKind = "" { Set pAgent.FailureKind = "floor-policy-refusal", pAgent.FailureReason = pAgent.PolicyRefusal }
+	}
 }
 
 /// The agent answer for an outcome: a call failure becomes a failure kind, otherwise the text is parsed.
@@ -22,6 +46,9 @@ ClassMethod Classify(pOutcome As Readback.Triage.AgentOutcome) As Readback.Triag
 		If pOutcome.RetrievalFailed && (pOutcome.BudgetState = "ok") { Quit ..Failed("retrieval-unavailable", "retrieval unavailable") }
 		Quit ..Failed("budget-reached", "budget reached: "_$Select(pOutcome.BudgetState="result-ceiling":"result ceiling", 1:"hourly ceiling"))
 	}
+	// The investigation itself failed (a tool failed, was refused or does not exist, or the rounds ran out): the answer,
+	// if there is one, was reached with information missing and is not used.
+	If pOutcome.ToolFailureKind '= "" { Quit ..Failed(pOutcome.ToolFailureKind, pOutcome.ToolFailureReason) }
 	If pOutcome.TimedOut {
 		Quit ..Failed("timeout", "no answer within "_pOutcome.TimeoutSeconds_" seconds")
 	}

@@ -44,7 +44,7 @@ def case_list(tag):
     k = ("2823-3", "Potassium", "mmol/L")
     rows = []
     for i in range(10):
-        rows.append(("CRIT%d" % i, k, "6.9", "mmol/L", None, "readback", ""))
+        rows.append(("CRIT%d" % i, k, "6.9", "mmol/L", "MODE:toolpolicy" if i == 0 else None, "readback", ""))
     for i in range(8):
         rows.append(("REL%d" % i, k, "4.0", "mmol/L", "MODE:noncrit", "release", ""))
     for i in range(6):
@@ -106,8 +106,8 @@ def main():
     cases = case_list(tag)
     texts = []
     for n, (suffix, k, value, unit, marker, route, kind) in enumerate(cases):
-        indices = [("HEMOLYSIS_INDEX", marker)] if marker else None
-        texts.append(oru("%s-%s" % (tag, suffix), "SYN97%05d" % n, k[0], k[1], value, unit, indices=indices))
+        # The mode marker rides in the reference range: it is in the text of the case, which the sample indices no longer are.
+        texts.append(oru("%s-%s" % (tag, suffix), "SYN97%05d" % n, k[0], k[1], value, unit, ref=marker or ""))
     acks = lm.send(texts)
     check(all(a == "AA" for _, a in acks), "an intake acknowledgement was not AA")
 
@@ -144,7 +144,7 @@ def main():
                 check(field in body, "%s: the decision lacks %s" % (suffix, field))
             if suffix.startswith("CRIT0"):
                 check(body["originalUnit"] == "mmol/L" and body["conversionOutcome"] == "not-needed", "unit record: %s" % body)
-                check(len(body["passageIds"]) >= 1, "no passage ids in the trace of a case that called the agent")
+                check(len(body["passageIds"]) >= 1, "no passage ids in the trace of a case whose agent searched the policy")
             if suffix.startswith("UNIT0"):
                 check(body["conversionOutcome"] == "not-convertible" and body["originalUnit"] == "furlong", "unit not convertible record: %s" % body)
 
