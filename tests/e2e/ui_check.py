@@ -10,7 +10,6 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import dev_fixtures  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 FRONTEND = os.path.join(ROOT, "frontend")
@@ -34,12 +33,6 @@ def main():
     proc = run(["npx", "playwright", "install", "chromium"])
     if proc.returncode:
         print("FAIL: the test browser could not be installed:", proc.stderr[-400:])
-        return 1
-    try:
-        if dev_fixtures.use_current_version_recordings():
-            print("replay: the shipped recordings are of an earlier prompt version, development fixtures of the current one are loaded")
-    except RuntimeError as error:
-        print("FAIL:", error)
         return 1
     parts = os.environ.get("PARTS", "flow,task,public,a11y,demo,alerts,tools").split(",")
     env = dict(os.environ, SHOT_DIR=os.path.join(ROOT, ".local", "ui"), OPENAI_API_KEY="")

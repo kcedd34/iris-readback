@@ -93,24 +93,24 @@ Final decision (route) against the expected decision:
 | expected \ decided | CRITICAL | RECOLLECT | NEEDS_REVIEW | NON_CRITICAL | none |
 |---|---|---|---|---|---|
 | CRITICAL | 148 | 0 | 0 | 2 | 0 |
-| RECOLLECT | 0 | 0 | 30 | 0 | 0 |
-| NEEDS_REVIEW | 0 | 0 | 30 | 0 | 0 |
+| RECOLLECT | 0 | 0 | 28 | 2 | 0 |
+| NEEDS_REVIEW | 0 | 0 | 22 | 8 | 0 |
 | NON_CRITICAL | 0 | 0 | 0 | 30 | 0 |
 
 Agent decision against the expected decision:
 
 | expected \ decided | CRITICAL | RECOLLECT | NEEDS_REVIEW | NON_CRITICAL | none |
 |---|---|---|---|---|---|
-| CRITICAL | 124 | 0 | 0 | 26 | 0 |
-| RECOLLECT | 0 | 29 | 0 | 1 | 0 |
-| NEEDS_REVIEW | 0 | 30 | 0 | 0 | 0 |
+| CRITICAL | 112 | 12 | 2 | 24 | 0 |
+| RECOLLECT | 0 | 10 | 0 | 20 | 0 |
+| NEEDS_REVIEW | 0 | 13 | 0 | 17 | 0 |
 | NON_CRITICAL | 0 | 0 | 0 | 30 | 0 |
 
-- Cost per thousand results (USD): 0.9555
-- Latency p50 / p95 (ms, recorded): 1127 / 1553
+- Cost per thousand results (USD): 2.8426
+- Latency p50 / p95 (ms, recorded): 2975 / 3791
 - Silenced criticals: 0
 - Missed criticals (expected critical, not critical by rule, not sent to read-back): 2
-- Downgrade attempts by the agent on rule-critical results (kept critical): 24
+- Downgrade attempts by the agent on rule-critical results (kept critical): 36
 
 #### gpt-5.4
 
@@ -118,7 +118,7 @@ Final decision (route) against the expected decision:
 
 | expected \ decided | CRITICAL | RECOLLECT | NEEDS_REVIEW | NON_CRITICAL | none |
 |---|---|---|---|---|---|
-| CRITICAL | 148 | 0 | 0 | 2 | 0 |
+| CRITICAL | 148 | 0 | 2 | 0 | 0 |
 | RECOLLECT | 0 | 0 | 30 | 0 | 0 |
 | NEEDS_REVIEW | 0 | 0 | 30 | 0 | 0 |
 | NON_CRITICAL | 0 | 0 | 0 | 30 | 0 |
@@ -127,21 +127,21 @@ Agent decision against the expected decision:
 
 | expected \ decided | CRITICAL | RECOLLECT | NEEDS_REVIEW | NON_CRITICAL | none |
 |---|---|---|---|---|---|
-| CRITICAL | 130 | 0 | 6 | 14 | 0 |
+| CRITICAL | 144 | 1 | 0 | 3 | 2 |
 | RECOLLECT | 0 | 30 | 0 | 0 | 0 |
-| NEEDS_REVIEW | 0 | 30 | 0 | 0 | 0 |
+| NEEDS_REVIEW | 0 | 23 | 0 | 7 | 0 |
 | NON_CRITICAL | 0 | 0 | 0 | 30 | 0 |
 
-- Cost per thousand results (USD): 3.3272
-- Latency p50 / p95 (ms, recorded): 2042 / 2506
+- Cost per thousand results (USD): 9.7268
+- Latency p50 / p95 (ms, recorded): 6262 / 7563
 - Silenced criticals: 0
 - Missed criticals (expected critical, not critical by rule, not sent to read-back): 2
-- Downgrade attempts by the agent on rule-critical results (kept critical): 18
+- Downgrade attempts by the agent on rule-critical results (kept critical): 2
 
 What the numbers say, and what they do not say:
 
 - **No result critical by rule was silenced, for either model.** A result the rule table calls critical was never released, never sent to review and never lowered: zero silenced criticals for gpt-5.4 and zero for gpt-5.4-mini, including the cases in which the agent answered less than critical, which the composition kept critical.
-- **The agent alone is not the defence.** Before the deterministic delta floor, expected-critical results the rules did not know were released as non-critical: 19 for gpt-5.4-mini and 7 for gpt-5.4. With the delta floor, a rule that raises a result by its change against the patient's earlier results, the released criticals fell from 19 to 2 for gpt-5.4-mini and from 7 to 2 for gpt-5.4. The reduction was computed by replaying the recorded answers, since the floor does not change the prompt, so it needed no new paid run.
+- **The agent alone is not the defence.** Before the deterministic delta floor, expected-critical results the rules did not know were released as non-critical: 19 for gpt-5.4-mini and 7 for gpt-5.4. With the delta floor, a rule that raises a result by its change against the patient's earlier results, the released criticals fell from 19 to 2 for gpt-5.4-mini and from 7 to 2 for gpt-5.4. That reduction was measured on the first round (prompt triage-v2, no tools) by replaying the recorded answers; in the current round, in which the agent reads the earlier results through tools, the released criticals are 2 for both models, the same two.
 - **Two cases remain for both models.** Two contextual criticals, sodium at 150, fall under every limit: neither the value rule, nor the delta rule, nor the agent caught them. They are the honest limit of this design, listed by case in the report.
 - **Caveat that goes with the reduction.** The delta limits were chosen by the author knowing the range of the dataset generator, so the coverage is partly by construction. The result shows that the architecture can close this kind of hole with a deterministic rule; it is not a clinical calibration, and the dataset is synthetic and single-author.
 - **What is guaranteed and what is not.** The guarantee that holds, measured: the agent cannot lower a result that is critical by rule. The guarantee that does not exist: a contextual critical that no rule models is caught only if the delta floor, the agent or a review catches it.

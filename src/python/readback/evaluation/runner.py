@@ -11,6 +11,7 @@ report  builds data/eval/report.json and report.md from the rows of every run in
 The key is never read, printed or written here: the container holds it, and every printed line is masked anyway.
 """
 import argparse
+import datetime
 import glob
 import json
 import os
@@ -193,6 +194,8 @@ def build_reports():
     # The report of the previous round, when there is one, so that the new report states how each figure moved.
     previous = os.environ.get("EVAL_PREVIOUS") or next((p for p in (os.path.join(SHIPPED_EVAL, "report-before-tools.json"),) if os.path.exists(p)), None)
     extra = ["--previous", previous] if previous else []
+    if os.environ.get("EVAL_RUN_DATE"):
+        extra += ["--run-date", os.environ["EVAL_RUN_DATE"]]
     return report.main(runs + metas + extra + ["--dataset", DATASET, "--prices", PRICES, "--out", OUT])
 
 
@@ -321,6 +324,8 @@ def main(argv=None):
     sub.add_parser("report")
     args = parser.parse_args(argv)
     if args.command == "live":
+        # A live run is dated the day it is made; a replay or a rebuilt report keeps the date of the report it rebuilds.
+        os.environ.setdefault("EVAL_RUN_DATE", datetime.date.today().isoformat())
         code = run_live(args.model, args.resume, args.yes, args.output_cap, args.replay_set, args.pilot, record_answers=not args.pilot)
     elif args.command == "replay":
         code = run_replay(args.replay_set)

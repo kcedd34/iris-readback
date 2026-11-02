@@ -97,6 +97,8 @@ Method CallAgent(pText As %String, pMode As %String) As Readback.Triage.AgentOut
 	If $IsObject(tRecording) && (tRecording.FailureKind '= "") {
 		Set tOutcome.Model = tRecording.Model, tOutcome.RecordedLatencyMs = tRecording.LatencyMs
 		Set tOutcome.LatencyMs = $Justify(($ZHorolog - tStart) * 1000, 0, 0)
+		// The tokens a failed investigation spent before it failed are part of the run: the replay states the same cost.
+		Set tOutcome.InputTokens = +tRecording.InputTokens, tOutcome.OutputTokens = +tRecording.OutputTokens
 		If tRecording.FailureKind = "timeout" {
 			Set tOutcome.TimedOut = 1
 		} ElseIf tRecording.FailureKind = "provider-error" {

@@ -18,7 +18,6 @@ import time
 
 from common import ROOT, compose, iris, query, scalar, wait_for
 from readback_check import call, tasks_of
-import dev_fixtures
 import make_hostile
 import send_tcp
 
@@ -91,15 +90,6 @@ def load_standins(answers):
     return "RB_STANDIN_OK" in iris("\n".join(lines))
 
 
-def use_current_version_recordings():
-    """The shipped recordings are of an earlier prompt version until the evaluation is redone: see dev_fixtures."""
-    try:
-        return dev_fixtures.use_current_version_recordings()
-    except RuntimeError as error:
-        check(False, str(error))
-        return False
-
-
 def activate(replay_set):
     return any(l == "RB_ACTIVE=ok" for l in iris('set sc=##class(Readback.Replay.Recording).Activate("%s")\nwrite "RB_ACTIVE="_$select($system.Status.IsOK(sc):"ok",1:"failed"),!' % replay_set))
 
@@ -108,7 +98,6 @@ def main():
     start_stack()
     ready = wait_for(lambda: call("communicator1", PASSWORD, "GET", "/user-info")[0] == 200, 240, 3)
     check(bool(ready), "workflow-rest is not answering")
-    use_current_version_recordings()
     status, text = (0, "")
     import urllib.request, base64, urllib.error
     def api(path):
