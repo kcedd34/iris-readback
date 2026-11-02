@@ -127,6 +127,18 @@ select, input { background: var(--surface); border: 1px solid var(--line); borde
 .node-review .node-items { max-height: 170px; }
 .node-review .chip-reason { color: var(--ink); font-size: 0.84rem; }
 .node-more { color: var(--ink-2); font-size: 0.82em; }
+/* The agent's tool calls, lit one after another inside the agent node. A call that was refused or failed carries an icon and a
+   word and a dashed outline, so it never relies on colour alone. */
+.substeps { list-style: none; margin: 0.3rem 0 0; padding: 0; display: grid; gap: 0.2rem; font-size: 0.8rem; }
+.substep { display: grid; grid-template-columns: 1rem auto 1fr; gap: 0.35rem; align-items: baseline; padding: 0.1rem 0.3rem; border-left: 2px solid var(--accent); animation: substep-in 0.25s ease-out; }
+.substep-mark { color: var(--accent); font-weight: 700; }
+.substep-name { font-weight: 600; color: var(--ink); }
+.substep-what { color: var(--ink-2); }
+.substep-bad { border-left: 2px dashed var(--ink); background: var(--surface-2, transparent); }
+.substep-bad .substep-mark, .substep-bad .substep-what { color: var(--ink); font-weight: 700; }
+.chip-held { font-weight: 600; color: var(--ink); }
+@keyframes substep-in { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .substep { animation: none; } }
 .react-flow__attribution { background: transparent !important; color: var(--ink-2); }
 .react-flow__attribution a { color: var(--ink-2); }
 

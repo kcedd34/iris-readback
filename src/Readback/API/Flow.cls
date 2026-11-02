@@ -167,6 +167,10 @@ ClassMethod DecidedEntry(pTrace As Readback.Trace.Decision) As %DynamicObject
 	Do:pTrace.RecordedLatencyMs'="" tEntry.%Set("recordedLatencyMs", +pTrace.RecordedLatencyMs, "number")
 	Set tEntry.mode = pTrace.Mode
 	Set tEntry.decidedAt = pTrace.CreatedAt
+	// The investigation: the calls in order with a one-line summary each, the rounds and the floor policy's refusal, if any.
+	Set tEntry.toolCalls = ##class(Readback.Tools.Summary).ForDecision(pTrace.%Id())
+	Set tEntry.rounds = $Select(pTrace.Rounds'="":+pTrace.Rounds, 1:1)
+	Set tEntry.policyRefusal = ##class(Readback.Config.Mode).Redact(pTrace.PolicyRefusal)
 	Quit tEntry
 }
 

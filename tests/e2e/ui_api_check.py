@@ -62,8 +62,11 @@ def flow_part():
     check(status == 200 and len(full.get("decided", [])) <= 200, "/flow?after=0 is not a bounded page")
     check(took < 1.0, "/flow?after=0 took %.0f ms" % (took * 1000))
     for entry in full.get("decided", [])[:5]:
-        for key in ("decisionId", "controlId", "analyte", "route", "finalSeverity", "reason", "failureKind", "agentCalled", "mode", "decidedAt"):
+        for key in ("decisionId", "controlId", "analyte", "route", "finalSeverity", "reason", "failureKind", "agentCalled", "mode", "decidedAt", "toolCalls", "rounds", "policyRefusal"):
             check(key in entry, "a decided entry lacks %s" % key)
+        check(isinstance(entry.get("toolCalls"), list), "toolCalls of a decided entry is not a list")
+        for call_entry in entry.get("toolCalls", []):
+            check(set(call_entry) == {"seq", "tool", "status", "summary"}, "a tool call entry of the flow carries more than seq, tool, status and summary: %s" % sorted(call_entry))
     check(call(API, "observer", "GET", "/flow?after=abc")[0] == 400, "after=abc is not refused with 400")
     check(call(API, "observer", "GET", "/flow?after=-1")[0] == 400, "after=-1 is not refused with 400")
     blob = call(API, "observer", "GET", "/flow?after=0")[1]

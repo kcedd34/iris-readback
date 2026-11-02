@@ -26,4 +26,17 @@ ClassMethod Of(pTool As %String, pStatus As %String, pResult As %String, pReason
 	Quit "answered"
 }
 
+/// The tool calls of a decision in order, as short entries for the flow: seq, tool, status and a one-line summary. Never the
+/// arguments or the raw result.
+ClassMethod ForDecision(pDecisionId As %String) As %DynamicArray
+{
+	Set tList = []
+	Quit:pDecisionId="" tList
+	Set tRS = ##class(%SQL.Statement).%ExecDirect(, "SELECT Seq, Tool, Status, Reason, ResultJson FROM Readback_Trace.ToolCall WHERE Decision = ? ORDER BY Seq", pDecisionId)
+	While tRS.%Next() {
+		Do tList.%Push({"seq":(tRS.%Get("Seq")),"tool":(tRS.%Get("Tool")),"status":(tRS.%Get("Status")),"summary":(..Of(tRS.%Get("Tool"), tRS.%Get("Status"), tRS.%Get("ResultJson"), tRS.%Get("Reason")))})
+	}
+	Quit tList
+}
+
 }

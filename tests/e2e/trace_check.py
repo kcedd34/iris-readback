@@ -184,6 +184,8 @@ def main():
         body = json.loads(text)
         check(body["retrieval"]["passages"] > 0 and body["retrieval"]["indexVersion"] and body["retrieval"]["available"] is True, "status retrieval block: %s" % body.get("retrieval"))
         check(body["unitComponent"]["registered"] is True, "status unit component block: %s" % body.get("unitComponent"))
+        agent = body.get("agent") or {}
+        check(agent.get("maxIterations", 0) > 0 and agent.get("maxToolCalls", 0) > 0 and len(agent.get("tools", [])) == 4 and agent.get("policies") == ["scope", "audit", "floor"], "status agent block: %s" % agent)
     status, text = api("/decisions/NO-SUCH-CASE")
     check(status == 404 and list(json.loads(text)) == ["error"], "404 body: %s %s" % (status, text))
     status, text = api("/nowhere")

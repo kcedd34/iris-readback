@@ -3,6 +3,11 @@ import type { ConfirmedEntry, DecidedEntry, FlowItem, FlowSnapshot, FlowState, S
 /** Minimum time a replayed decision stays at each station, so a decision that took milliseconds can still be seen. */
 export const INTAKE_DWELL_MS = 450;
 export const AGENT_DWELL_MS = 700;
+/** Each tool call of the investigation lights up for this long inside the agent node, so the order can be followed. */
+export const TOOL_STEP_MS = 520;
+const MAX_TOOL_STEPS_SHOWN = 6;
+/** How long a replayed decision stays at the agent: the base time, and one step for each tool call it made. */
+export const agentDwellMs = (calls: number): number => AGENT_DWELL_MS + TOOL_STEP_MS * Math.min(calls, MAX_TOOL_STEPS_SHOWN);
 /** How long a finished item (released, reviewed, confirmed) stays on screen. A waiting item never expires. */
 export const FINISHED_MS = 20000;
 /** At most this many finished items are kept; waiting items are never counted or dropped. */
@@ -77,6 +82,8 @@ function applyDecided(state: FlowState, entry: DecidedEntry, now: number): FlowS
     reason: entry.reason || entry.floorNote,
     failureKind: entry.failureKind || undefined,
     decisionId: entry.decisionId,
+    toolCalls: entry.toolCalls && entry.toolCalls.length ? entry.toolCalls : undefined,
+    policyRefusal: entry.policyRefusal ? entry.policyRefusal : undefined,
   };
   return withItem(state, item);
 }
@@ -172,7 +179,7 @@ export function reduce(state: FlowState, action: FlowAction): FlowState {
         const item = next.items[key];
         if (item.path.length > 0 && now >= item.stepAt) {
           const [station, ...rest] = item.path;
-          next = withItem(next, { ...item, station, path: rest, stationSince: now, stepAt: now + (station === "agent" ? AGENT_DWELL_MS : 0) });
+          next = withItem(next, { ...item, station, path: rest, stationSince: now, stepAt: now + (station === "agent" ? agentDwellMs(item.toolCalls?.length ?? 0) : 0) });
         }
       }
       for (const key of [...next.order]) {

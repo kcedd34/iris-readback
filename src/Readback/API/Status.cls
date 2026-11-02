@@ -35,6 +35,7 @@ ClassMethod GetStatus() As %Status
 	Set tRes.recordingsLoaded = +$Get(tRec)
 	Set tRes.budget = ##class(Readback.Budget.Guard).Now(tRes.model)
 	Set tRes.retrieval = ##class(Readback.Retrieval.Engine).Snapshot()
+	Set tRes.agent = ..AgentBlock()
 	Set tRes.unitComponent = {}
 	Do tRes.unitComponent.%Set("registered", ''##class(Readback.Units.Setup).IsRegistered(), "boolean")
 	Set tRes.alerts = ##class(Readback.Notify.Alerts).Counts()
@@ -82,6 +83,8 @@ ClassMethod GetDecision(pControlId As %String) As %Status
 	Set tRes.budgetUsed = tTrace.BudgetUsed, tRes.budgetCeiling = tTrace.BudgetCeiling, tRes.budgetEstimate = tTrace.BudgetEstimate
 	Do tRes.%Set("agentCalled", ''tTrace.AgentCalled, "boolean")
 	Set tRes.createdAt = tTrace.CreatedAt
+	Set tRes.rounds = $Select(tTrace.Rounds'="":+tTrace.Rounds, 1:1), tRes.policyRefusal = tTrace.PolicyRefusal, tRes.evidenceCheck = tTrace.EvidenceCheck
+	Set tRes.toolCalls = ##class(Readback.Trace.Rebuild).CallsOf(tTrace)
 	Set tRes.notifications = ..Notifications(tTrace.SessionId)
 	Write tRes.%ToJSON()
 	Quit $$$OK
@@ -185,6 +188,17 @@ ClassMethod EnsureWebApp() As %Status
 	Set tProps("AutheEnabled") = 32
 	Set tProps("Description") = "Readback status and decision trace"
 	Quit ##class(Security.Applications).Create("/readback/api", .tProps)
+}
+
+/// What the agent is bound by: the iteration limit, the tool call cap, the tools it may call and the policies attached.
+ClassMethod AgentBlock() As %DynamicObject
+{
+	Set tBounds = ##class(Readback.Config.AgentTools).Current()
+	Set tRes = {"tools":["get_patient_history","get_delta_assessment","search_policy","get_sample_quality"],"policies":["scope","audit","floor"]}
+	If $IsObject(tBounds) {
+		Set tRes.maxIterations = tBounds.MaxIterations, tRes.maxToolCalls = tBounds.MaxToolCalls
+	}
+	Quit tRes
 }
 
 }

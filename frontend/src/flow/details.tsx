@@ -17,6 +17,21 @@ export interface CaseDetails {
   convertedValue: string;
   convertedUnit: string;
   notifications: NotificationEvent[];
+  /** The agent's investigation: rounds, calls (with their arguments, results and status), the floor policy's refusal and the evidence check. */
+  rounds: number;
+  toolCalls: DetailToolCall[];
+  policyRefusal: string;
+  evidenceCheck: string;
+}
+
+export interface DetailToolCall {
+  seq: number;
+  tool: string;
+  status: string;
+  arguments: string;
+  result: string;
+  reason: string;
+  durationMs: number;
 }
 
 interface DecisionView {
@@ -25,6 +40,10 @@ interface DecisionView {
   convertedValue?: string;
   convertedUnit?: string;
   notifications?: NotificationEvent[];
+  rounds?: number;
+  toolCalls?: DetailToolCall[];
+  policyRefusal?: string;
+  evidenceCheck?: string;
 }
 
 export async function fetchDetails(controlId: string): Promise<CaseDetails> {
@@ -35,6 +54,10 @@ export async function fetchDetails(controlId: string): Promise<CaseDetails> {
     convertedValue: view.convertedValue ?? "",
     convertedUnit: view.convertedUnit ?? "",
     notifications: view.notifications ?? [],
+    rounds: view.rounds ?? 1,
+    toolCalls: view.toolCalls ?? [],
+    policyRefusal: view.policyRefusal ?? "",
+    evidenceCheck: view.evidenceCheck ?? "",
   };
 }
 

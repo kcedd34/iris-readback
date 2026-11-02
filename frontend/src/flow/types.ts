@@ -1,6 +1,15 @@
 // The shapes of /readback/api/flow (specs/005-flow-ui/data-model.md) and the panel's own items.
 export type Mode = "replay" | "live";
 
+/** One tool call of the agent's investigation, as the flow shows it. Never the arguments or the raw result. */
+export type ToolStatus = "ok" | "refused" | "failed" | "unknown-tool";
+export interface ToolCallEntry {
+  seq: number;
+  tool: string;
+  status: ToolStatus;
+  summary: string;
+}
+
 export interface DecidedEntry {
   decisionId: number;
   controlId: string;
@@ -14,6 +23,11 @@ export interface DecidedEntry {
   recordedLatencyMs?: number;
   mode: Mode;
   decidedAt: string;
+  /** The tool calls the agent made, in order. Empty when it called none. */
+  toolCalls?: ToolCallEntry[];
+  rounds?: number;
+  /** Empty, or the floor policy's refusal of an answer that would have lowered a critical. */
+  policyRefusal?: string;
 }
 
 export interface WaitingEntry {
@@ -79,6 +93,8 @@ export interface FlowItem {
   alertLevel?: number;
   confirmedBy?: string;
   readbackMatch?: boolean;
+  toolCalls?: ToolCallEntry[];
+  policyRefusal?: string;
 }
 
 export interface FlowState {

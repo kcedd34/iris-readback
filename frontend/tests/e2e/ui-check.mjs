@@ -7,7 +7,7 @@ import { mkdirSync } from "node:fs";
 
 const BASE = process.env.BASE_URL || "http://127.0.0.1:8080";
 const RUNS = Number(process.env.RUNS || 5);
-const PARTS = (process.env.PARTS || "flow,task,public,a11y,demo,alerts").split(",");
+const PARTS = (process.env.PARTS || "flow,task,public,a11y,demo,alerts,tools").split(",");
 const SHOTS = process.env.SHOT_DIR || ".local/ui";
 const PASSWORD = process.env.READBACK_DEMO_PASSWORD || "";
 const failures = [];
@@ -424,6 +424,52 @@ async function demoPart(browser) {
   await page.close();
 }
 
+// The agent's tool calls shown as sub-steps in the agent node, in order, and what the agent read in the sentence of a raised severity.
+// The snapshot is made up (a call the policy refused and one that failed cannot be provoked in replay): the first poll is empty so the
+// panel starts clean, the second hands over two decisions, the rest hand over nothing new.
+async function toolsPart(browser) {
+  const page = await browser.newPage({ viewport: { width: 1360, height: 900 } });
+  const entry = (id, controlId, reason, failureKind, toolCalls) => ({ decisionId: id, controlId, analyte: "Hemoglobin", route: "review", finalSeverity: 1, reason, floorNote: "", failureKind, agentCalled: true, mode: "replay", decidedAt: "2026-11-02 10:00:00", toolCalls, rounds: 2, policyRefusal: "" });
+  const decided = [
+    entry(9001, "TOOLS-OK", "agent raised the severity to 1, not released automatically", "", [
+      { seq: 1, tool: "get_patient_history", status: "ok", summary: "2 earlier results" },
+      { seq: 2, tool: "get_delta_assessment", status: "ok", summary: "critical by change" },
+    ]),
+    entry(9002, "TOOLS-BAD", "tool search_policy refused: the tool is not in the tool set", "tool-failure", [
+      { seq: 1, tool: "get_patient_history", status: "ok", summary: "no earlier results" },
+      { seq: 2, tool: "search_policy", status: "refused", summary: "refused by the policy" },
+      { seq: 3, tool: "get_sample_quality", status: "failed", summary: "the tool failed" },
+    ]),
+  ];
+  let polls = 0;
+  await page.route(/\/readback\/api\/flow(\?.*)?$/, async (route) => {
+    polls += 1;
+    const body = await (await route.fetch()).json();
+    const base = { ...body, inFlight: [], waiting: [], waitingTotal: 0, confirmed: [] };
+    if (polls === 1) return route.fulfill({ json: { ...base, decided: [], cursor: 9000 } });
+    if (polls === 2) return route.fulfill({ json: { ...base, decided, cursor: 9002 } });
+    return route.fulfill({ json: { ...base, decided: [], cursor: 9002 } });
+  });
+  await page.goto(BASE);
+  const lit = await waitFor(async () => (await page.locator(".node-agent .substeps .substep").count()) >= 1, 15000);
+  check(lit, "no tool call is shown as a sub-step in the agent node");
+  const refused = await waitFor(async () => (await page.locator(".node-agent .substep-bad").count()) >= 1, 15000);
+  check(refused, "a refused or failed call is not marked in the agent node");
+  if (refused) {
+    const bad = await page.locator(".node-agent .substep-bad").allInnerTexts();
+    check(bad.some((t) => t.includes("refused by the policy")), `a refused call does not say so in words: ${JSON.stringify(bad)}`);
+    check((await page.locator(".node-agent .substep-bad .substep-mark").count()) >= 1, "a refused call has no icon");
+  }
+  // Sub-steps appear in the order the agent made them: the history comes before the change.
+  const names = await page.locator(".node-agent .substeps").first().locator(".substep-name").allInnerTexts();
+  check(names[0] === "Patient history", `the first sub-step is not the first call: ${JSON.stringify(names)}`);
+  // Once the case has moved on, the sentence of the raised severity says what the agent read.
+  const sentence = await waitFor(async () => (await page.locator(".node-review .chip-reason").allInnerTexts()).some((t) => t.includes("after reading: 2 earlier results (patient history), critical by change (change against history)")), 20000);
+  check(sentence, "the raised-severity sentence does not say what the agent read");
+  check((await page.locator(".node-agent .substeps").count()) <= 2, "the sub-steps are not limited to the cases at the agent node");
+  await page.close();
+}
+
 // The second first-class screen: the queue of critical alerts, with the escalation history of the open one. The menu switches
 // between it and the agent flow, and the flow stays a canvas (not a summary).
 async function alertsPart(browser) {
@@ -454,6 +500,7 @@ const browser = await chromium.launch();
 try {
   if (PARTS.includes("demo")) await demoPart(browser);
   if (PARTS.includes("alerts")) await alertsPart(browser);
+  if (PARTS.includes("tools")) await toolsPart(browser);
   if (PARTS.includes("flow")) await flowPart(browser);
   if (PARTS.includes("task")) await taskPart(browser);
   if (PARTS.includes("public")) await publicPart(browser);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AGENT_DWELL_MS, FINISHED_MS, INTAKE_DWELL_MS, MAX_FINISHED, initialState, itemsAt, reduce, waitingItems } from "../src/flow/reducer";
+import { AGENT_DWELL_MS, TOOL_STEP_MS, agentDwellMs, FINISHED_MS, INTAKE_DWELL_MS, MAX_FINISHED, initialState, itemsAt, reduce, waitingItems } from "../src/flow/reducer";
 import type { DecidedEntry, FlowSnapshot, WaitingEntry } from "../src/flow/types";
 
 const decided = (id: number, route: string, extra: Partial<DecidedEntry> = {}): DecidedEntry => ({
@@ -158,5 +158,39 @@ describe("in flight, submitted and stale", () => {
     expect(stale.stale).toBe(true);
     expect(stale.items).toEqual(s.items);
     expect(reduce(stale, { type: "snapshot", snapshot: snap({ cursor: 1, waiting: [waiting(1)] }), now: 10 }).stale).toBe(false);
+  });
+});
+
+describe("the agent's tool calls", () => {
+  const calls = [
+    { seq: 1, tool: "get_patient_history", status: "ok" as const, summary: "2 earlier results" },
+    { seq: 2, tool: "get_delta_assessment", status: "ok" as const, summary: "critical by change" },
+  ];
+
+  it("keeps the calls of a decision in the order the agent made them", () => {
+    const s = apply(initialState, snap({ cursor: 1, decided: [decided(1, "readback", { toolCalls: calls })], waiting: [waiting(1)] }), 0);
+    expect(s.items["d1"].toolCalls?.map((c) => c.tool)).toEqual(["get_patient_history", "get_delta_assessment"]);
+  });
+
+  it("carries no calls for a case where the agent called none", () => {
+    const s = apply(initialState, snap({ cursor: 1, decided: [decided(1, "release", { toolCalls: [] })] }), 0);
+    expect(s.items["d1"].toolCalls).toBeUndefined();
+  });
+
+  it("keeps a replayed decision at the agent for one step per call, and a case without calls for the base time only", () => {
+    expect(agentDwellMs(0)).toBe(AGENT_DWELL_MS);
+    expect(agentDwellMs(2)).toBe(AGENT_DWELL_MS + 2 * TOOL_STEP_MS);
+    let s = apply(initialState, snap({ cursor: 1, decided: [decided(1, "readback", { toolCalls: calls })], waiting: [waiting(1)] }), 0);
+    s = tick(s, INTAKE_DWELL_MS);
+    expect(itemsAt(s, "agent")).toHaveLength(1);
+    s = tick(s, INTAKE_DWELL_MS + agentDwellMs(2) - 1);
+    expect(itemsAt(s, "agent")).toHaveLength(1);
+    s = tick(s, INTAKE_DWELL_MS + agentDwellMs(2));
+    expect(itemsAt(s, "readback")).toHaveLength(1);
+  });
+
+  it("keeps the floor policy's refusal on the item", () => {
+    const s = apply(initialState, snap({ cursor: 1, decided: [decided(1, "readback", { policyRefusal: "refused: the agent answered NON_CRITICAL" })], waiting: [waiting(1)] }), 0);
+    expect(s.items["d1"].policyRefusal).toContain("refused");
   });
 });
