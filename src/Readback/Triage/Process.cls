@@ -40,7 +40,7 @@ Method OnRequest(pRequest As Readback.Msg.LabResult, Output pResponse As Ens.Res
 	Set tOutcome.BudgetState = tBudget.State, tOutcome.BudgetBasis = tBudget.Basis, tOutcome.BudgetUsed = tBudget.Used
 	Set tOutcome.BudgetCeiling = tBudget.Ceiling, tOutcome.BudgetEstimate = tBudget.EstimatedTokens
 	Set tOutcome.ConversionOutcome = tConv.outcome
-	Set tFinal = ##class(Readback.Triage.Pipeline).Decide(pRequest, tFloor, tOutcome, .tAgent)
+	Set tFinal = ##class(Readback.Triage.Pipeline).Decide(pRequest, tFloor, tOutcome, .tAgent, tEffective)
 	Set tTrace = ..SaveTrace(pRequest, tFloor, tAgent, tFinal, tOutcome, tText, tMode, tConv)
 	Quit ..Route(pRequest, tFinal, tAgent, tMode, tTrace)
 }

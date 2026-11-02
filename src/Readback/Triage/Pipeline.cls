@@ -4,7 +4,7 @@ Class Readback.Triage.Pipeline
 {
 
 /// pAgent returns the parsed or failed agent answer for the trace.
-ClassMethod Decide(pLab As Readback.Msg.LabResult, pFloor As Readback.Triage.FloorResult, pOutcome As Readback.Triage.AgentOutcome, Output pAgent As Readback.Triage.AgentOutput) As Readback.Triage.FinalDecision
+ClassMethod Decide(pLab As Readback.Msg.LabResult, pFloor As Readback.Triage.FloorResult, pOutcome As Readback.Triage.AgentOutcome, Output pAgent As Readback.Triage.AgentOutput, pEffective As Readback.Msg.LabResult = "") As Readback.Triage.FinalDecision
 {
 	Set pAgent = ..Classify(pOutcome)
 	Do ..Govern(pFloor, pOutcome, pAgent)
@@ -12,7 +12,23 @@ ClassMethod Decide(pLab As Readback.Msg.LabResult, pFloor As Readback.Triage.Flo
 	If pFloor.UnitUnknown && (pFloor.Severity < 3) && pAgent.Valid && (pAgent.FailureKind = "") && (pAgent.Severity < 3) {
 		Set pAgent.FailureKind = "unit-not-in-rule-table", pAgent.FailureReason = ..UnitReason(pOutcome.ConversionOutcome)
 	}
+	Do ..GuardRelease($Select($IsObject(pEffective):pEffective, 1:pLab), pFloor, pAgent)
 	Quit ##class(Readback.Triage.Composer).Compose(pFloor, pAgent)
+}
+
+/// The release guard. An answer that would end in an automatic release (NON_CRITICAL, severity 0 after the composition, no
+/// failure) is held for a person unless the floor is zero, the sample quality is within the policy and the value is not
+/// borderline. The hold is a failure kind, so the composition routes it to review with the reason and the trace keeps it. Nothing
+/// in the answer is read: the guard looks at the case only.
+ClassMethod GuardRelease(pEffective As Readback.Msg.LabResult, pFloor As Readback.Triage.FloorResult, pAgent As Readback.Triage.AgentOutput) [ Private ]
+{
+	Quit:'pAgent.Valid
+	Quit:pAgent.FailureKind'=""
+	Quit:pAgent.Decision'="NON_CRITICAL"
+	Quit:(pFloor.Severity>0)||(pAgent.Severity>0)
+	Set tReason = ##class(Readback.Triage.ReleaseGuard).Check(pEffective, pFloor)
+	Quit:tReason=""
+	Set pAgent.FailureKind = "release-guard", pAgent.FailureReason = $Extract(tReason, 1, 300)
 }
 
 /// The two checks that sit between the answer and the composition. First the evidence rule: every identifier the answer

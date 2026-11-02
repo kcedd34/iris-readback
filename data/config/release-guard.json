@@ -1,0 +1,9 @@
+{
+  "note": "Limits of the release guard, from the laboratory policy (data/policy/passages.jsonl). A result is released automatically only when the floor is zero, the sample quality is within these limits and the value is not in the borderline band. Demonstration values only, not for clinical use.",
+  "borderlineFraction": 0.93,
+  "borderlineSource": "policy passage review-ambiguous: a value near the critical limit goes to a person. The policy gives no number for near; 93 percent of the limit is the lowest value of the contextual cases the dataset builds, so the band is partly by construction.",
+  "sampleQualityLimits": [
+    { "code": "HEMOLYSIS_INDEX", "limit": 100, "source": "policy passage recollect-indices: a hemolysis index above 100 is high" }
+  ],
+  "sampleQualityNote": "The policy gives no number for the lipemia and icterus indices (above the laboratory limit), so none is enforced for them."
+}

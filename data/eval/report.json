@@ -71,6 +71,7 @@
         "floor-policy-refusal": 2,
         "low-confidence": 3,
         "provider-error": 5,
+        "release-guard": 1,
         "timeout": 1
       },
       "floorPolicyRefusals": 3,
@@ -153,7 +154,8 @@
       "promptVersions": [
         "triage-v3"
       ],
-      "reviewRate": 0.282511,
+      "releaseGuardHolds": 1,
+      "reviewRate": 0.284753,
       "roundsMax": 2,
       "roundsMean": 1.9865,
       "rowCount": 446,
@@ -177,7 +179,7 @@
         "ambiguous": {
           "agentAgrees": 0,
           "cases": 30,
-          "finalAgrees": 22
+          "finalAgrees": 30
         },
         "clear-critical": {
           "agentAgrees": 24,
@@ -218,7 +220,8 @@
       "evidenceRejected": 0,
       "failureCounts": {
         "floor-policy-refusal": 58,
-        "low-confidence": 2
+        "low-confidence": 2,
+        "release-guard": 22
       },
       "floorPolicyRefusals": 60,
       "invalidAnswerRate": 0.0,
@@ -259,15 +262,15 @@
       "matrixFinal": {
         "CRITICAL": {
           "CRITICAL": 148,
-          "NEEDS_REVIEW": 0,
-          "NON_CRITICAL": 2,
+          "NEEDS_REVIEW": 2,
+          "NON_CRITICAL": 0,
           "RECOLLECT": 0,
           "none": 0
         },
         "NEEDS_REVIEW": {
           "CRITICAL": 0,
-          "NEEDS_REVIEW": 22,
-          "NON_CRITICAL": 8,
+          "NEEDS_REVIEW": 30,
+          "NON_CRITICAL": 0,
           "RECOLLECT": 0,
           "none": 0
         },
@@ -280,8 +283,8 @@
         },
         "RECOLLECT": {
           "CRITICAL": 0,
-          "NEEDS_REVIEW": 28,
-          "NON_CRITICAL": 2,
+          "NEEDS_REVIEW": 30,
+          "NON_CRITICAL": 0,
           "RECOLLECT": 0,
           "none": 0
         }
@@ -300,7 +303,8 @@
       "promptVersions": [
         "triage-v3"
       ],
-      "reviewRate": 0.226457,
+      "releaseGuardHolds": 22,
+      "reviewRate": 0.275785,
       "roundsMax": 2,
       "roundsMean": 2.0,
       "rowCount": 446,
@@ -363,8 +367,8 @@
         "previous": 2
       },
       "reviewRate": {
-        "current": 0.282511,
-        "delta": 0.12556,
+        "current": 0.284753,
+        "delta": 0.127802,
         "previous": 0.156951
       },
       "silencedCriticals": {
@@ -420,8 +424,8 @@
         "previous": 2
       },
       "reviewRate": {
-        "current": 0.226457,
-        "delta": 0.053811,
+        "current": 0.275785,
+        "delta": 0.103139,
         "previous": 0.172646
       },
       "silencedCriticals": {

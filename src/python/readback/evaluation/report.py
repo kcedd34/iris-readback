@@ -136,6 +136,7 @@ def compute_model(rows, expected):
         "toolFailures": sum(1 for r in called if _int(r.get("toolFailureCount"), 0) > 0),
         "toolRefusals": refused_calls,
         "floorPolicyRefusals": sum(1 for r in called if r.get("policyRefusal")),
+        "releaseGuardHolds": sum(1 for r in called if r.get("failureKind") == "release-guard"),
         "evidenceRejected": sum(1 for r in called if r.get("evidenceCheck") == "not-from-tools"),
         "limitReached": sum(1 for r in called if r.get("failureKind") == "tool-limit"),
         "invalidAnswerRate": round(invalid_answers / len(called), 6) if called else None,
@@ -278,6 +279,7 @@ def write_markdown(report, path):
                     m.get("toolCalls", 0), _fmt(m.get("toolCallsPerResult")), _fmt(m.get("roundsMean")), _fmt(m.get("roundsMax")), m.get("toolFailures", 0), m.get("toolRefusals", 0), m.get("limitReached", 0)),
                 "- Floor policy refusals of an answer that would have lowered a critical: {}; answers rejected for evidence no tool returned: {}; invalid answer rate with the evidence rule: {}".format(
                     m.get("floorPolicyRefusals", 0), m.get("evidenceRejected", 0), _fmt(m.get("invalidAnswerRate"), "rate")),
+                "- Releases held for a person by the release guard (floor not zero, sample quality outside the policy, or a borderline value): {}".format(m.get("releaseGuardHolds", 0)),
                 "- Subject cases never processed: {}".format(len(m["missingSubjects"])), "",
                 "| category | cases | agent agrees | final agrees |", "|---|---|---|---|"]
         for category, t in m["agreementByCategory"].items():
@@ -303,6 +305,7 @@ def write_markdown(report, path):
             out.append("")
     out += ["", "## Limits", "",
             "- The expected decision of every case comes from construction rules written in `DATASET.md`, by one author; there was no second annotator.",
+            "- The release guard's limits come from the laboratory policy and were checked against the dataset generator: the hemolysis limit (100) is the policy's own number, but the policy gives no number for \"near the critical limit\", and the borderline band (93 percent of the limit) starts where the dataset's contextual and ambiguous cases start. Its coverage of those cases is partly by construction, as the delta floor's is; it shows that a deterministic guard can close this kind of hole, not that these limits are clinically calibrated.",
             "- The provider is not guaranteed to be deterministic at the settings used. The recorded run is the published one, and replay reproduces it.",
             "- Cost is computed from the recorded token counts and the dated price above; a model with no price shows `unknown`, never zero.", ""]
     with open(path, "w") as handle:

@@ -51,7 +51,7 @@ The `docker tag` line is only needed when the loaded image does not already have
 
 ### LLM provider and key variable
 
-The agent calls OpenAI, with the key in the environment variable `OPENAI_API_KEY`. The default model is `gpt-5.4`; `gpt-5.4-mini` is also evaluated below. The key is read from the environment only, and it is never printed, logged or written to a file.
+The agent calls OpenAI, with the key in the environment variable `OPENAI_API_KEY`. The default model is `gpt-5.4`. `gpt-5.4-mini` is the cheaper option, measured below: about a third of the cost (US$ 2.84 against US$ 9.73 per thousand results) and half the latency (p50 3.0 s against 6.3 s), but its agent lowers criticals more often (36 attempts held by the floor against 2) and asks for review less, so more of its answers lean on the guards. The key is read from the environment only, and it is never printed, logged or written to a file.
 
 Leave `OPENAI_API_KEY` empty and the product runs in replay mode, with the recorded answers of a real run of 446 messages: everything works with no key and no cost, and the answers are the ones the agent gave. Set it to run live. The estimated cost per thousand results is in the results below.
 
@@ -75,7 +75,7 @@ The product can also be installed as an IPM package into an instance that has th
 This is the architecture of the product, the Interoperability components it really uses:
 
 - **HL7 intake**: ORU^R01 lab results arrive by file and by TCP on port 5001 and are normalized and stored.
-- **The business process**: a deterministic floor first (critical limits by value, and the change against the patient's earlier results), then the agent, then a composition step that takes the higher of the two, so the agent can only raise.
+- **The business process**: a deterministic floor first (critical limits by value, and the change against the patient's earlier results), then the agent, then a composition step that takes the higher of the two, so the agent can only raise. A release guard sits after the answer: a result is released automatically only when the floor is zero, the sample quality is within the policy and the value is not near a critical limit; anything else goes to a person with the reason in the trace, and the agent cannot lift the guard.
 - **The AI Hub agent step**: one call with a strict JSON schema, an invalid answer becoming a human review. In replay mode a replay operation answers from recordings instead.
 - **Unit normalization**: a Production Extension in Java with the UCUM library converts units before the rules run.
 - **Retrieval**: laboratory policy passages and similar confirmed cases are found with IRIS Vector Search and local embeddings.
@@ -93,9 +93,9 @@ Final decision (route) against the expected decision:
 
 | expected \ decided | CRITICAL | RECOLLECT | NEEDS_REVIEW | NON_CRITICAL | none |
 |---|---|---|---|---|---|
-| CRITICAL | 148 | 0 | 0 | 2 | 0 |
-| RECOLLECT | 0 | 0 | 28 | 2 | 0 |
-| NEEDS_REVIEW | 0 | 0 | 22 | 8 | 0 |
+| CRITICAL | 148 | 0 | 2 | 0 | 0 |
+| RECOLLECT | 0 | 0 | 30 | 0 | 0 |
+| NEEDS_REVIEW | 0 | 0 | 30 | 0 | 0 |
 | NON_CRITICAL | 0 | 0 | 0 | 30 | 0 |
 
 Agent decision against the expected decision:
@@ -143,7 +143,9 @@ What the numbers say, and what they do not say:
 
 - **No result critical by rule was silenced, for either model.** A result the rule table calls critical was never released, never sent to review and never lowered: zero silenced criticals for gpt-5.4 and zero for gpt-5.4-mini, including the cases in which the agent answered less than critical, which the composition kept critical.
 - **The agent alone is not the defence.** Before the deterministic delta floor, expected-critical results the rules did not know were released as non-critical: 19 for gpt-5.4-mini and 7 for gpt-5.4. With the delta floor, a rule that raises a result by its change against the patient's earlier results, the released criticals fell from 19 to 2 for gpt-5.4-mini and from 7 to 2 for gpt-5.4. That reduction was measured on the first round (prompt triage-v2, no tools) by replaying the recorded answers; in the current round, in which the agent reads the earlier results through tools, the released criticals are 2 for both models, the same two.
-- **Two cases remain for both models.** Two contextual criticals, sodium at 150, fall under every limit: neither the value rule, nor the delta rule, nor the agent caught them. They are the honest limit of this design, listed by case in the report.
+- **The release guard sends what is uncertain to a person.** Before the guard, gpt-5.4-mini released 10 results that were not clear-cut (2 that asked for a new sample, 8 near the critical limit) because its agent answered calmly. With the guard, replayed on the recorded answers with no new call, all 10 go to review and no other row of the matrix changed; the review rate rose from 22.6% to 27.6%. For gpt-5.4 the matrix did not change.
+- **Two cases remain for both models, now held for a person.** Two contextual criticals, sodium at 150, fall under every limit: neither the value rule, nor the delta rule, nor the agent caught them. The guard now sends them to review instead of releasing them (gpt-5.4-mini released them before), because 150 is inside the borderline band. They are still not detected as critical, and that coverage is partly by construction: see the caveat below. They are listed by case in the report.
+- **Caveat that goes with the guard.** Its limits come from the laboratory policy and were checked against the dataset generator: the hemolysis limit (100) is the policy's own number, but the policy gives no number for "near the critical limit", and the borderline band (93 percent of the limit) starts where the dataset's contextual and ambiguous cases start. The guard therefore covers those cases partly by construction; it shows that a deterministic guard can close this kind of hole, not that the limits are clinically calibrated.
 - **Caveat that goes with the reduction.** The delta limits were chosen by the author knowing the range of the dataset generator, so the coverage is partly by construction. The result shows that the architecture can close this kind of hole with a deterministic rule; it is not a clinical calibration, and the dataset is synthetic and single-author.
 - **What is guaranteed and what is not.** The guarantee that holds, measured: the agent cannot lower a result that is critical by rule. The guarantee that does not exist: a contextual critical that no rule models is caught only if the delta floor, the agent or a review catches it.
 
