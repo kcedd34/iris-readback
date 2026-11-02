@@ -60,12 +60,13 @@ Leave `OPENAI_API_KEY` empty and the product runs in replay mode, with the recor
 ```
 cp .env.example .env
 # edit .env: set READBACK_DEMO_PASSWORD to a password of your choice; leave OPENAI_API_KEY empty to use replay
+src/ops/preflight.sh
 docker compose up -d --build
 src/ops/verify.sh
 curl -s http://127.0.0.1:8080/readback/api/status
 ```
 
-`src/ops/verify.sh` waits until the production is running and exits non-zero if it is not. Open http://127.0.0.1:8080 for the panel. The first build downloads the small local embedding model once, so it needs network that one time. The whole battery of checks, from a clean stack, is `tests/e2e/triage_check.sh`.
+`src/ops/preflight.sh` checks that the image is loaded and that the password reaches the product as you wrote it. Any printable password works: quotes, an apostrophe, `#`, `!`, a backslash, `&`, `;` and spaces inside were all tested end to end. Three things are refused with a message, because they would change the password on the way: a single `$` in `.env` (compose reads it as a variable, so write `$$` for a literal one), a `#` after a space in `.env` (compose reads it as a comment), and a space at either end. `src/ops/verify.sh` waits until the production is running and exits non-zero if it is not; it then waits for the task list layer, which installs after the start, and only warns if that layer is not there. Open http://127.0.0.1:8080 for the panel. The first build downloads the small local embedding model once, so it needs network that one time. The whole battery of checks, from a clean stack, is `tests/e2e/triage_check.sh`.
 
 The product can also be installed as an IPM package into an instance that has the AI Hub: with the repository on disk, `zpm "load /path/to/iris-readback"` installs it, builds the unit conversion component and starts the production. Policy retrieval stays unavailable on such an instance until the embedding model is provided, as the image does; everything else works.
 

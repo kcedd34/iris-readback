@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# The preflight accepts the demo passwords that reach the product intact and refuses the ones that would not, with no stack and no cost.
+set -uo pipefail
+cd "$(dirname "$0")/../.."
+fail=0
+file="$(mktemp)"
+trap 'rm -f "$file"' EXIT
+expect() { # expect accept|refuse "what" "content of .env". The variable is unset: it would win over the file (the battery exports one).
+  printf '%b' "$3" > "$file"
+  if env -u READBACK_DEMO_PASSWORD READBACK_PREFLIGHT_PASSWORD_ONLY=1 READBACK_ENV_FILE="$file" src/ops/preflight.sh >/dev/null 2>&1; then got=accept; else got=refuse; fi
+  [ "$got" = "$1" ] || { echo "FAIL: $2: expected $1, got $got"; fail=1; }
+}
+expect refuse "a single dollar sign in .env"           'READBACK_DEMO_PASSWORD=com$dolar\n'
+expect refuse "a dollar sign inside double quotes"     'READBACK_DEMO_PASSWORD="com$dolar"\n'
+expect accept "a doubled dollar sign"                  'READBACK_DEMO_PASSWORD=com$$dolar\n'
+expect accept "a dollar sign inside single quotes"     "READBACK_DEMO_PASSWORD='com\$dolar'\n"
+expect accept "double quote inside"                    'READBACK_DEMO_PASSWORD=com"aspas\n'
+expect accept "apostrophe inside"                      "READBACK_DEMO_PASSWORD=com'apostrofo\n"
+expect refuse "a hash after a space (a comment in .env)" 'READBACK_DEMO_PASSWORD=com #hash\n'
+expect accept "a hash after a space inside single quotes" "READBACK_DEMO_PASSWORD='com #hash'\n"
+expect accept "hash inside"                            'READBACK_DEMO_PASSWORD=com#hash\n'
+expect accept "exclamation, backslash, ampersand, semicolon" 'READBACK_DEMO_PASSWORD=a!b\\c&d;e\n'
+expect accept "a space inside"                         'READBACK_DEMO_PASSWORD=com espaco\n'
+expect refuse "a space at the end"                     'READBACK_DEMO_PASSWORD=comespaco \n'
+expect refuse "a space at the start"                   'READBACK_DEMO_PASSWORD= comespaco\n'
+expect refuse "a control character"                    'READBACK_DEMO_PASSWORD=com\ttab\n'
+expect accept "an empty password (one is generated)"   'READBACK_DEMO_PASSWORD=\n'
+expect accept "no password line"                       'OPENAI_API_KEY=\n'
+# The environment variable is passed on untouched by compose: a dollar sign is fine there.
+if env READBACK_DEMO_PASSWORD='com$dolar' READBACK_PREFLIGHT_PASSWORD_ONLY=1 READBACK_ENV_FILE=/nonexistent src/ops/preflight.sh >/dev/null 2>&1; then :; else echo "FAIL: a dollar sign in the environment variable was refused"; fail=1; fi
+if env READBACK_DEMO_PASSWORD=' x' READBACK_PREFLIGHT_PASSWORD_ONLY=1 src/ops/preflight.sh >/dev/null 2>&1; then echo "FAIL: a leading space in the environment variable was accepted"; fail=1; fi
+[ "$fail" = "0" ] && echo "password preflight check passed"
+exit "$fail"

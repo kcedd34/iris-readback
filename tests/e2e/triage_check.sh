@@ -9,6 +9,7 @@ PY="${PYTHON:-python3}"
 step() { printf '\n=== %s ===\n' "$1"; sleep 8; }
 
 step "pre-flight";               src/ops/preflight.sh
+step "password preflight";       tests/e2e/password_preflight_check.sh
 step "clean stack, no key";      docker compose down -v >/dev/null 2>&1 || true
                                  docker compose up -d --build --force-recreate >/dev/null
                                  src/ops/verify.sh 240
@@ -32,6 +33,7 @@ step "ui browser";               "$PY" tests/e2e/ui_check.py
 step "live path against a mock"; "$PY" tests/e2e/live_mock_check.py
 step "agent tools against a mock"; (cd tests/e2e && "$PY" tools_check.py)
 step "agent governance against a mock"; (cd tests/e2e && "$PY" governance_check.py)
+step "password with special characters"; (cd tests/e2e && "$PY" password_check.py)
 step "readme gate";              src/ops/check-readme.sh
 step "package on a clean instance"; tests/e2e/ipm_check.sh
 printf '\nAll triage core, units, budget, retrieval, trace, evaluation, notification, flow interface, readme and package checks passed.\n'
