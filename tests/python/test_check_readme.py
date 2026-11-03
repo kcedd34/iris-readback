@@ -322,3 +322,13 @@ def test_the_cost_claim_is_checked_against_the_report():
 def test_the_key_figures_state_the_run_without_the_verdict_and_not_the_agent_alone_row():
     assert "raised by the agent alone" not in README
     assert "without the rule's verdict" in README
+
+
+def test_saying_that_every_tool_call_is_a_visual_trace_step_fails():
+    out = failing(README.replace("## Demo\n", "## Demo\n\nIn the platform's Visual Trace each tool call is a step of the session.\n", 1))
+    assert any("Visual Trace" in line and "policy search" in line for line in out)
+
+
+def test_the_precise_statement_about_the_visual_trace_passes():
+    assert "the policy search, which calls another operation, also appears in the Visual Trace" in README
+    assert failing(README) == []
