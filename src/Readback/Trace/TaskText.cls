@@ -38,8 +38,8 @@ ClassMethod RuleLines(pTrace As Readback.Trace.Decision, pLab As Readback.Msg.La
 /// The value of the result in the unit of a range: as received when the unit is the same, else the converted value.
 ClassMethod ValueIn(pTrace As Readback.Trace.Decision, pLab As Readback.Msg.LabResult, pUnit As %String) As %Numeric
 {
-	Quit:(pLab.Unit = pUnit) pLab.ValueNumeric
-	Quit:(pTrace.ConvertedUnit = pUnit) && (pTrace.ConvertedValue '= "") pTrace.ConvertedValue
+	If pLab.Unit = pUnit { Quit pLab.ValueNumeric }
+	If (pTrace.ConvertedUnit = pUnit) && (pTrace.ConvertedValue '= "") { Quit pTrace.ConvertedValue }
 	Quit pLab.ValueNumeric
 }
 

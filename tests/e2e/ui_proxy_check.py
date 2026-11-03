@@ -122,7 +122,7 @@ def main():
     check(all(s in (400, 429) for s in seen), "a burst of invalid submissions got an unexpected status: %s" % seen)
 
     # --- the feed of decisions: the closed field list, no patient, no raw prompt or output, and a flood answers 429
-    ITEM_KEYS = {"decisionId", "controlId", "analyte", "decidedAt", "mode", "route", "floor", "agent", "final", "held", "conversion", "cost", "rounds", "toolCallCount", "toolFailureCount"}
+    ITEM_KEYS = {"decisionId", "controlId", "analyte", "value", "decidedAt", "mode", "route", "floor", "agent", "final", "held", "conversion", "cost", "rounds", "toolCallCount", "toolFailureCount"}
     time.sleep(1.5)
     status, h, data = request("GET", "/readback/api/decisions?limit=200")
     feed = json.loads(data) if status == 200 else {}
