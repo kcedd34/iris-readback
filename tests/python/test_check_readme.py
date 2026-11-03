@@ -48,7 +48,7 @@ def test_a_thesis_that_does_not_come_first_fails():
 
 
 def test_a_changed_figure_fails():
-    block = gate.figure_blocks(REPORT)[0][1]
+    block = gate.figure_blocks(REPORT)[0][2]
     changed = block.replace("148", "149", 1)
     assert any("figures" in line for line in failing(README.replace(block, changed)))
 
@@ -110,7 +110,7 @@ def test_the_command_line_exit_codes(tmp_path):
 
 def test_the_printed_tables_are_what_the_readme_holds():
     out = subprocess.run([sys.executable, os.path.join(ROOT, "src", "ops", "check_readme.py"), "--print-tables"], capture_output=True, text=True).stdout
-    for _, block in gate.figure_blocks(REPORT):
+    for _, _, block in gate.figure_blocks(REPORT):
         assert block in out and block in README
 
 
@@ -124,3 +124,42 @@ def test_the_accounts_roles_and_the_exposure_are_required(needle):
 def test_the_framing_of_the_broad_roles_is_required(phrase):
     out = failing(README.replace(phrase, "something else"))
     assert any("demo" in line for line in out)
+
+
+def mutate_in_section(model, old, new):
+    """README with the first `old` replaced by `new`, inside the section of one model only."""
+    head = f"#### {model}\n"
+    start = README.index(head)
+    end = README.find("\n#### ", start + 1)
+    end = len(README) if end == -1 else end
+    section = README[start:end]
+    assert old in section
+    return README[:start] + section.replace(old, new, 1) + README[end:]
+
+
+@pytest.mark.parametrize("model", gate.MODELS)
+def test_one_number_of_a_matrix_changed_in_one_model_fails(model):
+    # The final matrices of the two models are equal: a changed copy must fail even though the other copy is intact.
+    row = "| CRITICAL | 148 | 0 | 2 | 0 | 0 |"
+    assert any("figures" in line for line in failing(mutate_in_section(model, row, "| CRITICAL | 147 | 0 | 2 | 0 | 0 |")))
+
+
+@pytest.mark.parametrize("model", gate.MODELS)
+def test_one_cost_value_changed_fails(model):
+    line = next(l for l in gate.figure_lines(REPORT["models"][model]).splitlines() if "Cost per thousand" in l)
+    for changed in (line[:-1] + ("9" if line[-1] != "9" else "8"), line + "1"):
+        assert any("figures" in out for out in failing(mutate_in_section(model, line, changed)))
+
+
+@pytest.mark.parametrize("model", gate.MODELS)
+def test_one_latency_value_changed_fails(model):
+    line = next(l for l in gate.figure_lines(REPORT["models"][model]).splitlines() if "Latency" in l)
+    for changed in (line[:-1] + ("9" if line[-1] != "9" else "8"), line + "1"):
+        assert any("figures" in out for out in failing(mutate_in_section(model, line, changed)))
+
+
+def test_a_block_under_the_wrong_model_heading_fails():
+    mini, big = gate.MODELS[0], gate.MODELS[1]
+    block = dict((l, b) for _, l, b in gate.figure_blocks(REPORT))[f"{big} figures"]
+    text = README.replace(block, "", 1) + "\n" + block + "\n"
+    assert any("figures" in line and big in line for line in failing(text))

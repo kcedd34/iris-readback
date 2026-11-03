@@ -65,14 +65,35 @@ def figure_lines(model):
 
 
 def figure_blocks(report):
-    """The blocks, per model, that the README must contain character for character."""
+    """The blocks, per model, that the README must contain line for line, under the heading of that model."""
     blocks = []
     for name in MODELS:
         model = report["models"][name]
-        blocks.append((f"{name} final matrix", matrix_table(model["matrixFinal"])))
-        blocks.append((f"{name} agent matrix", matrix_table(model["matrixAgent"])))
-        blocks.append((f"{name} figures", figure_lines(model)))
+        blocks.append((name, f"{name} final matrix", matrix_table(model["matrixFinal"])))
+        blocks.append((name, f"{name} agent matrix", matrix_table(model["matrixAgent"])))
+        blocks.append((name, f"{name} figures", figure_lines(model)))
     return blocks
+
+
+def model_sections(text):
+    """{model name: the lines under its '#### name' heading, up to the next heading}. The models' matrices can be equal,
+    so a block only counts under the heading of its own model."""
+    out, current = {}, None
+    for line in text.splitlines():
+        m = re.match(r"^#{1,4}\s+(.+?)\s*$", line)
+        if m:
+            current = m.group(1) if line.startswith("#### ") else None
+            if current is not None:
+                out[current] = []
+        elif current is not None:
+            out[current].append(line.rstrip())
+    return out
+
+
+def holds_block(lines, block):
+    """True when the block's lines appear in order, as whole lines, one right after the other."""
+    wanted = block.splitlines()
+    return any(lines[i:i + len(wanted)] == wanted for i in range(len(lines) - len(wanted) + 1))
 
 
 def sections_of(text):
@@ -154,9 +175,10 @@ def check(text, report):
         fail("demo", "the demo section must say what production would use: roles specific to the Readback and closing the alert in a system context")
 
     # 4. The figures equal the report; the claims about it hold.
-    for label, block in figure_blocks(report):
-        if block not in text:
-            fail("figures", f"the block '{label}' is missing or differs from data/eval/report.json (run check_readme.py --print-tables)")
+    sections = model_sections(text)
+    for model_name, label, block in figure_blocks(report):
+        if not holds_block(sections.get(model_name, []), block):
+            fail("figures", f"the block '{label}' is missing under its model heading or differs from data/eval/report.json (run check_readme.py --print-tables)")
     for name in MODELS:
         model = report["models"][name]
         if model["silencedCriticals"] != 0:
