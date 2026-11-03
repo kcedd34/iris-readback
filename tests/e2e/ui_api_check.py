@@ -122,9 +122,9 @@ def flow_part():
     time.sleep(1.2)
     check(call(API, "observer", "POST", "/flow/submit", {"scenarioId": 7})[0] == 400, "a scenario id that is not a string is not refused")
     time.sleep(1.2)
-    first = call(API, "observer", "POST", "/flow/submit", {"scenarioId": "hemoglobin-low-not-critical"})
+    first = call(API, "observer", "POST", "/flow/submit", {"scenarioId": "hemoglobin-in-range"})
     check(first[0] == 200 and js(first[1]).get("accepted") is True, "a valid submit did not answer accepted: %s %s" % first[:2])
-    second = call(API, "observer", "POST", "/flow/submit", {"scenarioId": "hemoglobin-low-not-critical"})
+    second = call(API, "observer", "POST", "/flow/submit", {"scenarioId": "hemoglobin-in-range"})
     check(second[0] == 429, "a second submit within a second is not refused with 429 (got %s)" % second[0])
     check("error" in (js(second[1]) or {}), "the 429 body is not the product's error body")
     # Without credentials the platform refuses, whatever the path.
@@ -140,7 +140,7 @@ def alerts_part():
         ids += (js(text) or {}).get("controlIds", [])
         time.sleep(1.3)
     check(len(ids) == 2 and ids[0] != ids[1], "two submissions of the same sample must give two case ids: %s" % ids)
-    check(all(i.startswith("RBSAMPLE0001-S") for i in ids), "the case id must carry the sample's id and a suffix of its own: %s" % ids)
+    check(all(i.startswith("RB2026-00001-S") for i in ids), "the case id must carry the sample's id and a suffix of its own: %s" % ids)
 
     def both_waiting():
         snap = js(call(API, "observer", "GET", "/flow")[1]) or {}
@@ -159,7 +159,7 @@ def alerts_part():
     # The read-back task says the concrete rule, with the value and the limit, and resolves the evidence it cites.
     view = js(call(API, "communicator1", "GET", "/taskview/%s" % found[ids[0]]["decisionId"])[1]) or {}
     lines = view.get("ruleLines") or []
-    check(any("6.9 mmol/L \u2265 6.5 mmol/L" in l and "potassium" in l for l in lines), "the task does not state the rule with value and limit: %s" % lines)
+    check(any("8.7 mmol/L \u2265 6.5 mmol/L" in l and "potassium" in l for l in lines), "the task does not state the rule with value and limit: %s" % lines)
     items = ((view.get("agent") or {}).get("evidenceItems")) or []
     check(all(set(i) == {"id", "text"} for i in items), "the evidence items do not carry an id and a text: %s" % items)
     check(all(i["text"] for i in items if i["id"] == "current-result"), "the current result is not resolved to its value")

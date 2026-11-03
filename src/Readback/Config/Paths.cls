@@ -29,6 +29,13 @@ ClassMethod Samples() As %String
 	Quit ..Root()_"/samples"
 }
 
+/// The Python sources of the synthetic message generator, which Readback.Demo.Generator imports inside IRIS: in the image they
+/// are part of the source tree, in an installed package they are copied beside the other files.
+ClassMethod PythonDir() As %String
+{
+	Quit $Select(..Installed(): ..Root()_"/python", 1: ..Root()_"/src/python")
+}
+
 /// The unit conversion component's sources, jar and libraries.
 ClassMethod JavaDir() As %String
 {

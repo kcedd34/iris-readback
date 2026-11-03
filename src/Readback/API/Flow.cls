@@ -23,7 +23,7 @@ Parameter MaxInFlight = 10;
 /// A submission is refused when the account submitted less than this many seconds ago.
 Parameter SubmitGapSeconds = 1;
 
-/// The scenario list and the sample messages, under the product's samples folder.
+/// The scenario list, under the product's samples folder. The messages themselves are generated, not stored.
 ClassMethod ScenariosFile() As %String
 {
 	Quit ##class(Readback.Config.Paths).Samples()_"/demo-scenarios.json"
@@ -68,7 +68,7 @@ ClassMethod GetSamples() As %Status
 	Set tOut = []
 	Set tIter = tList.%GetIterator()
 	While tIter.%GetNext(.tKey, .tScenario) {
-		Do tOut.%Push({"id":(tScenario.id), "label":(tScenario.label), "analyte":(tScenario.analyte), "expected":(tScenario.expected), "messageCount":(tScenario.files.%Size())})
+		Do tOut.%Push({"id":(tScenario.id), "label":(tScenario.label), "analyte":(tScenario.analyte), "expected":(tScenario.expected), "messageCount":(tScenario.messages.%Size())})
 	}
 	Write tOut.%ToJSON()
 	Quit $$$OK
@@ -320,45 +320,52 @@ ClassMethod FindScenario(pId As %String) As %DynamicObject
 	Quit tScenario
 }
 
-/// Copies the scenario's shipped files into the inbox in order, earlier results first, through the staging
-/// folder and a rename. Only files named in the scenario file are ever written; the request text is never used.
-/// pControlIds returns the case ids of the messages written, as a %DynamicArray.
+/// Generates the scenario's messages with Readback.Demo.Generator (Embedded Python) and writes them into the inbox in order,
+/// earlier results first, through the staging folder and a rename. A scenario names a generator (profile, seed and count) and
+/// the ids of the messages in it; the request text is never used. pControlIds returns the case ids of the messages written,
+/// as a %DynamicArray.
 ClassMethod Drop(pScenario As %DynamicObject, Output pControlIds As %DynamicArray) As %Status
 {
 	Set pControlIds = []
 	Set tSeq = $Increment(^Readback("flowSeq"))
+	Set tGen = pScenario.generator
+	If '$IsObject(tGen) || '$IsObject(pScenario.messages) { Quit $System.Status.Error(5001, "the scenario has no generator or messages") }
 	Set tN = 0
-	Set tIter = pScenario.files.%GetIterator()
+	Set tIter = pScenario.messages.%GetIterator()
 	While tIter.%GetNext(.tKey, .tName) {
-		// A scenario names a file of the shipped samples: a plain name, or one folder (generated or demo) and a plain name.
-		If tName '? .1(1"generated/",1"demo/")1.(1AN,1"-",1".",1"_") { Quit }
-		If tName [ ".." { Quit }
+		Set tText = ##class(Readback.Demo.Generator).Message(tGen.profile, tGen.seed, tGen.count, tName)
+		If tText = "" { Quit }
 		Set tN = tN + 1
-		Set tSource = ##class(%File).NormalizeFilename(tName, ..SampleDir())
-		If '##class(%File).Exists(tSource) { Quit }
-		Set tTarget = "flow-"_$Translate($Justify(tSeq, 8), " ", "0")_"-"_$Translate($Justify(tN, 2), " ", "0")_"-"_$Piece(tName, "/", $Length(tName, "/"))
+		Set tTarget = "flow-"_$Translate($Justify(tSeq, 8), " ", "0")_"-"_$Translate($Justify(tN, 2), " ", "0")_"-"_tName_".hl7"
 		Set tStaging = ##class(%File).NormalizeFilename(tTarget, ..Staging())
 		Set tFinal = ##class(%File).NormalizeFilename(tTarget, ..Inbox())
-		Set tId = ..WriteUnique(tSource, tStaging, tSeq)
+		Set tId = ..WriteUniqueText(tText, tStaging, tSeq)
 		If tId = "" { Quit }
 		If '##class(%File).Rename(tStaging, tFinal) { Quit }
 		Do pControlIds.%Push(tId)
 		// Distinct modification times keep the file service's order the order written.
 		Hang 0.05
 	}
-	If tN '= pScenario.files.%Size() { Quit $System.Status.Error(5001, "the scenario files could not all be written") }
+	If tN '= pScenario.messages.%Size() { Quit $System.Status.Error(5001, "the scenario messages could not all be written") }
 	Quit $$$OK
 }
 
-/// Copies a shipped sample to the staging file with a case id of its own: MSH-10 gets the suffix "-S" and the number of the
-/// submission, so that every submission is a new case (the same sample sent twice must not share an id, the alert and the
-/// trace). Returns the new id, or "" when the file could not be read or written. The recording of the sample is found
-/// through Readback.Replay.Recording.BaseId.
+/// Copies a sample file to the staging file with a case id of its own (see WriteUniqueText). Returns the new id, or "" when the file
+/// could not be read or written.
 ClassMethod WriteUnique(pSource As %String, pTarget As %String, pSeq As %Integer) As %String
 {
 	Set tIn = ##class(%Stream.FileBinary).%New()
 	Quit:$System.Status.IsError(tIn.LinkToFile(pSource)) ""
-	Set tText = tIn.Read(tIn.Size)
+	Quit ..WriteUniqueText(tIn.Read(tIn.Size), pTarget, pSeq)
+}
+
+/// Writes a message to the staging file with a case id of its own: MSH-10 gets the suffix "-S" and the number of the submission,
+/// so that every submission is a new case (the same sample sent twice must not share an id, the alert and the trace). Returns the
+/// new id, or "" when the text is not a message or the file could not be written. The recording of the sample is found through
+/// Readback.Replay.Recording.BaseId.
+ClassMethod WriteUniqueText(pText As %String, pTarget As %String, pSeq As %Integer) As %String
+{
+	Set tText = pText
 	Set tEnd = $Length(tText)
 	For tMark = $Char(13), $Char(10) {
 		Set tAt = $Find(tText, tMark)

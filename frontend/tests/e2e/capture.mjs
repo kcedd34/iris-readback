@@ -10,7 +10,7 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1360, height: 900 } });
 await page.goto(BASE);
 await page.waitForSelector("select#scenario option", { state: "attached" });
-for (const id of ["hemoglobin-low-not-critical", "potassium-borderline", "potassium-recollect", "hemoglobin-acute-drop"]) {
+for (const id of ["hemoglobin-in-range", "potassium-borderline", "potassium-recollect", "hemoglobin-acute-drop"]) {
   await sleep(1200);
   await page.selectOption("#scenario", id);
   await page.click("button[type=submit]");

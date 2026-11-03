@@ -1,75 +1,154 @@
 {
-  "note": "Scenarios a visitor of the demo can submit. Each lists shipped synthetic messages, earlier results first and the subject result last. Labels are what the policy expects, not a promise about any model.",
+  "note": "Scenarios a visitor of the demo can submit. Each names a generator (profile, seed, count) and the ids of the messages it makes, earlier results first and the subject result last: Embedded Python inside IRIS generates them (Readback.Demo.Generator). Labels are what the policy expects, not a promise about any model.",
   "scenarios": [
     {
       "id": "potassium-critical-value",
-      "label": "Potassium 6.9 mmol/L: critical by value",
+      "label": "Potassium 8.7 mmol/L: critical by value",
       "analyte": "Potassium",
       "expected": "CRITICAL",
-      "files": ["valid-oru-1.hl7"]
+      "generator": {
+        "profile": "evaluation",
+        "seed": 2026,
+        "count": 240
+      },
+      "messages": [
+        "RB2026-00001"
+      ]
     },
     {
       "id": "sodium-critical-value",
       "label": "Sodium far above the limit: critical by value",
       "analyte": "Sodium",
       "expected": "CRITICAL",
-      "files": ["generated/RB42-00007.hl7"]
+      "generator": {
+        "profile": "samples",
+        "seed": 42,
+        "count": 25
+      },
+      "messages": [
+        "RB42-00007"
+      ]
     },
     {
       "id": "hemoglobin-acute-drop",
       "label": "Hemoglobin falls sharply in a day: critical by change",
       "analyte": "Hemoglobin",
       "expected": "CRITICAL",
-      "files": ["generated/RB42-00004H1.hl7", "generated/RB42-00004.hl7"]
+      "generator": {
+        "profile": "samples",
+        "seed": 42,
+        "count": 25
+      },
+      "messages": [
+        "RB42-00004H1",
+        "RB42-00004"
+      ]
     },
     {
       "id": "glucose-sharp-rise",
       "label": "Glucose jumps from normal to near the limit: the floor raises it",
       "analyte": "Glucose",
       "expected": "CRITICAL",
-      "files": ["generated/RB42-00002H1.hl7", "generated/RB42-00002.hl7"]
+      "generator": {
+        "profile": "samples",
+        "seed": 42,
+        "count": 25
+      },
+      "messages": [
+        "RB42-00002H1",
+        "RB42-00002"
+      ]
     },
     {
       "id": "potassium-hemolyzed",
       "label": "Hemolyzed potassium above the limit: still read back",
       "analyte": "Potassium",
       "expected": "CRITICAL",
-      "files": ["generated/RB42-00005.hl7"]
+      "generator": {
+        "profile": "samples",
+        "seed": 42,
+        "count": 25
+      },
+      "messages": [
+        "RB42-00005"
+      ]
     },
     {
       "id": "potassium-dialysis",
       "label": "Potassium high for days (dialysis patient): still read back",
       "analyte": "Potassium",
       "expected": "CRITICAL",
-      "files": ["generated/RB42-00003H3.hl7", "generated/RB42-00003H2.hl7", "generated/RB42-00003H1.hl7", "generated/RB42-00003.hl7"]
+      "generator": {
+        "profile": "samples",
+        "seed": 42,
+        "count": 25
+      },
+      "messages": [
+        "RB42-00003H3",
+        "RB42-00003H2",
+        "RB42-00003H1",
+        "RB42-00003"
+      ]
     },
     {
       "id": "potassium-agent-tries-to-lower",
       "label": "Potassium 6.7 mmol/L, high for days: the agent tries to lower it and the floor holds",
       "analyte": "Potassium",
       "expected": "CRITICAL",
-      "files": ["demo/RB2026-00219H3.hl7", "demo/RB2026-00219H2.hl7", "demo/RB2026-00219H1.hl7", "demo/RB2026-00219.hl7"]
+      "generator": {
+        "profile": "evaluation",
+        "seed": 2026,
+        "count": 240
+      },
+      "messages": [
+        "RB2026-00219H3",
+        "RB2026-00219H2",
+        "RB2026-00219H1",
+        "RB2026-00219"
+      ]
     },
     {
       "id": "potassium-borderline",
       "label": "Potassium near the limit with borderline hemolysis: a person decides",
       "analyte": "Potassium",
       "expected": "NEEDS_REVIEW",
-      "files": ["demo/RB2026-00007H1.hl7", "demo/RB2026-00007.hl7"]
+      "generator": {
+        "profile": "evaluation",
+        "seed": 2026,
+        "count": 240
+      },
+      "messages": [
+        "RB2026-00007H1",
+        "RB2026-00007"
+      ]
     },
     {
       "id": "potassium-recollect",
       "label": "Elevated potassium with a hemolyzed sample: a new sample is advised",
       "analyte": "Potassium",
       "expected": "RECOLLECT",
-      "files": ["demo/RB2026-00006.hl7"]
+      "generator": {
+        "profile": "evaluation",
+        "seed": 2026,
+        "count": 240
+      },
+      "messages": [
+        "RB2026-00006"
+      ]
     },
     {
-      "id": "hemoglobin-low-not-critical",
-      "label": "Low hemoglobin, not critical: released",
+      "id": "hemoglobin-in-range",
+      "label": "Hemoglobin within range: released",
       "analyte": "Hemoglobin",
       "expected": "NON_CRITICAL",
-      "files": ["valid-oru-2.hl7"]
+      "generator": {
+        "profile": "evaluation",
+        "seed": 2026,
+        "count": 240
+      },
+      "messages": [
+        "RB2026-00024"
+      ]
     }
   ]
 }

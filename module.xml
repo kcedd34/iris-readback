@@ -24,6 +24,8 @@
       <FileCopy Name="data/policy/" Target="${mgrdir}readback/data/policy/"/>
       <FileCopy Name="data/replay/" Target="${mgrdir}readback/data/replay/"/>
       <FileCopy Name="data/samples/" Target="${mgrdir}readback/samples/"/>
+      <!-- src/python is imported by Readback.Demo.Generator (Embedded Python): the demo generates its messages inside IRIS. -->
+      <FileCopy Name="src/python/" Target="${mgrdir}readback/python/"/>
       <FileCopy Name="java/" Target="${mgrdir}readback/java/"/>
       <Invoke Class="Readback.Install" Method="Run" Phase="Activate" When="After"/>
       <Author>

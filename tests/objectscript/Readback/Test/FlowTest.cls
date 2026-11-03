@@ -178,15 +178,16 @@ Method TestScenariosAndDropGuards()
 	Do $$$AssertTrue($IsObject(tList) && (tList.%Size() >= 8), "the shipped scenario list loads")
 	Do $$$AssertEquals(##class(Readback.API.Flow).FindScenario("no-such-scenario"), "", "an unknown scenario is not found")
 	Set tFound = ##class(Readback.API.Flow).FindScenario("potassium-critical-value")
-	Do $$$AssertTrue($IsObject(tFound) && (tFound.files.%Size() = 1), "a known scenario is found")
-	// A scenario that names a path outside the shipped samples is refused and writes nothing.
-	Set tBad = {"id":"x", "files":["../../etc/passwd"]}
-	Set tSC = ##class(Readback.API.Flow).Drop(tBad, .tIds)
-	Do $$$AssertTrue($System.Status.IsError(tSC), "a path that leaves the samples folder is refused")
-	Set tBad2 = {"id":"x", "files":["generated/../valid-oru-1.hl7"]}
-	Do $$$AssertTrue($System.Status.IsError(##class(Readback.API.Flow).Drop(tBad2, .tIds)), "a parent reference is refused")
-	Set tBad3 = {"id":"x", "files":["nosuchfolder/x.hl7"]}
-	Do $$$AssertTrue($System.Status.IsError(##class(Readback.API.Flow).Drop(tBad3, .tIds)), "another folder is refused")
+	Do $$$AssertTrue($IsObject(tFound) && (tFound.messages.%Size() = 1) && (tFound.generator.profile = "evaluation"), "a known scenario is found, with its generator and message ids")
+	// A scenario whose message is not in the generated dataset, or whose arguments are not acceptable, writes nothing.
+	Set tBad = {"id":"x", "generator":{"profile":"evaluation","seed":2026,"count":240}, "messages":["../../etc/passwd"]}
+	Do $$$AssertTrue($System.Status.IsError(##class(Readback.API.Flow).Drop(tBad, .tIds)), "a path in place of a message id is refused")
+	Set tBad2 = {"id":"x", "generator":{"profile":"nosuchprofile","seed":2026,"count":240}, "messages":["RB2026-00001"]}
+	Do $$$AssertTrue($System.Status.IsError(##class(Readback.API.Flow).Drop(tBad2, .tIds)), "an unknown profile is refused")
+	Set tBad3 = {"id":"x", "generator":{"profile":"evaluation","seed":2026,"count":240}, "messages":["RB2026-09999"]}
+	Do $$$AssertTrue($System.Status.IsError(##class(Readback.API.Flow).Drop(tBad3, .tIds)), "a message that is not in the dataset is refused")
+	Set tBad4 = {"id":"x", "files":["valid-oru-1.hl7"]}
+	Do $$$AssertTrue($System.Status.IsError(##class(Readback.API.Flow).Drop(tBad4, .tIds)), "the old file form is not accepted any more")
 }
 
 }

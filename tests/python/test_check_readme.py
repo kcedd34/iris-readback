@@ -268,8 +268,9 @@ def test_a_bonus_that_names_a_missing_file_fails():
     assert any("bonus" in out and "does not exist" in out for out in failing(README.replace("src/Readback/Notify/Pager.cls", "src/Readback/Notify/Nothing.cls", 1)))
 
 
-def test_embedded_python_must_say_where_it_is_used_or_that_it_is_not():
-    assert any("bonus" in out for out in failing(README.replace("Not used at run time", "Used everywhere", 1)))
+def test_embedded_python_must_name_the_class_with_python_methods_and_its_caller():
+    assert any("bonus" in out for out in failing(README.replace("src/Readback/Demo/Generator.cls", "src/Readback/Notify/Pager.cls", 1)))
+    assert any("bonus" in out for out in failing(README.replace("`[ Language = python ]`", "`python`", 1)))
 
 
 def test_the_feedback_links_the_four_reports():

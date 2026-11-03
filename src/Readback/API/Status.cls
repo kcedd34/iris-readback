@@ -256,12 +256,25 @@ ClassMethod EnsureWebApp() As %Status
 {
 	New $Namespace
 	Set $Namespace = "%SYS"
-	Quit:##class(Security.Applications).Exists("/readback/api") $$$OK
+	// The demo builds its messages with Embedded Python in the session of whoever sends: the web application, not the person, holds
+	// the service. The role is matched for every user of the application, only while it serves a request, and is never granted to an account.
+	If '##class(Security.Roles).Exists("ReadbackGenerator") {
+		Set tRole = ##class(Security.Roles).Create("ReadbackGenerator", "Runs the message generator's Python for the Readback web application", "%Service_EmbeddedPython:U")
+		Quit:$System.Status.IsError(tRole) tRole
+	}
+	If ##class(Security.Applications).Exists("/readback/api") {
+		Set tSC = ##class(Security.Applications).Get("/readback/api", .tProps)
+		Quit:$System.Status.IsError(tSC) tSC
+		If (","_$Get(tProps("MatchRoles"))_",") [ ",:ReadbackGenerator," { Quit $$$OK }
+		Set tProps("MatchRoles") = $Get(tProps("MatchRoles"))_$Select($Get(tProps("MatchRoles"))="":"", 1:",")_":ReadbackGenerator"
+		Quit ##class(Security.Applications).Modify("/readback/api", .tProps)
+	}
 	Set tProps("DispatchClass") = "Readback.API.Status"
 	Set tProps("NameSpace") = "USER"
 	Set tProps("Enabled") = 1
 	Set tProps("AutheEnabled") = 32
 	Set tProps("Description") = "Readback status and decision trace"
+	Set tProps("MatchRoles") = ":ReadbackGenerator"
 	Quit ##class(Security.Applications).Create("/readback/api", .tProps)
 }
 

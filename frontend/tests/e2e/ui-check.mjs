@@ -64,8 +64,8 @@ async function flowPart(browser) {
     const end = Date.now() + 9000;
     while (Date.now() < end) {
       const other = (await nodeText(page, "release")) + (await nodeText(page, "review")) + (await nodeText(page, "confirmed"));
-      if (other.includes("RBSAMPLE0001")) neverWrong = false;
-      if (!entered && (await page.locator(".chip", { hasText: "RBSAMPLE0001" }).count()) > 0) entered = true;
+      if (other.includes("RB2026-00001")) neverWrong = false;
+      if (!entered && (await page.locator(".chip", { hasText: "RB2026-00001" }).count()) > 0) entered = true;
       if ((await page.locator(".waiting-list li").count()) > before) break;
       await sleep(80);
     }
@@ -79,12 +79,12 @@ async function flowPart(browser) {
   await waitFor(async () => (await nodeText(page, "readback")).includes("Critical"), 8000);
   check((await nodeText(page, "readback")).includes("Critical"), "the read-back station does not show the critical marking");
   const waitingText = await page.locator(".waiting").innerText();
-  check(waitingText.includes("Critical") && waitingText.includes("RBSAMPLE0001"), "the waiting list does not carry the critical case as text");
+  check(waitingText.includes("Critical") && waitingText.includes("RB2026-00001"), "the waiting list does not carry the critical case as text");
 
   // A normal result leaves through release with the reason the product recorded.
   await sleep(1100);
-  await submit(page, "hemoglobin-low-not-critical");
-  const released = await waitFor(async () => (await nodeText(page, "release")).includes("RBSAMPLE0002"), 9000);
+  await submit(page, "hemoglobin-in-range");
+  const released = await waitFor(async () => (await nodeText(page, "release")).includes("RB2026-00024"), 9000);
   check(!!released, "the normal result did not reach the release station");
   const releaseText = await nodeText(page, "release");
   check(releaseText.includes("not critical by rule or by the agent"), "the released case does not show the recorded reason");
@@ -96,7 +96,7 @@ async function flowPart(browser) {
   await waitFor(async () => (await page.locator(".waiting-list li").count()) > 0, 5000);
   const waitingAfter = await page.locator(".waiting-list li").count();
   check(waitingAfter > 0 && waitingAfter >= Math.min(waitingBefore, 200), `after a reload the waiting list has ${waitingAfter} of ${waitingBefore} cases`);
-  check((await nodeText(page, "readback")).includes("RBSAMPLE0001"), "after a reload the critical case is not at the read-back station");
+  check((await nodeText(page, "readback")).includes("RB2026-00001"), "after a reload the critical case is not at the read-back station");
 
   // A lost connection: the banner appears, the waiting cases stay as they were.
   await page.route("**/readback/api/flow?**", (route) => route.abort());
@@ -156,23 +156,23 @@ async function taskPart(browser) {
   await page.waitForSelector("select#scenario option", { state: "attached" });
   await sleep(1100);
   await submit(page, "potassium-critical-value");
-  await waitFor(async () => (await page.locator(".waiting-list li", { hasText: "RBSAMPLE0001" }).count()) > 0, 10000);
+  await waitFor(async () => (await page.locator(".waiting-list li", { hasText: "RB2026-00001" }).count()) > 0, 10000);
 
   // Open the task: sign in first as the person it is assigned to.
-  const first = await page.locator(".waiting-list li", { hasText: "RBSAMPLE0001" }).first().innerText();
+  const first = await page.locator(".waiting-list li", { hasText: "RB2026-00001" }).first().innerText();
   const assignee = (first.match(/assigned to (communicator\d)/) || [])[1];
   check(!!assignee, "the waiting case has no assignee shown: " + first);
   const other = assignee === "communicator1" ? "communicator2" : "communicator1";
-  await openWaiting(page, "RBSAMPLE0001", assignee);
+  await openWaiting(page, "RB2026-00001", assignee);
   check((await page.locator("dialog.drawer .signin").count()) === 1, "the task did not ask for a sign-in");
   await signInAs(page, assignee);
   await page.waitForSelector(".task");
   const text = await page.locator("dialog.drawer").innerText();
-  check(text.includes("6.9") && text.includes("mmol/L"), "the task does not show the value and unit");
+  check(text.includes("8.7") && text.includes("mmol/L"), "the task does not show the value and unit");
   check(text.includes("Critical"), "the task does not show the critical state as text");
   check(text.includes("What the agent said (not a rule)") && text.includes("Why this is critical (from the rules)"), "the task does not separate the agent's words from the rules'");
   check(/Synthetic patient\s+SYN\d+/.test(text), "the task does not show the synthetic patient identifier");
-  check(text.includes("6.9 mmol/L \u2265 6.5 mmol/L") && text.toLowerCase().includes("potassium critical high limit"), "the task does not state the rule with the value and the limit");
+  check(text.includes("8.7 mmol/L \u2265 6.5 mmol/L") && text.toLowerCase().includes("potassium critical high limit"), "the task does not state the rule with the value and the limit");
 
   // An empty entry is refused before anything is sent; a wrong value shows both values and leaves the task open.
   const sent = posts.length;
@@ -180,24 +180,24 @@ async function taskPart(browser) {
   await page.click(".task-form button[type=submit]");
   check((await page.locator("#field-error").innerText()).includes("value you repeated"), "an empty value was not refused with a message");
   check(posts.length === sent, "an empty value was sent to the product");
-  await page.fill("#repeated", "6.8");
+  await page.fill("#repeated", "8.6");
   await page.click(".task-form button[type=submit]");
   await page.waitForSelector(".task-mismatch");
-  check((await page.locator(".task-typed").innerText()) === "6.8" && (await page.locator(".task-expected").innerText()) === "6.9", "the mismatch does not show the typed and the expected value");
+  check((await page.locator(".task-typed").innerText()) === "8.6" && (await page.locator(".task-expected").innerText()) === "8.7", "the mismatch does not show the typed and the expected value");
   check((await page.locator(".task-form").count()) === 1, "the task closed after a wrong value");
 
   // The right value completes it and the panel says who confirmed.
-  await page.fill("#repeated", "6.9");
+  await page.fill("#repeated", "8.7");
   await page.click(".task-form button[type=submit]");
   await page.waitForSelector(".task-done");
   check((await page.locator(".task-done").innerText()).includes(assignee), "the completed task does not name who confirmed");
   await page.keyboard.press("Escape");
-  const confirmedChip = await waitFor(async () => (await nodeText(page, "confirmed")).includes("RBSAMPLE0001"), 8000);
+  const confirmedChip = await waitFor(async () => (await nodeText(page, "confirmed")).includes("RB2026-00001"), 8000);
   check(!!confirmedChip, "the confirmed case did not move to the confirmed station");
   check((await nodeText(page, "confirmed")).includes(`by ${assignee}`) && (await nodeText(page, "confirmed")).includes("value matched"), "the confirmed station does not say who confirmed and that the value matched");
 
   // Another account opens the completed task: it is shown completed, with no confirm action.
-  await page.locator(".node-confirmed .chip", { hasText: "RBSAMPLE0001" }).first().click();
+  await page.locator(".node-confirmed .chip", { hasText: "RB2026-00001" }).first().click();
   await page.waitForSelector("dialog.drawer[open]");
   await page.click("dialog.drawer .drawer-user button");
   await signInAs(page, other);
@@ -209,13 +209,13 @@ async function taskPart(browser) {
   await sleep(1100);
   await submit(page, "potassium-critical-value");
   await sleep(2500);
-  await openWaiting(page, "RBSAMPLE0001");
+  await openWaiting(page, "RB2026-00001");
   await page.click("dialog.drawer .drawer-user button");
   await signInAs(page, "observer");
   await page.waitForSelector(".task");
-  check((await page.locator("dialog.drawer").innerText()).includes("6.9"), "the observer does not see the task content");
+  check((await page.locator("dialog.drawer").innerText()).includes("8.7"), "the observer does not see the task content");
   await page.fill("#told", "Dr X");
-  await page.fill("#repeated", "6.9");
+  await page.fill("#repeated", "8.7");
   await page.click(".task-form button[type=submit]");
   await page.waitForSelector(".task-form .error:not(:empty)");
   check((await page.locator(".task-form").innerText()).includes("not allowed to confirm"), "the refusal is not shown in plain words");
@@ -306,12 +306,12 @@ async function a11yPart(browser) {
   const page = await ctx.newPage();
   await page.goto(BASE);
   await page.waitForSelector("select#scenario option", { state: "attached" });
-  const known = await page.locator(".waiting-list li", { hasText: "RBSAMPLE0001" }).count();
+  const known = await page.locator(".waiting-list li", { hasText: "RB2026-00001" }).count();
   await sleep(1100);
   await submit(page, "potassium-critical-value");
   // The newest waiting case is the first of the list: wait for the one just submitted before using the keyboard on it.
-  await waitFor(async () => (await page.locator(".waiting-list li", { hasText: "RBSAMPLE0001" }).count()) > known || (known >= 200), 10000);
-  await waitFor(async () => (await page.locator(".waiting-list li").first().innerText()).includes("RBSAMPLE0001"), 5000);
+  await waitFor(async () => (await page.locator(".waiting-list li", { hasText: "RB2026-00001" }).count()) > known || (known >= 200), 10000);
+  await waitFor(async () => (await page.locator(".waiting-list li").first().innerText()).includes("RB2026-00001"), 5000);
   // The task is assigned a moment after the decision; use the keyboard on it only once the list says to whom.
   await waitFor(async () => /assigned to communicator\d/.test(await page.locator(".waiting-list li").first().innerText()), 10000);
 
@@ -330,7 +330,7 @@ async function a11yPart(browser) {
       const el = document.activeElement;
       if (el?.textContent?.trim() !== "Open read-back") return false;
       const row = el.closest("li")?.innerText || "";
-      return row.includes("RBSAMPLE0001") && /assigned to communicator\d/.test(row);
+      return row.includes("RB2026-00001") && /assigned to communicator\d/.test(row);
     });
   }
   check(reached, "the Open read-back button cannot be reached with the keyboard");
@@ -352,7 +352,7 @@ async function a11yPart(browser) {
   await page.focus("#told");
   await page.keyboard.type("Dr Keyboard");
   await page.keyboard.press("Tab");
-  await page.keyboard.type("6.9");
+  await page.keyboard.type("8.7");
   await page.keyboard.press("Enter");
   await page.waitForSelector(".task-done, .task-mismatch, .task-form .error:not(:empty)", { timeout: 15000 });
   const confirmed = (await page.locator(".task-done").count()) > 0;
@@ -369,9 +369,9 @@ async function a11yPart(browser) {
   // Reduced motion: the same information, no moving animation.
   await page.emulateMedia({ reducedMotion: "reduce" });
   await sleep(1100);
-  await submit(page, "hemoglobin-low-not-critical");
-  await waitFor(async () => (await nodeText(page, "release")).includes("RBSAMPLE0002"), 9000);
-  check((await nodeText(page, "release")).includes("RBSAMPLE0002"), "with reduced motion the case did not reach its station");
+  await submit(page, "hemoglobin-in-range");
+  await waitFor(async () => (await nodeText(page, "release")).includes("RB2026-00024"), 9000);
+  check((await nodeText(page, "release")).includes("RB2026-00024"), "with reduced motion the case did not reach its station");
   const motion = await page.evaluate(() => ({
     animatedEdges: document.querySelectorAll(".react-flow__edge.animated").length,
     chipDuration: parseFloat(getComputedStyle(document.querySelector(".chip")).animationDuration),

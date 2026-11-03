@@ -30,6 +30,7 @@ step "evaluation (replay)";      PYTHON="$PY" "$PY" tests/e2e/eval_check.py
 step "notification";             PYTHON="$PY" "$PY" tests/e2e/notify_check.py
 step "ui api";                   (cd tests/e2e && "$PY" ui_api_check.py)
 step "ui proxy";                 (cd tests/e2e && "$PY" ui_proxy_check.py)
+step "demo messages made by Embedded Python"; (cd tests/e2e && "$PY" generator_check.py)
 step "ui browser";               "$PY" tests/e2e/ui_check.py
 step "live path against a mock"; "$PY" tests/e2e/live_mock_check.py
 step "agent tools against a mock"; (cd tests/e2e && "$PY" tools_check.py)

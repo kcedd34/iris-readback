@@ -309,8 +309,13 @@ def check(text, report, before=None, delta=None, guard=None):
             if "/" in path or path in ("Dockerfile",) or path.endswith((".xml", ".yml")):
                 if not os.path.exists(os.path.join(ROOT, path)):
                     fail("bonus", f"the row '{name}' names {path}, which does not exist")
-    if "Embedded Python" in bonus and not re.search(r"(?i)embedded python[^\n]*\bnot used\b", bonus) and not re.search(r"(?i)embedded python[^\n]*(class|\.cls)", bonus):
-        fail("bonus", "the Embedded Python row must say where it is used, or that it is not used at run time")
+    python_row = next((l for l in bonus.splitlines() if l.startswith("|") and "Embedded Python" in l.split("|")[1]), "")
+    if "Language = python" not in python_row or "src/Readback/Demo/Generator.cls" not in python_row or "src/Readback/API/Flow.cls" not in python_row:
+        fail("bonus", "the Embedded Python row must name the class with the Python methods and the class that calls it")
+    elif not re.search(r"src/Readback/Demo/Generator\.cls", python_row) or "[ Language = python ]" not in open(os.path.join(ROOT, "src/Readback/Demo/Generator.cls"), encoding="utf-8").read():
+        fail("bonus", "the class named for Embedded Python has no method with [ Language = python ]")
+    elif "Generator" not in open(os.path.join(ROOT, "src/Readback/API/Flow.cls"), encoding="utf-8").read():
+        fail("bonus", "the class named as the caller of the Python generator does not call it")
 
     # Feedback: the reports are linked, none is said to be pending.
     feedback = two.get("Feedback on AI Hub EAP", "")
