@@ -59,8 +59,8 @@ def test_a_report_that_disagrees_with_the_claims_fails():
     assert any("claim" in line for line in gate.check(README, report))
 
 
-BEFORE, DELTA = gate.load_companions()
-KEY_LINES = gate.key_figures(REPORT, BEFORE, DELTA)
+BEFORE, DELTA, GUARD = gate.load_companions()
+KEY_LINES = gate.key_figures(REPORT, BEFORE, DELTA, GUARD)
 
 
 def test_the_key_figures_block_is_the_generated_one():
@@ -82,13 +82,13 @@ def test_a_missing_key_figure_fails():
 def test_a_key_figures_block_not_generated_from_the_report_fails():
     report = json.loads(json.dumps(REPORT))
     report["models"]["gpt-5.4"]["reviewRate"] = 0.5
-    assert any("Key figures" in out for out in gate.check(README, report, BEFORE, DELTA))
+    assert any("Key figures" in out for out in gate.check(README, report, BEFORE, DELTA, GUARD))
 
 
 def test_a_changed_companion_figure_fails():
     delta = json.loads(json.dumps(DELTA))
     delta["releasedCriticals"]["gpt-5.4-mini"]["withoutDeltaFloor"] = 20
-    assert any("Key figures" in out for out in gate.check(README, REPORT, BEFORE, delta))
+    assert any("Key figures" in out for out in gate.check(README, REPORT, BEFORE, delta, GUARD))
 
 
 @pytest.mark.parametrize("sentence", ["The released criticals fell from 19 to 2.", "The review rate is 27.6% now.", "It costs 3.1 times more."])
@@ -200,3 +200,37 @@ def test_a_block_under_the_wrong_model_heading_fails():
     block = dict((l, b) for _, l, b in gate.figure_blocks(REPORT))[f"{big} figures"]
     text = README.replace(block, "", 1) + "\n" + block + "\n"
     assert any("figures" in line and big in line for line in failing(text))
+
+
+def test_a_changed_release_guard_figure_fails():
+    guard = json.loads(json.dumps(GUARD))
+    guard["models"]["gpt-5.4-mini"]["notClearCutReleasedWithoutGuard"] = 11
+    assert any("Key figures" in out for out in gate.check(README, REPORT, BEFORE, DELTA, guard))
+
+
+@pytest.mark.parametrize("phrase", ["The IRIS agentic development tooling was not used.", "Built with Claude Code.", "Written with Spec Kit."])
+def test_the_development_process_stays_out_of_the_readme(phrase):
+    assert any("process" in out for out in failing(README + "\n" + phrase + "\n"))
+
+
+def test_the_hero_gif_is_required_above_the_fold():
+    gif = "![The agent decides on a critical potassium, which stops at read-back, and on a borderline one, which goes to a person to review; replay mode, synthetic data](docs-assets/signature.gif)"
+    assert gif in README
+    assert any("hero" in out for out in failing(README.replace(gif, "")))
+    assert any("hero" in out for out in failing(README.replace("![The agent decides on a critical potassium, which stops at read-back, and on a borderline one, which goes to a person to review; replay mode, synthetic data]", "![x]")))
+    assert any("hero" in out for out in failing(README.replace(gif, "").replace("## For judges", gif + "\n\n## For judges", 1)))
+
+
+def test_the_hero_gif_is_a_gif_of_reasonable_size():
+    path = os.path.join(ROOT, "docs-assets", "signature.gif")
+    data = open(path, "rb").read()
+    assert data[:6] in (b"GIF87a", b"GIF89a") and len(data) < 3_000_000
+
+
+def test_the_package_manifest_ships_the_agent_and_governance_classes():
+    manifest = open(os.path.join(ROOT, "module.xml"), encoding="utf-8").read()
+    assert '<Resource Name="Readback.PKG"/>' in manifest and '<FileCopy Name="data/config/"' in manifest
+    for cls in ("Agent/Operation", "Agent/ToolHost", "Tools/ToolSet", "Governance/AuditPolicy", "Governance/ScopePolicy", "Governance/FloorPolicy", "Triage/ReleaseGuard", "Config/ReleaseGuard"):
+        assert os.path.exists(os.path.join(ROOT, "src", "Readback", cls + ".cls")), cls
+    assert os.path.exists(os.path.join(ROOT, "data", "config", "release-guard.json"))
+    assert os.path.exists(os.path.join(ROOT, "data", "config", "agent-tools.json"))

@@ -47,6 +47,21 @@ printf '%s' "$body" | grep -q '"mode":"replay"' || fail "the flow path did not r
 status="$(docker exec "$name" wget -q -O - --user=observer --password="$password" --auth-no-challenge http://localhost:52773/readback/api/status)" || fail "the status path did not answer"
 printf '%s' "$status" | grep -q '"productionRunning":true' || fail "the status does not say the production runs"
 
+# The agent's tools and governance arrived with the package: the classes are compiled, the two configurations of the agent load, and
+# the tool set registers with the platform's own tool manager.
+classes="Readback.Agent.Operation Readback.Agent.ReplayOperation Readback.Agent.ToolHost Readback.Agent.History Readback.Tools.ToolSet Readback.Tools.Impl Readback.Tools.Binding Readback.Tools.Summary Readback.Governance.AuditPolicy Readback.Governance.ScopePolicy Readback.Governance.FloorPolicy Readback.Governance.Evidence Readback.Triage.ReleaseGuard Readback.Config.ReleaseGuard Readback.Config.AgentTools"
+for c in $classes; do
+  echo "write \"CLS=$c=\",##class(%Dictionary.CompiledClass).%ExistsId(\"$c\"),! halt" | sess | grep -q "CLS=$c=1" || fail "class $c is not compiled on the installed instance"
+done
+tools="$(printf '%s\n' \
+  'write "RB_GUARD=",$isobject(##class(Readback.Config.ReleaseGuard).Current()),!' \
+  'write "RB_BOUNDS=",$isobject(##class(Readback.Config.AgentTools).Current()),!' \
+  'set mgr=##class(%AI.ToolMgr).%New() set sc=mgr.RegisterToolSet("Readback.Tools.ToolSet") write "RB_TOOLS=",$system.Status.IsOK(sc),!' \
+  'halt' | sess)"
+for k in RB_GUARD RB_BOUNDS RB_TOOLS; do
+  printf '%s' "$tools" | grep -q "$k=1" || fail "$k: the agent's configuration or tool set is not usable on the installed instance: $tools"
+done
+
 # The install step is safe to run again.
 echo 'set sc=##class(Readback.Install).Run() write "RERUN=",$select($system.Status.IsOK(sc):"ok",1:"FAILED"),! halt' | sess | grep -q "RERUN=ok" || fail "the install step is not repeatable"
 

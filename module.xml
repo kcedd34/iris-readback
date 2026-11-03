@@ -14,8 +14,12 @@
         </ModuleReference>
       </Dependencies>
       <SourcesRoot>src</SourcesRoot>
+      <!-- The whole Readback package, the agent's tool set (Readback.Tools), the three policies (Readback.Governance), the agent operation
+           and its tool host (Readback.Agent) and the release guard (Readback.Triage.ReleaseGuard, Readback.Config.ReleaseGuard). tests/e2e/ipm_check.sh
+           proves on a clean instance that each of them is compiled. -->
       <Resource Name="Readback.PKG"/>
       <!-- The product's files go under the instance's manager directory; Readback.Install records that root. -->
+      <!-- data/config holds the bounds of the agent's tools and the limits of the release guard. -->
       <FileCopy Name="data/config/" Target="${mgrdir}readback/data/config/"/>
       <FileCopy Name="data/policy/" Target="${mgrdir}readback/data/policy/"/>
       <FileCopy Name="data/replay/" Target="${mgrdir}readback/data/replay/"/>

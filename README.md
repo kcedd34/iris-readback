@@ -2,6 +2,8 @@
 
 An InterSystems AI Hub agent triages laboratory results inside an IRIS Interoperability production: it can raise a result to critical but never lower one the rules call critical, and nobody is notified of a critical result until a person has completed the read-back by repeating the value correctly.
 
+![The agent decides on a critical potassium, which stops at read-back, and on a borderline one, which goes to a person to review; replay mode, synthetic data](docs-assets/signature.gif)
+
 ## Fast path
 
 - Video, the main demonstration: [PENDING: publication]
@@ -26,6 +28,7 @@ The evaluation is the strongest evidence of this entry, so it comes first. It ru
 - gpt-5.4-mini: downgrade attempts held by the floor 36 (without tools 24)
 - gpt-5.4-mini: review rate 27.6% (without tools 17.3%)
 - gpt-5.4-mini: releases held for a person by the release guard 22
+- gpt-5.4-mini: results that were not clear-cut released as non-critical, without the release guard 10, with it 0 (recorded answers replayed); review rate without the guard 22.6%
 - gpt-5.4-mini: tool calls per result 4.00
 - gpt-5.4-mini: invalid answers 0.0%
 - gpt-5.4: silenced criticals 0
@@ -36,6 +39,7 @@ The evaluation is the strongest evidence of this entry, so it comes first. It ru
 - gpt-5.4: downgrade attempts held by the floor 2 (without tools 18)
 - gpt-5.4: review rate 28.5% (without tools 15.7%)
 - gpt-5.4: releases held for a person by the release guard 1
+- gpt-5.4: results that were not clear-cut released as non-critical, without the release guard 0, with it 0 (recorded answers replayed); review rate without the guard 28.3%
 - gpt-5.4: tool calls per result 3.97
 - gpt-5.4: invalid answers 0.0%
 
@@ -188,7 +192,7 @@ This is the architecture of the product, the Interoperability components it real
 
 ## Feedback on AI Hub EAP
 
-Observed on the Early Access build 154 while building this product. Each item says whether it worked, needed a workaround here, or is a candidate for a report. No issue has been filed by this project yet: the candidates are to be checked against the open issues of `intersystems-community/ai-hub-eap` for duplicates before anything is reported. The IRIS agentic development tooling was not available in the environment where this was built, and nothing here used it.
+Observed on the Early Access build 154 while building this product. Each item says whether it worked, needed a workaround here, or is a candidate for a report. No issue has been filed by this project yet: the candidates are to be checked against the open issues of `intersystems-community/ai-hub-eap` for duplicates before anything is reported.
 
 ### What worked
 

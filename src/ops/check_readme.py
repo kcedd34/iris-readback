@@ -54,17 +54,20 @@ def load_report(path):
 
 
 def load_companions(report_path=None):
-    """The round before the tools and the effect of the delta floor, kept next to the report: (before, delta)."""
+    """The round before the tools, the effect of the delta floor and the effect of the release guard, kept next to the report."""
     folder = os.path.dirname(report_path) if report_path else os.path.join(ROOT, "data", "eval")
-    return load_report(os.path.join(folder, "report-before-tools.json")), load_report(os.path.join(folder, "delta-floor.json"))
+    return load_report(os.path.join(folder, "report-before-tools.json")), load_report(os.path.join(folder, "delta-floor.json")), load_report(os.path.join(folder, "release-guard-effect.json"))
 
 
-def key_figures(report, before, delta):
+def key_figures(report, before, delta, guard):
     """The figures the prose of the README is allowed to rely on, one line each, generated from the report and its companions."""
     lines = []
     for name in MODELS:
         now, old = report["models"][name], before["models"][name]
         floor = delta["releasedCriticals"][name]
+        effect = guard["models"][name]
+        clear = now["matrixFinal"]
+        released_now = clear["RECOLLECT"]["NON_CRITICAL"] + clear["NEEDS_REVIEW"]["NON_CRITICAL"]
         final = now["matrixFinal"]["CRITICAL"]
         contextual_now = now["agreementByCategory"]["contextual-critical"]
         contextual_old = old["agreementByCategory"]["contextual-critical"]
@@ -77,6 +80,7 @@ def key_figures(report, before, delta):
             f"- {name}: downgrade attempts held by the floor {now['downgradeAttempts']} (without tools {old['downgradeAttempts']})",
             f"- {name}: review rate {now['reviewRate'] * 100:.1f}% (without tools {old['reviewRate'] * 100:.1f}%)",
             f"- {name}: releases held for a person by the release guard {now['releaseGuardHolds']}",
+            f"- {name}: results that were not clear-cut released as non-critical, without the release guard {effect['notClearCutReleasedWithoutGuard']}, with it {released_now} (recorded answers replayed); review rate without the guard {effect['reviewRateWithoutGuard'] * 100:.1f}%",
             f"- {name}: tool calls per result {now['toolCallsPerResult']:.2f}",
             f"- {name}: invalid answers {now['invalidRate'] * 100:.1f}%",
         ]
@@ -180,10 +184,10 @@ def list_items(body):
     return [line for line in body.splitlines() if re.match(r"^\s*([-*]|\d+\.)\s+\S", line)]
 
 
-def check(text, report, before=None, delta=None):
+def check(text, report, before=None, delta=None, guard=None):
     failures = []
-    if before is None or delta is None:
-        before, delta = load_companions()
+    if before is None or delta is None or guard is None:
+        before, delta, guard = load_companions()
 
     def fail(rule, what):
         failures.append(f"check-readme: FAIL {rule}: {what}")
@@ -195,6 +199,13 @@ def check(text, report, before=None, delta=None):
     first = next((l for l in body_lines if not l.startswith("#")), "")
     if not (re.search(r"(?i)\braise", first) and re.search(r"(?i)never (lower|downgrade)", first) and "read-back" in first.lower()):
         fail("thesis", "the first line after the title must say the agent can raise a critical, never lower it, and that nobody is notified without a read-back")
+
+    # The signature GIF sits above the fold, before the first section, with a description, and the file is there.
+    head = text.split("\n## ", 1)[0]
+    if not re.search(r"!\[[^\]]{20,}\]\(docs-assets/signature\.gif\)", head):
+        fail("hero", "the signature GIF with a description must come before the first section")
+    elif not os.path.exists(os.path.join(ROOT, "docs-assets", "signature.gif")):
+        fail("hero", "docs-assets/signature.gif is missing")
 
     # 2. The sections, in order.
     positions = []
@@ -244,7 +255,7 @@ def check(text, report, before=None, delta=None):
         if len(model["missedCriticals"]) != 2:
             fail("claim", f"the report shows {len(model['missedCriticals'])} residual criticals for {name}; the README says 2")
     results = two.get(JUDGES, "")
-    expected = key_figures(report, before, delta)
+    expected = key_figures(report, before, delta, guard)
     held = [line.rstrip() for line in three.get(KEY_FIGURES, "").splitlines() if line.strip()]
     if held != expected:
         fail("figures", f"the '{KEY_FIGURES}' block is missing or differs from the report, line by line (run check_readme.py --print-tables)")
@@ -282,6 +293,8 @@ def check(text, report, before=None, delta=None):
         fail("secret", "an administrator account name is in the README")
     if re.search(r"(?i)\bsix (axes|domains)\b", text):
         fail("claim", "the contest does not ask for 'six axes' or 'six domains'")
+    if re.search(r"(?i)agentic dev|development tool|claude|spec[- ]?kit", text):
+        fail("process", "the README must not describe the development process or its tools")
     if ALL_TO_HUMAN.search(text):
         fail("claim", "the README must never say that every error goes to a human")
 

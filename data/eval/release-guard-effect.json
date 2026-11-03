@@ -1,0 +1,9 @@
+{
+  "note": "Effect of the deterministic release guard, measured by replaying the recorded answers of the round with tools (prompt triage-v3) with the guard off and on; no provider call. 'notClearCutReleased' counts results whose expected decision is RECOLLECT or NEEDS_REVIEW that were released as non-critical. The limits of the guard come from the laboratory policy and were checked against the dataset generator, so its coverage of the dataset is partly by construction.",
+  "measuredOn": "2026-11-02",
+  "promptVersion": "triage-v3",
+  "models": {
+    "gpt-5.4-mini": {"notClearCutReleasedWithoutGuard": 10, "reviewRateWithoutGuard": 0.226457},
+    "gpt-5.4": {"notClearCutReleasedWithoutGuard": 0, "reviewRateWithoutGuard": 0.282511}
+  }
+}
