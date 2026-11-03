@@ -116,6 +116,57 @@ def ablation_numbers(ablation):
     return found
 
 
+DPI_ROWS = ("A session per request", "Model and prompt version", "Tokens, cost and latency", "Tool calls", "Retrieval", "Errors and policy refusals", "Human outcome")
+
+
+def api_routes():
+    """(method, url pattern) of every route of the REST dispatch classes, with each :name turned into :."""
+    found = set()
+    folder = os.path.join(ROOT, "src", "Readback", "API")
+    for name in os.listdir(folder):
+        if name.endswith(".cls"):
+            with open(os.path.join(folder, name), encoding="utf-8") as handle:
+                for url, method in re.findall(r'<Route Url="([^"]+)" Method="([A-Z]+)"', handle.read()):
+                    found.add((method, re.sub(r":\w+", ":", url)))
+    return found
+
+
+def api_source():
+    folder = os.path.join(ROOT, "src", "Readback", "API")
+    text = ""
+    for name in os.listdir(folder):
+        if name.endswith(".cls"):
+            with open(os.path.join(folder, name), encoding="utf-8") as handle:
+                text += handle.read()
+    return text
+
+
+def dpi_map_problems(section):
+    """The tracing map of the idea section: one row per item, and every endpoint, class and field it cites exists in the source."""
+    problems = []
+    rows = [l for l in section.splitlines() if l.startswith("|")]
+    if not rows or [c.strip() for c in rows[0].strip("|").split("|")] != ["What an LLM tracing tool records", "Where it is in Readback"]:
+        return ["the idea section needs the table 'What an LLM tracing tool records | Where it is in Readback'"]
+    first = [r.strip("|").split("|")[0].strip() for r in rows[2:]]
+    for label in DPI_ROWS:
+        if label not in first:
+            problems.append(f"the tracing map has no row '{label}'")
+    routes, source = api_routes(), api_source()
+    for token in re.findall(r"`([^`]+)`", "\n".join(rows[2:])):
+        endpoint = re.fullmatch(r"(?:(GET|POST) )?/readback/api(/\S*)", token)
+        if endpoint:
+            method, path = endpoint.group(1) or "GET", re.sub(r"\{\w+\}", ":", endpoint.group(2))
+            if (method, path) not in routes:
+                problems.append(f"the tracing map cites {token}, which is not a route of the REST API")
+        elif re.fullmatch(r"Readback(\.\w+)+", token):
+            if not os.path.exists(os.path.join(ROOT, "src", *token.split(".")) + ".cls"):
+                problems.append(f"the tracing map cites the class {token}, which does not exist")
+        elif re.fullmatch(r"[a-z]+(?:[A-Z][a-z]+)*", token) and token not in ("status",):
+            if f'"{token}"' not in source and f".{token} =" not in source and f".{token}=" not in source:
+                problems.append(f"the tracing map cites the field {token}, which the REST API does not return")
+    return problems
+
+
 def key_figures(report, before, delta, guard, ablation=None):
     """The figures the prose of the README is allowed to rely on, as a table with one row per metric and one column per model, generated from the report and its companions."""
     rows = {}
@@ -333,6 +384,12 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
         fail("claim", "the judges' section must say that no rule-critical result was silenced")
     if not re.search(r"(?i)generator", results) or not re.search(r"(?i)calibrat", results):
         fail("claim", "the judges' section must say the delta limits were calibrated knowing the generator")
+
+    for problem in dpi_map_problems(two.get("Idea DPI-I-689", "")):
+        fail("idea", problem)
+    precedent = two.get("What the production contains", "")
+    if not (re.search(r"(?i)confirmation", precedent) and re.search(r"(?i)completed review", precedent) and re.search(r"(?i)nothing that no person confirmed enters the pool", precedent)):
+        fail("claim", "the architecture must say that a person's confirmation (a matching read-back or a completed review) is what lets a case into the pool of similar cases, and that nothing else enters it")
 
     # The ablation table is generated from data/eval/ablation.json, and its full-product row agrees with the report.
     held_ablation = [line.rstrip() for line in three.get(ABLATION_HEADING, "").splitlines() if line.strip().startswith("|")]

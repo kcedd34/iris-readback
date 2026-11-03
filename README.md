@@ -207,7 +207,7 @@ This is the architecture of the product, the Interoperability components it real
 - **Governance attached to the agent**: three policies on the tool set. The *audit* policy records every call, refusals included, in the product's own trace. The *scope* policy refuses a call that names another patient. The *floor* policy refuses, formally, an answer that would lower a result critical by rule or by change, and the refusal is recorded; the composition step still enforces the floor whatever the policy does, so removing the policy removes a record, not the guarantee.
 - **Synthetic results**: the demo's messages are generated inside IRIS by Embedded Python, with the same generator that builds the evaluation dataset, and sent into the intake under a case id of their own.
 - **Unit normalization**: a Production Extension in Java with the UCUM library converts units before the rules run.
-- **Retrieval**: laboratory policy passages and similar confirmed cases are found with IRIS Vector Search and local embeddings.
+- **Retrieval**: laboratory policy passages and similar confirmed cases are found with IRIS Vector Search and local embeddings (the agent reads them through its policy-search tool). A person's confirmation, a matching read-back or a completed review, is what lets a case into the pool of similar cases: the case, described without any identifier and stored with the product's final decision and route, is retrieved by the agent for the following results. Nothing that no person confirmed enters the pool, and what is stored is the decision the product made, not a judgement written by the person.
 - **Workflow Engine tasks**: the read-back and the human review are Workflow tasks, with a person assigned.
 - **Alerting with escalation**: a critical result raises a managed alert over the platform's alert engine, with a custom delivery-and-receipt channel; the alert moves to the next person when nobody confirms in time.
 - **Tracing**: every decision keeps its inputs, the floor, the agent's answer, the composition, the tool calls in order, tokens and cost, linked to the Visual Trace session, and is readable through a small REST API. The platform's Visual Trace session shows the result, the agent's step, the task and the alerts. The tool calls, in order and with their time, are in the product's own trace and on the Decisions screen, which points to the session; the policy search, which calls another operation, also appears in the Visual Trace. In the flow of the panel the agent's node lights up its calls as sub-steps.
@@ -261,6 +261,18 @@ Each report has a reproduction that does not use this product: the stock build 1
 ## Idea DPI-I-689
 
 This entry also answers the Community Opportunity idea [DPI-I-689](https://ideas.intersystems.com/ideas/DPI-I-689), whose status on the ideas portal is Community Opportunity. The idea asks for traceability of an LLM pipeline over Interoperability. The product demonstrates exactly that on a real clinical pipeline: every decision records the rule that fired, the agent's inputs and answer, each tool call it made and what the call returned, the model, the prompt version, tokens, estimated cost and latency, and the outcome of the human step, all linked to the production's own session, and the evaluation turns those records into measured cost and latency. The Visual Trace session of a decision shows the result, the agent's step, the task and the alerts; the tool calls, in order and with their time, are in the product's own trace and on the Decisions screen, which points to that session, and the policy search, which calls another operation, also shows in the Visual Trace. It covers the essence of the idea without reimplementing a general LLM observability product such as Langfuse.
+
+What an LLM tracing tool records, and where each item is in Readback (the decision is read through `GET /readback/api/decisions/{controlId}`, the one record behind every row):
+
+| What an LLM tracing tool records | Where it is in Readback |
+|---|---|
+| A session per request | `sessionId`, the session of the production's own message trace, shown by the Decisions screen with its link to the Visual Trace; table `Readback.Trace.Decision` |
+| Model and prompt version | `model`, `provider`, `promptVersion` and `mode` of the decision; `Readback.Trace.Decision` |
+| Tokens, cost and latency | `inputTokens`, `outputTokens`, `costUsd` and `latencyMs` of the decision; cost per thousand results and percentiles in `GET /readback/api/indicators`; `Readback.Trace.Indicators` |
+| Tool calls | `toolCalls` of the decision, in order, with arguments, result, status and time; table `Readback.Trace.ToolCall`; the policy search also appears in the Visual Trace |
+| Retrieval | `passageIds`, `caseLabels`, `indexVersion` and `retrievalNote` of the decision; `Readback.Retrieval.Engine` |
+| Errors and policy refusals | `failureKind`, `failureReason`, `policyRefusal` and `evidenceCheck` of the decision; a refused or failed call has its `status` in `toolCalls` |
+| Human outcome | `confirmedBy`, `readbackMatch`, `reviewedBy` and `taskId` of the decision; each attempt in `Readback.Trace.ReadbackAttempt`; the history of each alert in `GET /readback/api/alerts`; `GET /readback/api/taskview/{decisionId}` |
 
 ## How it works
 

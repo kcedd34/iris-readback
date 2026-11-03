@@ -332,3 +332,25 @@ def test_saying_that_every_tool_call_is_a_visual_trace_step_fails():
 def test_the_precise_statement_about_the_visual_trace_passes():
     assert "the policy search, which calls another operation, also appears in the Visual Trace" in README
     assert failing(README) == []
+
+
+def test_the_tracing_map_passes_and_checks_something():
+    section = gate.sections_of(README)[0]["Idea DPI-I-689"]
+    assert gate.dpi_map_problems(section) == []
+    assert "GET /readback/api/indicators" in section and "Readback.Trace.ToolCall" in section
+
+
+@pytest.mark.parametrize("old,new,needle", [
+    ("GET /readback/api/indicators", "GET /readback/api/telemetry", "not a route"),
+    ("Readback.Trace.ToolCall", "Readback.Trace.ToolCalls", "does not exist"),
+    ("`passageIds`", "`passageNumbers`", "does not return"),
+    ("| Retrieval |", "| Searching |", "no row 'Retrieval'"),
+])
+def test_a_tracing_map_that_cites_something_that_does_not_exist_fails(old, new, needle):
+    out = failing(README.replace(old, new, 1))
+    assert any("idea" in line and needle in line for line in out)
+
+
+def test_the_precedent_sentence_is_required_in_the_architecture():
+    out = failing(README.replace("Nothing that no person confirmed enters the pool", "Anything may enter the pool", 1))
+    assert any("pool of similar cases" in line for line in out)
