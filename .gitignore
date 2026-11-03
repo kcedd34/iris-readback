@@ -10,6 +10,9 @@
 !/module.xml
 !/.env.example
 
+# allowed: the media the README shows
+!/docs-assets/
+
 # allowed: application, tests and synthetic dataset
 !/src/
 !/tests/
