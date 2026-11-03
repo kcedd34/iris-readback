@@ -63,9 +63,63 @@ def load_companions(report_path=None):
     return load_report(os.path.join(folder, "report-before-tools.json")), load_report(os.path.join(folder, "delta-floor.json")), load_report(os.path.join(folder, "release-guard-effect.json"))
 
 
-def key_figures(report, before, delta, guard):
+def load_ablation(report_path=None):
+    folder = os.path.dirname(report_path) if report_path else os.path.join(ROOT, "data", "eval")
+    return load_report(os.path.join(folder, "ablation.json"))
+
+
+ABLATION_HEADING = "Ablation: which layer does what"
+# (key in the ablation file, label, whether the arrangement has an agent and so one row per model)
+ABLATION_ROWS = (
+    ("value", "Range rule only", False),
+    ("valueGuard", "Range rule and release guard, no agent", False),
+    ("deterministic", "Range rule, change rule and release guard, no agent", False),
+    ("agent", "Range rule, guard and agent without the change rule; the agent saw the rule's verdict", True),
+    ("agentWithoutVerdict", "The same, but the agent saw the earlier values and the variation, not the verdict", True),
+    ("full", "The full product", True),
+)
+
+
+def ablation_lines(ablation):
+    """The ablation table, one row per arrangement (and per model when an agent is in it), generated from data/eval/ablation.json."""
+    lines = ["| Arrangement | Model | Contextual criticals: read-back / sent to a person / released | Uncertain results released | Rule-critical silenced | False criticals | Review rate |",
+             "|---|---|---|---|---|---|---|"]
+    for key, label, per_model in ABLATION_ROWS:
+        if key == "agentWithoutVerdict":
+            entries = [(name, ablation["agentWithoutVerdict"]["models"][name]) for name in MODELS if name in ablation["agentWithoutVerdict"]["models"]]
+        elif per_model:
+            entries = [(name, ablation["models"][name][key]) for name in MODELS]
+        else:
+            entries = [("none", ablation["models"][MODELS[0]][key])]
+        for name, x in entries:
+            c = x["contextualCriticals"]
+            lines.append(f"| {label} | {name} | {c['readback']} / {c['review']} / {c['released']} | {x['uncertainReleased']} of {x['uncertainCases']} | {x['silencedCriticals']} | {x['falseCriticals']} | {x['reviewRate'] * 100:.1f}% |")
+    return lines
+
+
+def ablation_numbers(ablation):
+    """Every whole number the ablation file states in its figures: the prose of the judges' section may use these."""
+    found = set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in ("origin", "arrangements", "definitions", "caveat", "recordingsSha256"):
+                    continue
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+        elif isinstance(node, int) and not isinstance(node, bool):
+            found.add(str(node))
+    walk(ablation)
+    return found
+
+
+def key_figures(report, before, delta, guard, ablation=None):
     """The figures the prose of the README is allowed to rely on, as a table with one row per metric and one column per model, generated from the report and its companions."""
     rows = {}
+    ablation = ablation if ablation is not None else load_ablation()
 
     def put(label, name, value):
         rows.setdefault(label, {})[name] = value
@@ -82,7 +136,10 @@ def key_figures(report, before, delta, guard):
         put("Criticals released as non-critical, delta floor off, then on (first round, recorded answers replayed)", name, f"{floor['withoutDeltaFloor']} to {floor['withDeltaFloor']}")
         put("Criticals released as non-critical in the current round", name, final["NON_CRITICAL"])
         put("Residual contextual criticals: not detected / sent to a person", name, f"{len(now['missedCriticals'])} / {final['NEEDS_REVIEW']}")
-        put(f"Contextual criticals raised by the agent alone, without tools, then with tools (of {contextual_now['cases']})", name, f"{contextual_old['agentAgrees']} to {contextual_now['agentAgrees']}")
+        blind = ablation["agentWithoutVerdict"]["models"].get(name)
+        total = ablation["contextualCriticalCases"]
+        put(f"Contextual criticals the agent put in read-back without the rule's verdict, then sent to a person (of {total})", name, f"{blind['contextualCriticals']['readback']} / {blind['contextualCriticals']['review']}" if blind else "not run")
+        put("False criticals the agent created without the rule's verdict", name, blind["falseCriticals"] if blind else "not run")
         put(f"Contextual criticals ending critical, without tools, then with tools (of {contextual_now['cases']})", name, f"{contextual_old['finalAgrees']} to {contextual_now['finalAgrees']}")
         put("Downgrade attempts held by the floor, without tools, then with tools", name, f"{old['downgradeAttempts']} to {now['downgradeAttempts']}")
         put("Review rate, without tools, then with tools", name, f"{old['reviewRate'] * 100:.1f}% to {now['reviewRate'] * 100:.1f}%")
@@ -193,8 +250,9 @@ def list_items(body):
     return [line for line in body.splitlines() if re.match(r"^\s*([-*]|\d+\.)\s+\S", line)]
 
 
-def check(text, report, before=None, delta=None, guard=None):
+def check(text, report, before=None, delta=None, guard=None, ablation=None):
     failures = []
+    ablation = ablation if ablation is not None else load_ablation()
     if before is None or delta is None or guard is None:
         before, delta, guard = load_companions()
 
@@ -264,17 +322,62 @@ def check(text, report, before=None, delta=None, guard=None):
         if len(model["missedCriticals"]) != 2:
             fail("claim", f"the report shows {len(model['missedCriticals'])} residual criticals for {name}; the README says 2")
     results = two.get(JUDGES, "")
-    expected = key_figures(report, before, delta, guard)
+    expected = key_figures(report, before, delta, guard, ablation)
     held = [line.rstrip() for line in three.get(KEY_FIGURES, "").splitlines() if line.strip()]
     if held != expected:
         fail("figures", f"the '{KEY_FIGURES}' block is missing or differs from the report, line by line (run check_readme.py --print-tables)")
     for number in re.findall(r"\d[\d.,]*", strip_for_numbers(results)):
-        if number.strip(".,") not in ALLOWED_NUMBERS:
+        if number.strip(".,") not in ALLOWED_NUMBERS | ablation_numbers(ablation):
             fail("figures", f"the '{JUDGES}' section states the number {number.strip('.,')} outside the figure blocks; evaluation numbers come only from the generated blocks")
     if not re.search(r"(?i)zero.{0,60}silenced|no .{0,60}silenced", results):
         fail("claim", "the judges' section must say that no rule-critical result was silenced")
     if not re.search(r"(?i)generator", results) or not re.search(r"(?i)calibrat", results):
         fail("claim", "the judges' section must say the delta limits were calibrated knowing the generator")
+
+    # The ablation table is generated from data/eval/ablation.json, and its full-product row agrees with the report.
+    held_ablation = [line.rstrip() for line in three.get(ABLATION_HEADING, "").splitlines() if line.strip().startswith("|")]
+    if held_ablation != ablation_lines(ablation):
+        fail("ablation", f"the '{ABLATION_HEADING}' table is missing or differs from data/eval/ablation.json, line by line (run check_readme.py --print-tables)")
+    rule_critical = ablation["ruleCriticalCases"]
+    for name in MODELS:
+        routed = report["models"][name]["matrixFinal"]["CRITICAL"]["CRITICAL"] - rule_critical
+        if ablation["models"][name]["full"]["contextualCriticals"]["readback"] != routed:
+            fail("ablation", f"the full-product row of {name} in data/eval/ablation.json does not agree with the report")
+    said = three.get("What the numbers say, and what they do not say", "")
+    items = list_items(said)
+    guard_released = str(ablation["models"][MODELS[0]]["valueGuard"]["contextualCriticals"]["released"])
+    blind = ablation["agentWithoutVerdict"]["models"]
+    if len(items) < 5 or not re.search(r"(?i)deterministic", items[1] if len(items) > 1 else "") or guard_released not in (items[1] if len(items) > 1 else ""):
+        fail("claim", f"the second item of 'What the numbers say' must say the safety comes from the deterministic layers and that {guard_released} contextual criticals would be released without the change rule")
+    third = items[2] if len(items) > 2 else ""
+    if not re.search(r"(?i)not a safety net", third) or not re.search(r"(?i)verdict", third):
+        fail("claim", "the third item of 'What the numbers say' must say the agent is not a safety net and name the rule's verdict")
+    for name in MODELS:
+        x = blind.get(name)
+        if not x:
+            fail("claim", f"data/eval/ablation.json has no run without the verdict for {name}")
+            continue
+        part = re.search(re.escape(name) + r"(?!-)[^;.]*", third)
+        wanted = [x["contextualCriticals"]["readback"], x["contextualCriticals"]["review"], x["falseCriticals"]]
+        found = [int(n) for n in re.findall(r"\d+", part.group(0))] if part else []
+        if not all(w in found for w in wanted):
+            fail("claim", f"the third item of 'What the numbers say' must state, for {name}, {wanted[0]} in read-back, {wanted[1]} sent to a person and {wanted[2]} false criticals, as data/eval/ablation.json has")
+    fourth = items[3] if len(items) > 3 else ""
+    if not re.search(r"(?i)three times", fourth):
+        fail("claim", "the fourth item of 'What the numbers say' must say what the agent adds and that it costs about three times as much and takes about three times as long")
+    for name in MODELS:
+        cost = report["models"][name]["costPerThousandUsd"] / before["models"][name]["costPerThousandUsd"]
+        latency = report["models"][name]["latencyP50Ms"] / before["models"][name]["latencyP50Ms"]
+        if not (2.5 <= cost <= 3.5 and 2.5 <= latency <= 3.5):
+            fail("claim", f"'about three times' does not hold for {name}: cost x{cost:.2f}, latency x{latency:.2f} against the round before the tools")
+    fifth = items[4] if len(items) > 4 else ""
+    if not (re.search(r"(?i)synthetic", fifth) and re.search(r"(?i)single author|one author", fifth) and re.search(r"(?i)generator", fifth)):
+        fail("claim", "the fifth item of 'What the numbers say' must state the caveats: synthetic, a single author, limits set on the generator")
+    if re.search(r"(?i)raised by the agent alone|the agent alone raised", text):
+        fail("claim", "the agent-alone figure came from a run in which the agent saw the rule's verdict and is not stated")
+    first_screen = " ".join(l for l in head.splitlines())
+    if not (re.search(r"(?i)rules? (guarantee|ensure)", first_screen) and re.search(r"(?i)agent explains", first_screen) and re.search(r"(?i)decided alone", first_screen)):
+        fail("thesis", "the first screen must say that the rules guarantee the safety, the agent explains, and the evaluation shows what would happen if the agent decided alone")
 
     # The summary sentence in bold before the key figures carries no number: the numbers are in the table, generated.
     lead = results.split(f"### {KEY_FIGURES}", 1)[0]
@@ -283,7 +386,6 @@ def check(text, report, before=None, delta=None, guard=None):
         fail("summary", f"the '{JUDGES}' section needs a one-sentence summary in bold before '{KEY_FIGURES}'")
     elif any(re.search(r"\d", l) for l in bold):
         fail("summary", "the bold summary must not state numbers; the numbers are in the generated table")
-    said = three.get("What the numbers say, and what they do not say", "")
     if len(list_items(said)) > MAX_NUMBERS_ITEMS:
         fail("summary", f"'What the numbers say' has {len(list_items(said))} items, at most {MAX_NUMBERS_ITEMS}")
 
@@ -382,14 +484,17 @@ def main(argv):
             print(matrix_table(model["matrixAgent"]) + "\n")
             print(figure_lines(model) + "\n")
         print(f"### {KEY_FIGURES}\n")
-        print("\n".join(key_figures(report, *load_companions(args.report))) + "\n")
+        ablation = load_ablation(args.report)
+        print("\n".join(key_figures(report, *load_companions(args.report), ablation)) + "\n")
+        print(f"### {ABLATION_HEADING}\n")
+        print("\n".join(ablation_lines(ablation)) + "\n")
         return 0
     if not os.path.exists(args.readme):
         print(f"check-readme: FAIL file: {args.readme} does not exist")
         return 1
     with open(args.readme, encoding="utf-8") as handle:
         text = handle.read()
-    failures = check(text, report, *load_companions(args.report))
+    failures = check(text, report, *load_companions(args.report), load_ablation(args.report))
     for line in failures:
         print(line)
     if failures:

@@ -1,0 +1,295 @@
+{
+  "origin": {
+    "what": "Replay of the recorded answers of the agent with tools (triage-v3) through four arrangements of the product's layers; no provider call.",
+    "recordings": "data/replay/recordings.jsonl",
+    "recordingsSha256": "33a82551b0cf0e08",
+    "dataset": "data/eval/dataset.jsonl",
+    "datasetSha256": "5d825b10d8843ad6",
+    "configuration": [
+      "data/config/critical-ranges.json",
+      "data/config/delta-rules.json",
+      "data/config/release-guard.json"
+    ],
+    "checkedAgainst": "data/eval/report.json (the final confusion matrices; the arrangement 'full' reproduces them for both models)",
+    "tool": "src/python/readback/evaluation/ablation.py"
+  },
+  "measuredOn": "2026-11-03",
+  "subjectCases": 240,
+  "ruleCriticalCases": 90,
+  "contextualCriticalCases": 60,
+  "arrangements": {
+    "value": "range rule only; critical goes to read-back, the rest is released",
+    "valueGuard": "range rule + release guard, without the agent; a release the guard holds goes to a person",
+    "agent": "range rule + release guard + agent with tools + composition, without the change rule; the agent's change tool gave it the rule's verdict",
+    "deterministic": "range rule + change rule + release guard, without the agent",
+    "full": "the product: range rule + change rule + agent with tools + composition + release guard"
+  },
+  "agentWithoutVerdict": {
+    "what": "the arrangement 'agent' with answers recorded in a paid run where the change tool gave the earlier values and the variation, without the verdict or the limit of the change rule",
+    "recordings": "data/eval/ablation-no-verdict.jsonl",
+    "models": {
+      "gpt-5.4": {
+        "contextualCriticals": {
+          "cases": 60,
+          "readback": 46,
+          "review": 14,
+          "recollect": 0,
+          "released": 0
+        },
+        "silencedCriticals": 0,
+        "falseCriticals": 0,
+        "reviewRate": 0.3125,
+        "recollectRate": 0.0,
+        "uncertainReleased": 0,
+        "uncertainCases": 60,
+        "releasedAnyCritical": 0,
+        "agentAlone": {
+          "cases": 60,
+          "criticalAnswers": 46,
+          "byCategory": {
+            "contextual-critical": {
+              "cases": 30,
+              "criticalAnswers": 16
+            },
+            "acute-drop-in-range": {
+              "cases": 30,
+              "criticalAnswers": 30
+            }
+          }
+        }
+      },
+      "gpt-5.4-mini": {
+        "contextualCriticals": {
+          "cases": 60,
+          "readback": 37,
+          "review": 23,
+          "recollect": 0,
+          "released": 0
+        },
+        "silencedCriticals": 0,
+        "falseCriticals": 7,
+        "reviewRate": 0.325,
+        "recollectRate": 0.0,
+        "uncertainReleased": 0,
+        "uncertainCases": 60,
+        "releasedAnyCritical": 0,
+        "agentAlone": {
+          "cases": 60,
+          "criticalAnswers": 37,
+          "byCategory": {
+            "contextual-critical": {
+              "cases": 30,
+              "criticalAnswers": 7
+            },
+            "acute-drop-in-range": {
+              "cases": 30,
+              "criticalAnswers": 30
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "uncertainReleased": "subject cases expected RECOLLECT or NEEDS_REVIEW that were released automatically",
+    "contextualCriticals": "subject cases expected CRITICAL that the range rule does not catch (floor below 3); released = automatic release, not sent to read-back or to a person",
+    "silencedCriticals": "cases the range rule holds at floor 3 that did not go to read-back",
+    "falseCriticals": "cases expected not critical that went to read-back",
+    "reviewRate": "share of the subject cases routed to a person for review"
+  },
+  "caveat": "The change-rule limits were set knowing the range of the dataset generator, so its coverage is partly by construction. The agent's recorded answers saw the change tool's verdict; the arrangement without the rule removes its power to raise the floor, not that information.",
+  "models": {
+    "gpt-5.4": {
+      "value": {
+        "contextualCriticals": {
+          "cases": 60,
+          "readback": 0,
+          "review": 0,
+          "recollect": 0,
+          "released": 60
+        },
+        "silencedCriticals": 0,
+        "falseCriticals": 0,
+        "reviewRate": 0.0,
+        "recollectRate": 0.0,
+        "uncertainReleased": 60,
+        "uncertainCases": 60,
+        "releasedAnyCritical": 60
+      },
+      "valueGuard": {
+        "contextualCriticals": {
+          "cases": 60,
+          "readback": 0,
+          "review": 31,
+          "recollect": 0,
+          "released": 29
+        },
+        "silencedCriticals": 0,
+        "falseCriticals": 0,
+        "reviewRate": 0.379167,
+        "recollectRate": 0.0,
+        "uncertainReleased": 0,
+        "uncertainCases": 60,
+        "releasedAnyCritical": 29
+      },
+      "agent": {
+        "contextualCriticals": {
+          "cases": 60,
+          "readback": 57,
+          "review": 3,
+          "recollect": 0,
+          "released": 0
+        },
+        "silencedCriticals": 0,
+        "falseCriticals": 0,
+        "reviewRate": 0.2625,
+        "recollectRate": 0.0,
+        "uncertainReleased": 0,
+        "uncertainCases": 60,
+        "releasedAnyCritical": 0,
+        "agentAlone": {
+          "cases": 60,
+          "criticalAnswers": 57,
+          "byCategory": {
+            "contextual-critical": {
+              "cases": 30,
+              "criticalAnswers": 28
+            },
+            "acute-drop-in-range": {
+              "cases": 30,
+              "criticalAnswers": 29
+            }
+          }
+        }
+      },
+      "deterministic": {
+        "contextualCriticals": {
+          "cases": 60,
+          "readback": 58,
+          "review": 2,
+          "recollect": 0,
+          "released": 0
+        },
+        "silencedCriticals": 0,
+        "falseCriticals": 0,
+        "reviewRate": 0.258333,
+        "recollectRate": 0.0,
+        "uncertainReleased": 0,
+        "uncertainCases": 60,
+        "releasedAnyCritical": 0
+      },
+      "full": {
+        "contextualCriticals": {
+          "cases": 60,
+          "readback": 58,
+          "review": 2,
+          "recollect": 0,
+          "released": 0
+        },
+        "silencedCriticals": 0,
+        "falseCriticals": 0,
+        "reviewRate": 0.258333,
+        "recollectRate": 0.0,
+        "uncertainReleased": 0,
+        "uncertainCases": 60,
+        "releasedAnyCritical": 0
+      }
+    },
+    "gpt-5.4-mini": {
+      "value": {
+        "contextualCriticals": {
+          "cases": 60,
+          "readback": 0,
+          "review": 0,
+          "recollect": 0,
+          "released": 60
+        },
+        "silencedCriticals": 0,
+        "falseCriticals": 0,
+        "reviewRate": 0.0,
+        "recollectRate": 0.0,
+        "uncertainReleased": 60,
+        "uncertainCases": 60,
+        "releasedAnyCritical": 60
+      },
+      "valueGuard": {
+        "contextualCriticals": {
+          "cases": 60,
+          "readback": 0,
+          "review": 31,
+          "recollect": 0,
+          "released": 29
+        },
+        "silencedCriticals": 0,
+        "falseCriticals": 0,
+        "reviewRate": 0.379167,
+        "recollectRate": 0.0,
+        "uncertainReleased": 0,
+        "uncertainCases": 60,
+        "releasedAnyCritical": 29
+      },
+      "agent": {
+        "contextualCriticals": {
+          "cases": 60,
+          "readback": 58,
+          "review": 2,
+          "recollect": 0,
+          "released": 0
+        },
+        "silencedCriticals": 0,
+        "falseCriticals": 0,
+        "reviewRate": 0.258333,
+        "recollectRate": 0.0,
+        "uncertainReleased": 0,
+        "uncertainCases": 60,
+        "releasedAnyCritical": 0,
+        "agentAlone": {
+          "cases": 60,
+          "criticalAnswers": 58,
+          "byCategory": {
+            "contextual-critical": {
+              "cases": 30,
+              "criticalAnswers": 28
+            },
+            "acute-drop-in-range": {
+              "cases": 30,
+              "criticalAnswers": 30
+            }
+          }
+        }
+      },
+      "deterministic": {
+        "contextualCriticals": {
+          "cases": 60,
+          "readback": 58,
+          "review": 2,
+          "recollect": 0,
+          "released": 0
+        },
+        "silencedCriticals": 0,
+        "falseCriticals": 0,
+        "reviewRate": 0.258333,
+        "recollectRate": 0.0,
+        "uncertainReleased": 0,
+        "uncertainCases": 60,
+        "releasedAnyCritical": 0
+      },
+      "full": {
+        "contextualCriticals": {
+          "cases": 60,
+          "readback": 58,
+          "review": 2,
+          "recollect": 0,
+          "released": 0
+        },
+        "silencedCriticals": 0,
+        "falseCriticals": 0,
+        "reviewRate": 0.258333,
+        "recollectRate": 0.0,
+        "uncertainReleased": 0,
+        "uncertainCases": 60,
+        "releasedAnyCritical": 0
+      }
+    }
+  }
+}

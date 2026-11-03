@@ -247,9 +247,9 @@ def test_a_key_figures_row_for_one_model_is_a_column_not_a_line():
 
 
 def test_the_bold_summary_is_required_and_has_no_number():
-    summary = next(l for l in README.splitlines() if l.startswith("**Neither model"))
+    summary = next(l for l in README.splitlines() if l.startswith("**The safety comes from"))
     assert any("summary" in out for out in failing(README.replace(summary + "\n", "", 1)))
-    assert any("summary" in out and "number" in out for out in failing(README.replace(summary, summary.replace("Neither model", "Neither of the 2 models"), 1)))
+    assert any("summary" in out and "number" in out for out in failing(README.replace(summary, summary.replace("The safety comes from", "The safety of the 2 layers comes from"), 1)))
 
 
 def test_the_numbers_section_has_at_most_five_items():
@@ -291,3 +291,34 @@ def test_the_feedback_links_the_four_reports():
 def test_the_run_it_time_statement_is_required():
     out = failing(README.replace("from clone to a working panel in", "from clone to a panel in", 1))
     assert any("measured time" in line for line in out)
+
+
+def test_an_ablation_table_not_generated_from_the_file_fails():
+    out = failing(README.replace("| The full product | gpt-5.4 |", "| The full product | gpt-5.4x |", 1))
+    assert any("ablation" in line for line in out)
+
+
+def test_the_agent_alone_figure_is_not_stated():
+    out = failing(README.replace("## Demo\n", "## Demo\n\nContextual criticals raised by the agent alone: many.\n", 1))
+    assert any("agent-alone" in line for line in out)
+
+
+def test_the_third_item_must_carry_the_numbers_of_the_run_without_the_verdict():
+    out = failing(README.replace("sends 23 to a person", "sends 22 to a person", 1))
+    assert any("third item" in line for line in out)
+
+
+def test_the_first_screen_must_say_the_rules_guarantee_the_safety_and_the_agent_explains():
+    out = failing(README.replace("The rules guarantee the safety and the agent explains.", "", 1))
+    assert any("first screen" in line for line in out)
+
+
+def test_the_cost_claim_is_checked_against_the_report():
+    cheap = json.loads(json.dumps(REPORT))
+    cheap["models"]["gpt-5.4"]["costPerThousandUsd"] = 1.0
+    assert any("about three times" in line for line in gate.check(README, cheap))
+
+
+def test_the_key_figures_state_the_run_without_the_verdict_and_not_the_agent_alone_row():
+    assert "raised by the agent alone" not in README
+    assert "without the rule's verdict" in README

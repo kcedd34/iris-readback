@@ -53,6 +53,34 @@ ClassMethod Restart(pWait As %Integer = {..#JOBWAIT}) As %Status
 	Quit $$$OK
 }
 
+/// The ablation round: the agent's change tool gives the earlier values and the variation, and the prompt no longer says that the tool
+/// brings the rule's verdict or that the change rule runs before the agent. The product's floor is untouched (the rule still runs); only what
+/// the agent is told changes. Undone by UseDefaultDelta.
+ClassMethod UseNoVerdictDelta(pWait As %Integer = {..#JOBWAIT}) As %Status
+{
+	Set tText = ##class(Readback.Triage.Prompt).Text()
+	Set tA = "get_delta_assessment gives the change against those results with the verdict of the deterministic change rule (id delta-assessment)."
+	Set tB = "A deterministic rule table and the change rule run before you and set a minimum severity"
+	Quit:(tText'[tA)||(tText'[tB) $System.Status.Error(5001, "the prompt no longer has the sentences this variant replaces")
+	Set tText = $Replace(tText, tA, "get_delta_assessment gives the earlier values and the change of this value against each of them, with no judgement of whether a change matters (id delta-assessment).")
+	Set tText = $Replace(tText, tB, "A deterministic rule table runs before you and sets a minimum severity")
+	Set tSC = ##class(Ens.Director).SetAdapterSettingValue("Readback.Agent", "IrisTools", "Readback.Eval.NoVerdictTools")
+	Quit:$System.Status.IsError(tSC) tSC
+	Set tSC = ##class(Ens.Director).SetAdapterSettingValue("Readback.Agent", "SystemPrompt", tText)
+	Quit:$System.Status.IsError(tSC) tSC
+	Quit ..Restart(pWait)
+}
+
+/// Puts the product's own tool set and prompt back.
+ClassMethod UseDefaultDelta(pWait As %Integer = {..#JOBWAIT}) As %Status
+{
+	Set tSC = ##class(Ens.Director).SetAdapterSettingValue("Readback.Agent", "IrisTools", "Readback.Tools.ToolSet")
+	Quit:$System.Status.IsError(tSC) tSC
+	Set tSC = ##class(Ens.Director).SetAdapterSettingValue("Readback.Agent", "SystemPrompt", ##class(Readback.Triage.Prompt).Text())
+	Quit:$System.Status.IsError(tSC) tSC
+	Quit ..Restart(pWait)
+}
+
 /// Selects the replay set the replay item reads; it takes effect for the next case.
 ClassMethod UseReplaySet(pSet As %String) As %Status
 {

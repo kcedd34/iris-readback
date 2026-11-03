@@ -1,6 +1,6 @@
 # iris-readback
 
-An InterSystems AI Hub agent triages laboratory results inside an IRIS Interoperability production: it can raise a result to critical but never lower one the rules call critical, and nobody is notified of a critical result until a person has completed the read-back by repeating the value correctly.
+The rules guarantee the safety and the agent explains. An InterSystems AI Hub agent triages laboratory results inside an IRIS Interoperability production: it can raise a result to critical but never lower one the rules call critical, and nobody is notified of a critical result until a person has completed the read-back by repeating the value correctly. The evaluation shows what would happen if the agent decided alone.
 
 ![The agent decides on a critical potassium, which stops at read-back, and on a borderline one, which goes to a person to review; replay mode, synthetic data](docs-assets/signature.gif)
 
@@ -32,7 +32,7 @@ Full steps, with the image rename and the provider key: [Required by the organiz
 
 The evaluation is the strongest evidence of this entry, so it comes first. It runs the whole product, rules, retrieval, the agent with its tools, composition, release guard and budget, over a synthetic dataset of 240 subject cases (30 in each of 8 categories, seed 2026) for two models, and compares the route the product chose with the expected one. The expected decision of every case comes from construction rules written by one author; there was no second annotator. Full detail, with the cases listed, is in `data/eval/report.md`; the round before the agent had tools is kept in `data/eval/report-before-tools.md` for comparison. Every evaluation number in this README comes from the blocks below, which are generated from the report and checked against it by the gate.
 
-**Neither model silenced a critical result. The tools made the agent better informed and its decisions easier to audit, but they did not change the final outcome, and they made each decision slower and costlier.**
+**The safety comes from the deterministic layers: without them an agent that does not see the rule's verdict would miss and misjudge results, so the design never lets the agent decide alone. What the agent adds is a justification a person can check.**
 
 ### Key figures
 
@@ -42,7 +42,8 @@ The evaluation is the strongest evidence of this entry, so it comes first. It ru
 | Criticals released as non-critical, delta floor off, then on (first round, recorded answers replayed) | 19 to 2 | 7 to 2 |
 | Criticals released as non-critical in the current round | 0 | 0 |
 | Residual contextual criticals: not detected / sent to a person | 2 / 2 | 2 / 2 |
-| Contextual criticals raised by the agent alone, without tools, then with tools (of 30) | 6 to 28 | 12 to 28 |
+| Contextual criticals the agent put in read-back without the rule's verdict, then sent to a person (of 60) | 37 / 23 | 46 / 14 |
+| False criticals the agent created without the rule's verdict | 7 | 0 |
 | Contextual criticals ending critical, without tools, then with tools (of 30) | 28 to 28 | 28 to 28 |
 | Downgrade attempts held by the floor, without tools, then with tools | 24 to 36 | 18 to 2 |
 | Review rate, without tools, then with tools | 17.3% to 27.6% | 15.7% to 28.5% |
@@ -51,6 +52,22 @@ The evaluation is the strongest evidence of this entry, so it comes first. It ru
 | Review rate without the release guard | 22.6% | 28.3% |
 | Tool calls per result | 4.00 | 3.97 |
 | Invalid answers | 0.0% | 0.0% |
+
+### Ablation: which layer does what
+
+The same recorded answers, replayed through different arrangements of the layers, over the 240 cases (the replay needs no provider call; the arrangement with the full product reproduces the confusion matrices below, and the file is `data/eval/ablation.json`). "Contextual criticals" are the criticals the range rule does not catch, so something else has to. In the two arrangements that have no agent, a result is either critical by rule or released, unless the release guard holds it for a person. The agent saw the change tool's verdict in the recorded round; the rows without the verdict come from a separate paid run per model in which that tool gave the earlier values and the variation but not the verdict or the limit (`data/eval/ablation-no-verdict.jsonl`). The change rule itself kept running in that run, and the arrangements here simply leave it out of the floor.
+
+| Arrangement | Model | Contextual criticals: read-back / sent to a person / released | Uncertain results released | Rule-critical silenced | False criticals | Review rate |
+|---|---|---|---|---|---|---|
+| Range rule only | none | 0 / 0 / 60 | 60 of 60 | 0 | 0 | 0.0% |
+| Range rule and release guard, no agent | none | 0 / 31 / 29 | 0 of 60 | 0 | 0 | 37.9% |
+| Range rule, change rule and release guard, no agent | none | 58 / 2 / 0 | 0 of 60 | 0 | 0 | 25.8% |
+| Range rule, guard and agent without the change rule; the agent saw the rule's verdict | gpt-5.4-mini | 58 / 2 / 0 | 0 of 60 | 0 | 0 | 25.8% |
+| Range rule, guard and agent without the change rule; the agent saw the rule's verdict | gpt-5.4 | 57 / 3 / 0 | 0 of 60 | 0 | 0 | 26.2% |
+| The same, but the agent saw the earlier values and the variation, not the verdict | gpt-5.4-mini | 37 / 23 / 0 | 0 of 60 | 0 | 7 | 32.5% |
+| The same, but the agent saw the earlier values and the variation, not the verdict | gpt-5.4 | 46 / 14 / 0 | 0 of 60 | 0 | 0 | 31.2% |
+| The full product | gpt-5.4-mini | 58 / 2 / 0 | 0 of 60 | 0 | 0 | 25.8% |
+| The full product | gpt-5.4 | 58 / 2 / 0 | 0 of 60 | 0 | 0 | 25.8% |
 
 ### Confusion matrices, cost and latency
 
@@ -108,11 +125,11 @@ Agent decision against the expected decision:
 
 ### What the numbers say, and what they do not say
 
-- **No result critical by rule was silenced, for either model.** A result the rule table calls critical was never released, never sent to review and never lowered: zero silenced criticals for gpt-5.4 and zero for gpt-5.4-mini, including the cases in which the agent answered less than critical, which the composition kept critical.
-- **The tools made the agent better informed, not the product safer.** Before the deterministic delta floor, expected-critical results the rules did not know were released as non-critical; with the floor, a rule that raises a result by its change against the patient's earlier results, they fell to the residual level in the key figures (measured on the first round, by replaying the recorded answers). Then the agent got tools and raised far more of the contextual criticals on its own, and the final outcome did not move, because the floor already covered those cases. Both models called all four tools on practically every result: the evaluation shows an agent that reads everything each time, not one that chooses. The price was a multiple of cost and latency, in the block of each model; what the tools add is a decision that is easier to audit, because every call is recorded.
-- **The release guard sends what is uncertain to a person.** gpt-5.4-mini's agent, answering calmly, had released results that were not clear-cut: a new sample was needed, or the value was near its critical limit on a hemolyzed sample. The guard is deterministic, runs after the answer and cannot be lifted by the agent; replayed on the recorded answers with no new call, it sent those results to review and no other row of the matrix changed. The review rate is higher than without tools in both models, which is the price of the guard and of the agent's own caution.
-- **Two cases remain for both models, held for a person and not detected.** Two contextual criticals, sodium near its high critical limit, fall under every limit: neither the value rule, nor the delta rule, nor the agent caught them. They go to review because their value is inside the borderline band of the guard, which is not the same as being detected as critical. They are listed by case in the report.
-- **Caveats that go with the delta floor and the guard.** Both sets of limits were chosen knowing the range of the dataset generator: the delta limits were calibrated by the author on it, and the guard's hemolysis limit (100) is the policy's own number, but the policy gives no number for "near the critical limit" and the borderline band (93 percent of the limit) starts where the dataset's contextual and ambiguous cases start. The coverage is therefore partly by construction: the results show that deterministic rules can close this kind of hole, not that the limits are clinically calibrated, and the dataset is synthetic and single-author. What is guaranteed, measured: the agent cannot lower a result that is critical by rule. What is not: a contextual critical that no rule models is caught only if the floor, the agent or a review catches it.
+- **No result critical by rule was silenced, for either model.** A result the rule table calls critical was never released, never sent to review and never lowered: zero silenced criticals in every arrangement of the ablation, including the cases in which the agent answered less than critical, which the composition kept critical.
+- **The safety comes from the deterministic layers.** The arrangement with only the range rule, the change rule and the release guard, and no agent, ends where the full product does: no critical released, and the two residual cases held for a person by the guard. Leave out the change rule as well and 29 of the 60 contextual criticals would be released automatically.
+- **The agent is not a safety net.** When its change tool hands it the rule's verdict, it only reproduces the rule. Without the verdict, gpt-5.4-mini puts 37 of the 60 contextual criticals in read-back, sends 23 to a person and creates 7 false criticals; gpt-5.4 puts 46 in read-back, sends 14 to a person and creates 0 false criticals. That is why the design never lets the agent decide alone, and now it is measured and not assumed.
+- **What the agent adds is a justification a person can check.** Each decision carries a rationale and the evidence it cites, and an answer is accepted only if every item of evidence was returned by a tool of the same investigation, so each claim traces to a recorded call. With its tools the agent costs about three times as much and takes about three times as long as it did without them (the blocks of each model), and the deterministic layers cost nothing per result.
+- **Caveats.** The dataset is synthetic and has a single author, with no second annotator. The change limits and the borderline band of the release guard were set knowing the dataset generator, so their coverage is partly by construction: the results show that deterministic rules can close this kind of hole, not that the limits are clinically calibrated. The ablation replays one recorded run per model, and each run without the verdict is a single paid run.
 
 ## Demo
 

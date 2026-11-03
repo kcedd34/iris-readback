@@ -30,6 +30,7 @@ DATASET = os.environ.get("EVAL_DATASET", os.path.join(ROOT, "data", "eval", "dat
 SAMPLES = os.path.join(ROOT, "data", "samples")
 PRICES = os.path.join(ROOT, "data", "config", "price-table.json")
 RECORDINGS = os.path.join(ROOT, "data", "replay", "recordings.jsonl")
+NO_VERDICT_RECORDINGS = os.path.join(ROOT, "data", "eval", "ablation-no-verdict.jsonl")
 OUT = os.environ.get("EVAL_OUT", os.path.join(ROOT, "data", "eval"))
 SHIPPED_EVAL = os.path.join(ROOT, "data", "eval")
 LARGE_MODEL = "gpt-5.4"
@@ -199,12 +200,13 @@ def build_reports():
     return report.main(runs + metas + extra + ["--dataset", DATASET, "--prices", PRICES, "--out", OUT])
 
 
-def run_live(model, resume=False, yes=False, output_cap=None, replay_set=None, pilot=None, record_answers=True):
+def run_live(model, resume=False, yes=False, output_cap=None, replay_set=None, pilot=None, record_answers=True, variant=None):
     mode = container_mode()
     if mode != "live":
         say("refusing: the product is in {} mode, so no provider key is configured in the container. Nothing was sent.".format(mode or "unknown"))
         return 2
-    messages = pilot_messages(pilot) if pilot else all_messages()
+    # The ablation variant sends the dataset only (no shipped samples) and records into its own file, never into the replay recordings.
+    messages = pilot_messages(pilot) if pilot else dataset_messages() if variant else all_messages()
     ids = {m[0] for m in messages}
     clean, why = clean_state()
     if not clean and not resume:
@@ -226,6 +228,11 @@ def run_live(model, resume=False, yes=False, output_cap=None, replay_set=None, p
         say("could not set the model:", text)
         return 1
     cap = output_cap
+    if variant:
+        ok, text = run_status('set sc=##class(Readback.Eval.Control).UseNoVerdictDelta()\n' + STATUS_LINE)
+        if not ok:
+            say("could not set the ablation variant:", text)
+            return 1
     if cap:
         ok, text = run_status('set sc=##class(Readback.Eval.Control).UseOutputCap({})\n'.format(int(cap)) + STATUS_LINE)
         if not ok:
@@ -248,6 +255,8 @@ def run_live(model, resume=False, yes=False, output_cap=None, replay_set=None, p
         path, name, count = export_rows(model)
     finally:
         restore_ceilings(previous)
+        if variant:
+            run_status('set sc=##class(Readback.Eval.Control).UseDefaultDelta()\n' + STATUS_LINE)
     for folder in (WORK, OUT):
         os.makedirs(folder, exist_ok=True)
         with open(os.path.join(folder, "meta-{}.json".format(name)), "w") as handle:
@@ -257,6 +266,10 @@ def run_live(model, resume=False, yes=False, output_cap=None, replay_set=None, p
         return 0 if complete else 1
     target = replay_set or ("default" if name == LARGE_MODEL else name)
     try:
+        if variant:
+            recorded, skipped = record.from_export(path, "ablation-no-verdict-" + name, NO_VERDICT_RECORDINGS)
+            say("exported {} rows to {}; recorded {} answers into {} ({} had no output)".format(count, path, recorded, NO_VERDICT_RECORDINGS, skipped))
+            return 0 if complete else 1
         recorded, skipped = record.from_export(path, target, RECORDINGS)
     except ValueError as error:
         say("not recorded:", error)
@@ -318,6 +331,7 @@ def main(argv=None):
     live.add_argument("--resume", action="store_true")
     live.add_argument("--output-cap", type=int, default=None)
     live.add_argument("--set", dest="replay_set", default=None)
+    live.add_argument("--variant", choices=["no-verdict"], default=None, help="the ablation round: the change tool gives values and variation, not the rule's verdict; records into data/eval/ablation-no-verdict.jsonl")
     live.add_argument("--pilot", type=int, default=None, help="send only about N subject cases (balanced across categories) with their history, record nothing")
     rep = sub.add_parser("replay")
     rep.add_argument("replay_set", nargs="?", default="default")
@@ -326,12 +340,14 @@ def main(argv=None):
     if args.command == "live":
         # A live run is dated the day it is made; a replay or a rebuilt report keeps the date of the report it rebuilds.
         os.environ.setdefault("EVAL_RUN_DATE", datetime.date.today().isoformat())
-        code = run_live(args.model, args.resume, args.yes, args.output_cap, args.replay_set, args.pilot, record_answers=not args.pilot)
+        code = run_live(args.model, args.resume, args.yes, args.output_cap, args.replay_set, args.pilot, record_answers=not args.pilot, variant=args.variant)
     elif args.command == "replay":
         code = run_replay(args.replay_set)
     else:
         return build_reports()
     ran = args.command == "replay" or args.yes
+    if args.command == "live" and args.variant:
+        return code  # the ablation round never rebuilds the report
     if args.command == "live" and args.pilot:
         return code  # a pilot measures; it never writes a report
     return (build_reports() or code) if (code == 0 and ran) else code
