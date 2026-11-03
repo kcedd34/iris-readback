@@ -1,0 +1,9 @@
+{
+  "note": "Expected-critical results released as non-critical, without and with the deterministic delta floor. Measured on the first round (prompt triage-v2, no tools) by replaying the recorded answers of the agent with the floor off and on; no provider call. The delta limits were chosen knowing the range of the dataset generator, so the coverage is partly by construction.",
+  "measuredOn": "2026-10-29",
+  "promptVersion": "triage-v2",
+  "releasedCriticals": {
+    "gpt-5.4-mini": {"withoutDeltaFloor": 19, "withDeltaFloor": 2},
+    "gpt-5.4": {"withoutDeltaFloor": 7, "withDeltaFloor": 2}
+  }
+}

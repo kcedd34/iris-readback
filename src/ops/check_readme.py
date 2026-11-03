@@ -21,8 +21,8 @@ MODELS = ["gpt-5.4-mini", "gpt-5.4"]
 
 # Level-2 headings in the order the README must have them, then the level-3 headings of the organizers' four items.
 SECTIONS = [
-    "Fast path", "Demo", "Required by the organizers", "What the production contains", "Results",
-    "Idea DPI-I-689", "How it works", "Built with", "Author", "Still to publish",
+    "Fast path", "For judges", "Demo", "Required by the organizers", "What the production contains",
+    "Feedback on AI Hub EAP", "Idea DPI-I-689", "How it works", "Built with", "Author", "Still to publish",
 ]
 REQUIRED_ITEMS = {
     "Early Access image and build": [IMAGE, "154"],
@@ -41,9 +41,65 @@ KEY_SHAPED = re.compile(r"(?m)sk-[A-Za-z0-9_-]{20,}|^\s*[A-Z_]*KEY\s*=\s*\S+")
 ALL_TO_HUMAN = re.compile(r"(?i)\b(every|all)\s+(error|mistake|miss(ed)?(\s+critical)?)s?\b[^.]{0,60}\b(human|person|people)\b")
 
 
+JUDGES = "For judges"
+KEY_FIGURES = "Key figures"
+# Numbers the judges' section may state outside the figure blocks: the dataset (240 cases, 30 in each of 8 categories, seed 2026)
+# and the two parameters of the release guard, which are product settings and not results.
+ALLOWED_NUMBERS = {"240", "30", "8", "2026", "93", "100"}
+
+
 def load_report(path):
     with open(path, encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def load_companions(report_path=None):
+    """The round before the tools and the effect of the delta floor, kept next to the report: (before, delta)."""
+    folder = os.path.dirname(report_path) if report_path else os.path.join(ROOT, "data", "eval")
+    return load_report(os.path.join(folder, "report-before-tools.json")), load_report(os.path.join(folder, "delta-floor.json"))
+
+
+def key_figures(report, before, delta):
+    """The figures the prose of the README is allowed to rely on, one line each, generated from the report and its companions."""
+    lines = []
+    for name in MODELS:
+        now, old = report["models"][name], before["models"][name]
+        floor = delta["releasedCriticals"][name]
+        final = now["matrixFinal"]["CRITICAL"]
+        contextual_now = now["agreementByCategory"]["contextual-critical"]
+        contextual_old = old["agreementByCategory"]["contextual-critical"]
+        lines += [
+            f"- {name}: silenced criticals {now['silencedCriticals']}",
+            f"- {name}: criticals released as non-critical, without the delta floor {floor['withoutDeltaFloor']}, with it {floor['withDeltaFloor']} (first round, recorded answers replayed)",
+            f"- {name}: criticals released as non-critical in the current round {final['NON_CRITICAL']}; residual contextual criticals not detected {len(now['missedCriticals'])}, sent to a person {final['NEEDS_REVIEW']}",
+            f"- {name}: contextual criticals raised by the agent alone, without tools {contextual_old['agentAgrees']} of {contextual_old['cases']}, with tools {contextual_now['agentAgrees']} of {contextual_now['cases']}",
+            f"- {name}: contextual criticals ending critical, without tools {contextual_old['finalAgrees']} of {contextual_old['cases']}, with tools {contextual_now['finalAgrees']} of {contextual_now['cases']}",
+            f"- {name}: downgrade attempts held by the floor {now['downgradeAttempts']} (without tools {old['downgradeAttempts']})",
+            f"- {name}: review rate {now['reviewRate'] * 100:.1f}% (without tools {old['reviewRate'] * 100:.1f}%)",
+            f"- {name}: releases held for a person by the release guard {now['releaseGuardHolds']}",
+            f"- {name}: tool calls per result {now['toolCallsPerResult']:.2f}",
+            f"- {name}: invalid answers {now['invalidRate'] * 100:.1f}%",
+        ]
+    return lines
+
+
+def strip_for_numbers(body):
+    """The judges' section without what is allowed to hold numbers: tables, the figure blocks, the key figures, code, model and prompt names."""
+    kept, in_code, skip_figures = [], False, False
+    for line in body.splitlines():
+        if line.startswith("```"):
+            in_code = not in_code
+            continue
+        if in_code or line.lstrip().startswith("|"):
+            continue
+        if re.match(r"^###\s+", line):
+            skip_figures = line.strip() == f"### {KEY_FIGURES}"
+        if skip_figures or re.match(r"^- (Cost per thousand|Latency p50|Silenced criticals|Missed criticals|Downgrade attempts by)", line):
+            continue
+        kept.append(line)
+    text = "\n".join(kept)
+    text = re.sub(r"gpt-[\w.]+(-mini)?|triage-v\d+|build \d+|DPI-I-\d+|release-guard|1/0\.93", "", text)
+    return text
 
 
 def matrix_table(matrix):
@@ -124,8 +180,10 @@ def list_items(body):
     return [line for line in body.splitlines() if re.match(r"^\s*([-*]|\d+\.)\s+\S", line)]
 
 
-def check(text, report):
+def check(text, report, before=None, delta=None):
     failures = []
+    if before is None or delta is None:
+        before, delta = load_companions()
 
     def fail(rule, what):
         failures.append(f"check-readme: FAIL {rule}: {what}")
@@ -185,14 +243,18 @@ def check(text, report):
             fail("claim", f"the report shows {model['silencedCriticals']} silenced criticals for {name}; the README claims zero")
         if len(model["missedCriticals"]) != 2:
             fail("claim", f"the report shows {len(model['missedCriticals'])} residual criticals for {name}; the README says 2")
-    results = two.get("Results", "")
-    for needle in ("from 19 to 2", "from 7 to 2"):
-        if needle not in results:
-            fail("claim", f"the Results section must say '{needle}'")
+    results = two.get(JUDGES, "")
+    expected = key_figures(report, before, delta)
+    held = [line.rstrip() for line in three.get(KEY_FIGURES, "").splitlines() if line.strip()]
+    if held != expected:
+        fail("figures", f"the '{KEY_FIGURES}' block is missing or differs from the report, line by line (run check_readme.py --print-tables)")
+    for number in re.findall(r"\d[\d.,]*", strip_for_numbers(results)):
+        if number.strip(".,") not in ALLOWED_NUMBERS:
+            fail("figures", f"the '{JUDGES}' section states the number {number.strip('.,')} outside the figure blocks; evaluation numbers come only from the generated blocks")
     if not re.search(r"(?i)zero.{0,60}silenced|no .{0,60}silenced", results):
-        fail("claim", "the Results section must say that no rule-critical result was silenced")
+        fail("claim", "the judges' section must say that no rule-critical result was silenced")
     if not re.search(r"(?i)generator", results) or not re.search(r"(?i)calibrat", results):
-        fail("claim", "the Results section must say the delta limits were calibrated knowing the generator")
+        fail("claim", "the judges' section must say the delta limits were calibrated knowing the generator")
 
     # Idea justification.
     idea = two.get("Idea DPI-I-689", "")
@@ -246,13 +308,15 @@ def main(argv):
             print("Agent decision against the expected decision:\n")
             print(matrix_table(model["matrixAgent"]) + "\n")
             print(figure_lines(model) + "\n")
+        print(f"### {KEY_FIGURES}\n")
+        print("\n".join(key_figures(report, *load_companions(args.report))) + "\n")
         return 0
     if not os.path.exists(args.readme):
         print(f"check-readme: FAIL file: {args.readme} does not exist")
         return 1
     with open(args.readme, encoding="utf-8") as handle:
         text = handle.read()
-    failures = check(text, report)
+    failures = check(text, report, *load_companions(args.report))
     for line in failures:
         print(line)
     if failures:

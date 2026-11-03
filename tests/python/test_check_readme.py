@@ -59,9 +59,46 @@ def test_a_report_that_disagrees_with_the_claims_fails():
     assert any("claim" in line for line in gate.check(README, report))
 
 
-def test_the_reduction_sentences_are_required():
-    assert any("from 19 to 2" in line for line in failing(README.replace("from 19 to 2", "from 19 to 3")))
-    assert any("from 7 to 2" in line for line in failing(README.replace("from 7 to 2", "from 7 to 3")))
+BEFORE, DELTA = gate.load_companions()
+KEY_LINES = gate.key_figures(REPORT, BEFORE, DELTA)
+
+
+def test_the_key_figures_block_is_the_generated_one():
+    assert KEY_LINES and all(line in README for line in KEY_LINES)
+    assert all(line.startswith("- ") for line in KEY_LINES)
+
+
+@pytest.mark.parametrize("line", KEY_LINES)
+def test_a_changed_key_figure_fails(line):
+    digit = next(i for i in range(len(line) - 1, -1, -1) if line[i].isdigit())
+    changed = line[:digit] + str((int(line[digit]) + 1) % 10) + line[digit + 1:]
+    assert any("figures" in out and "Key figures" in out for out in failing(README.replace(line, changed, 1)))
+
+
+def test_a_missing_key_figure_fails():
+    assert any("Key figures" in out for out in failing(README.replace(KEY_LINES[0] + "\n", "", 1)))
+
+
+def test_a_key_figures_block_not_generated_from_the_report_fails():
+    report = json.loads(json.dumps(REPORT))
+    report["models"]["gpt-5.4"]["reviewRate"] = 0.5
+    assert any("Key figures" in out for out in gate.check(README, report, BEFORE, DELTA))
+
+
+def test_a_changed_companion_figure_fails():
+    delta = json.loads(json.dumps(DELTA))
+    delta["releasedCriticals"]["gpt-5.4-mini"]["withoutDeltaFloor"] = 20
+    assert any("Key figures" in out for out in gate.check(README, REPORT, BEFORE, delta))
+
+
+@pytest.mark.parametrize("sentence", ["The released criticals fell from 19 to 2.", "The review rate is 27.6% now.", "It costs 3.1 times more."])
+def test_an_evaluation_number_outside_the_blocks_fails(sentence):
+    text = README.replace("### What the numbers say, and what they do not say\n", "### What the numbers say, and what they do not say\n\n" + sentence + "\n", 1)
+    assert any("outside the figure blocks" in out for out in failing(text))
+
+
+def test_the_dataset_numbers_may_be_stated_in_prose():
+    assert not any("outside the figure blocks" in out for out in failing(README))
 
 
 def test_a_closing_list_with_four_items_fails():
