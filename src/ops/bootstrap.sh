@@ -3,7 +3,8 @@
 # Loads and compiles the Readback classes into USER only when the source changed, then makes sure the
 # production is running. Recompiling on every start would disturb the production that IRIS
 # auto-starts, and resets its TCP connections.
-# Exits 0 on purpose: a non-zero exit would make iris-main stop IRIS.
+# Exits 1 when a class does not compile: iris-main then stops IRIS and the container ends, so a broken build never looks started.
+# Every other problem exits 0: IRIS keeps running so you can inspect it.
 set -uo pipefail
 
 src="${READBACK_SRC:-/opt/readback/src}"
@@ -13,9 +14,23 @@ datahash="$( [ -d "$datadir" ] && cd "$datadir" && find . -type f | sort | xargs
 log="$(mktemp)"
 
 echo "Readback: source hash ${hash}"
+# Loading comes first and on its own: a class that does not compile must stop the start, not scroll past in the log.
+# One line per block: the terminal reads its input line by line, so a block spread over several lines is a <SYNTAX> error and its body would run unconditionally.
 iris session IRIS -U USER <<OS 2>&1 | tee "$log"
-// One line per block: the terminal reads its input line by line, so a block spread over several lines is a <SYNTAX> error and its body would run unconditionally.
-if \$get(^Readback("srcHash"))'="${hash}" { write "Readback: loading classes from ${src} into USER...",!  set sc=\$system.OBJ.LoadDir("${src}","ck",.err,1)  if \$system.Status.IsError(sc) { write "READBACK LOAD "_"FAILED: ",\$system.Status.GetErrorText(sc),! } else { set ^Readback("srcHash")="${hash}" kill ^Readback("dataHash") } } else { write "Readback: classes already loaded for this source, not recompiling",! }
+if \$get(^Readback("srcHash"))'="${hash}" { write "Readback: loading classes from ${src} into USER...",!  set sc=\$system.OBJ.LoadDir("${src}","ck",.err,1)  if \$system.Status.IsError(sc) { write "READBACK COMPILE "_"FAILED: ",\$get(err)," error(s)",!  set i=""  for { set i=\$order(err(i))  quit:i=""  write "READBACK COMPILE "_"ERROR: ",\$get(err(i)),! }  if \$get(err)=0 { write "READBACK COMPILE "_"ERROR: ",\$system.Status.GetErrorText(sc),! } } else { set ^Readback("srcHash")="${hash}" kill ^Readback("dataHash") } } else { write "Readback: classes already loaded for this source, not recompiling",! }
+halt
+OS
+
+if grep -q "READBACK COMPILE FAILED" "$log"; then
+  echo "READBACK ABORTED: the classes in ${src} did not all compile (errors above). Nothing was started." >&2
+  echo "Fix the class and rebuild: docker compose up -d --build" >&2
+  rm -f "$log"
+  exit 1
+fi
+rm -f "$log"
+
+log="$(mktemp)"
+iris session IRIS -U USER <<OS 2>&1 | tee "$log"
 set sc=##class(Readback.Config.Loader).LoadIfChanged("${datahash}","${datadir}")
 if \$system.Status.IsError(sc) { write "READBACK CONFIG "_"FAILED: ",\$system.Status.GetErrorText(sc),! } else { write "Readback: configuration tables up to date",! }
 set sc=##class(Readback.Units.Setup).EnsureComponent()
@@ -35,7 +50,7 @@ if '##class(Ens.Director).IsProductionRunning("Readback.Production") { set sc=##
 halt
 OS
 
-if grep -q "^READBACK \(LOAD\|START\|CONFIG\|ROLES\|WEBAPP\|UNITS\) FAILED" "$log"; then
+if grep -q "^READBACK \(START\|CONFIG\|ROLES\|WEBAPP\|UNITS\) FAILED" "$log"; then
   echo "Readback did not start. IRIS keeps running so you can inspect it: docker compose logs iris"
 fi
 rm -f "$log"
