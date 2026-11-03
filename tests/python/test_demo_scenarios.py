@@ -63,3 +63,24 @@ def test_the_subject_is_last_a_result_and_recorded():
         # one patient per scenario
         patients = {text.split("\r")[1].split("|")[3] for text in texts}
         assert len(patients) == 1, scenario["id"]
+
+
+def test_one_scenario_shows_the_floor_holding_the_agent():
+    """The public demo must be able to show the held seal: the subject is critical by the rule table, and the recorded answer of
+    the agent is below critical, so the floor policy refuses it."""
+    scenario = next(s for s in scenarios() if s["id"] == "potassium-agent-tries-to-lower")
+    subject = read(scenario["files"][-1])
+    value = float(subject.split("\r")[3].split("|")[5])
+    with open(os.path.join(ROOT, "data", "config", "critical-ranges.json")) as handle:
+        limit = next(r["criticalHigh"] for r in json.load(handle)["ranges"] if r["analyteCode"] == "2823-3" and r["ageGroup"] == "adult")
+    assert value >= limit, "the subject must be critical by value"
+    with open(os.path.join(ROOT, "data", "replay", "recordings.jsonl")) as handle:
+        rows = [json.loads(l) for l in handle]
+    row = next(r for r in rows if r["replaySet"] == "default" and r["messageControlId"] == control_id(subject))
+    assert json.loads(row["answer"])["severity"] < 3, "the recorded agent must answer below critical"
+    assert scenario["expected"] == "CRITICAL"
+
+
+def test_the_demo_sequence_includes_that_scenario():
+    source = open(os.path.join(ROOT, "frontend", "src", "flow", "DemoSequence.tsx"), encoding="utf-8").read()
+    assert "potassium-agent-tries-to-lower" in source

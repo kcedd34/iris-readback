@@ -1,4 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from "react";
+import { DecisionsScreen } from "./decisions/DecisionsScreen";
+import { TopSeals } from "./decisions/TopSeals";
+import { useSeals } from "./decisions/useDecisions";
 import { AlertsScreen } from "./flow/AlertsScreen";
 import { DemoSequence, useDemoSequence } from "./flow/DemoSequence";
 import { DetailsProvider, useConfirmedCount } from "./flow/details";
@@ -18,8 +21,9 @@ import { ThemeSwitch } from "./components/ThemeSwitch";
 // The task screen loads on demand, so the panel itself stays light.
 const TaskPanel = lazy(() => import("./task/TaskPanel"));
 
-type Screen = "flow" | "alerts";
-const screenOfHash = (): Screen => (window.location.hash === "#/alerts" ? "alerts" : "flow");
+type Screen = "flow" | "alerts" | "decisions";
+const HASH: Record<Screen, string> = { flow: "#/flow", alerts: "#/alerts", decisions: "#/decisions" };
+const screenOfHash = (): Screen => (window.location.hash === "#/alerts" ? "alerts" : window.location.hash === "#/decisions" ? "decisions" : "flow");
 
 export function App() {
   const { state, dispatch } = useFlow();
@@ -27,6 +31,7 @@ export function App() {
   const narrow = useNarrow();
   const reducedMotion = usePrefersReducedMotion();
   const confirmed = useConfirmedCount();
+  const seals = useSeals();
   const [screen, setScreen] = useState<Screen>(screenOfHash);
   const [selected, setSelected] = useState<FlowItem | null>(null);
   const onSelect = useCallback((item: FlowItem) => setSelected(item), []);
@@ -41,7 +46,7 @@ export function App() {
     return () => window.removeEventListener("hashchange", on);
   }, []);
   const go = (next: Screen) => {
-    window.location.hash = next === "alerts" ? "#/alerts" : "#/flow";
+    window.location.hash = HASH[next];
     setScreen(next);
   };
 
@@ -56,10 +61,14 @@ export function App() {
               <button type="button" className={screen === "alerts" ? "on" : ""} aria-current={screen === "alerts" ? "page" : undefined} onClick={() => go("alerts")}>
                 Critical alerts <span className="tab-count num">{total}</span>
               </button>
+              <button type="button" className={screen === "decisions" ? "on" : ""} aria-current={screen === "decisions" ? "page" : undefined} onClick={() => go("decisions")}>Decisions</button>
             </nav>
             <ThemeSwitch />
           </header>
-          <ModeBadge mode={state.mode} />
+          <div className="strip">
+            <ModeBadge mode={state.mode} />
+            <TopSeals seals={seals} />
+          </div>
           <StaleBanner stale={state.stale} />
           <Indicators waiting={waiting} total={total} confirmed={confirmed} now={now} />
           {screen === "flow" ? (
@@ -82,6 +91,14 @@ export function App() {
                   </section>
                 </div>
               </div>
+            </main>
+          ) : screen === "decisions" ? (
+            <main className="screen">
+              <div className="screen-head">
+                <h1>Decisions</h1>
+                <p className="lede">Every decision the product took, newest first: what the rules, the agent and the final answer said, what the agent read, and what it cost.</p>
+              </div>
+              <DecisionsScreen />
             </main>
           ) : (
             <main className="screen">

@@ -44,6 +44,13 @@
       "files": ["generated/RB42-00003H3.hl7", "generated/RB42-00003H2.hl7", "generated/RB42-00003H1.hl7", "generated/RB42-00003.hl7"]
     },
     {
+      "id": "potassium-agent-tries-to-lower",
+      "label": "Potassium 6.7 mmol/L, high for days: the agent tries to lower it and the floor holds",
+      "analyte": "Potassium",
+      "expected": "CRITICAL",
+      "files": ["demo/RB2026-00219H3.hl7", "demo/RB2026-00219H2.hl7", "demo/RB2026-00219H1.hl7", "demo/RB2026-00219.hl7"]
+    },
+    {
       "id": "potassium-borderline",
       "label": "Potassium near the limit with borderline hemolysis: a person decides",
       "analyte": "Potassium",

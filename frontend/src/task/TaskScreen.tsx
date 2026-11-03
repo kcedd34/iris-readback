@@ -115,8 +115,10 @@ export function TaskScreen({ decisionId, onDone }: { decisionId: number; onDone?
 
       <section aria-labelledby="why-rules">
         <h3 id="why-rules">Why this is critical (from the rules)</h3>
-        <p>{view.reason || "No reason recorded."}</p>
-        {view.floorNote && <p className="task-meta">{view.floorNote}</p>}
+        {view.ruleLines && view.ruleLines.length > 0
+          ? <ul className="task-rules">{view.ruleLines.map((line) => <li key={line}>{line}</li>)}</ul>
+          : <p>{view.reason || "No reason recorded."}</p>}
+        {view.floorNote && !(view.ruleLines && view.ruleLines.length > 0) && <p className="task-meta">{view.floorNote}</p>}
       </section>
 
       <section aria-labelledby="why-agent">
@@ -128,7 +130,11 @@ export function TaskScreen({ decisionId, onDone }: { decisionId: number; onDone?
             {view.agent.evidence.length > 0 && (
               <>
                 <p className="task-meta">Evidence the agent cited:</p>
-                <ul>{view.agent.evidence.map((e) => <li key={e}>{e}</li>)}</ul>
+                <ul className="task-evidence">
+                  {(view.agent.evidenceItems && view.agent.evidenceItems.length > 0 ? view.agent.evidenceItems : view.agent.evidence.map((id) => ({ id, text: "" }))).map((e) => (
+                    <li key={e.id}>{e.text ? <>{e.text} <code className="task-evidence-id">{e.id}</code></> : <code className="task-evidence-id">{e.id}</code>}</li>
+                  ))}
+                </ul>
               </>
             )}
           </>

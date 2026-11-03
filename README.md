@@ -112,7 +112,7 @@ Agent decision against the expected decision:
 
 ## Demo
 
-Open http://109.123.244.170/ and press **Run demo sequence**: a critical potassium stops at read-back and a borderline one goes to a person to review. Sign in to open a read-back task with one of the demonstration accounts, all with the same password:
+Open http://109.123.244.170/ and press **Run demo sequence**: a critical potassium stops at read-back, a borderline one goes to a person to review, and in the third the agent tries to lower a critical and the floor holds it. Sign in to open a read-back task with one of the demonstration accounts, all with the same password:
 
 | Account | Can confirm a read-back |
 |---|---|

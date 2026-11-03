@@ -51,6 +51,7 @@ ClassMethod Open() As %DynamicArray
 		Set tItem = {}
 		Set tItem.alertId = +tRS.%Get("ID")
 		Set tItem.controlId = ..ControlIdOf(tRS.%Get("SessionId"))
+		Set tItem.decisionId = ..DecisionOf(tRS.%Get("SessionId"))
 		Set tItem.level = tLevel
 		Set tItem.owner = tRS.%Get("CurrentOwner")
 		Set tItem.alerted = ##class(Readback.Notify.Escalation).RecipientFor(tLevel)
@@ -78,6 +79,14 @@ ClassMethod Counts() As %DynamicObject
 		}
 	}
 	Quit tRes
+}
+
+/// The id of the decision of a session, or "". The alert belongs to the decision, never to the case id: a case id can be decided
+/// more than once (the same sample sent twice), and each decision has its own alert, with its own level of escalation.
+ClassMethod DecisionOf(pSessionId As %Integer) As %Integer
+{
+	&sql(SELECT TOP 1 ID INTO :tId FROM Readback_Trace.Decision WHERE SessionId = :pSessionId ORDER BY ID DESC)
+	Quit $Select(SQLCODE=0:tId, 1:"")
 }
 
 /// The message id of the decision of a session, or "".

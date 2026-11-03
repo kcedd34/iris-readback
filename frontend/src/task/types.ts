@@ -5,6 +5,7 @@ export interface AgentView {
   confidence: string;
   rationale: string;
   evidence: string[];
+  evidenceItems?: { id: string; text: string }[];
 }
 
 export interface TaskView {
@@ -18,6 +19,7 @@ export interface TaskView {
   convertedValue: string;
   convertedUnit: string;
   reason: string;
+  ruleLines?: string[];
   floorNote: string;
   mode: "replay" | "live";
   taskId: string | number;

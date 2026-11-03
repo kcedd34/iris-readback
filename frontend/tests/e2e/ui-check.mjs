@@ -7,7 +7,7 @@ import { mkdirSync } from "node:fs";
 
 const BASE = process.env.BASE_URL || "http://127.0.0.1:8080";
 const RUNS = Number(process.env.RUNS || 5);
-const PARTS = (process.env.PARTS || "flow,task,public,a11y,demo,alerts,tools").split(",");
+const PARTS = (process.env.PARTS || "flow,task,public,a11y,demo,alerts,tools,decisions").split(",");
 const SHOTS = process.env.SHOT_DIR || ".local/ui";
 const PASSWORD = process.env.READBACK_DEMO_PASSWORD || "";
 const failures = [];
@@ -172,6 +172,7 @@ async function taskPart(browser) {
   check(text.includes("Critical"), "the task does not show the critical state as text");
   check(text.includes("What the agent said (not a rule)") && text.includes("Why this is critical (from the rules)"), "the task does not separate the agent's words from the rules'");
   check(/Synthetic patient\s+SYN\d+/.test(text), "the task does not show the synthetic patient identifier");
+  check(text.includes("6.9 mmol/L \u2265 6.5 mmol/L") && text.toLowerCase().includes("potassium critical high limit"), "the task does not state the rule with the value and the limit");
 
   // An empty entry is refused before anything is sent; a wrong value shows both values and leaves the task open.
   const sent = posts.length;
@@ -415,8 +416,8 @@ async function demoPart(browser) {
     return route.fulfill({ json: { ...body, decided: [], inFlight: [], waiting: [], waitingTotal: 0, confirmed: [] } });
   });
   await page.goto(BASE);
-  await waitFor(() => posts.length >= 2, 12000);
-  check(posts.length === 2 && posts[0].includes("potassium-critical-value") && posts[1].includes("potassium-borderline"), `the demo sequence sent ${JSON.stringify(posts)}`);
+  await waitFor(() => posts.length >= 3, 15000);
+  check(posts.length === 3 && posts[0].includes("potassium-critical-value") && posts[1].includes("potassium-borderline") && posts[2].includes("potassium-agent-tries-to-lower"), `the demo sequence sent ${JSON.stringify(posts)}`);
   check((await page.locator(".demo-sequence button").count()) === 1, "there is no Run demo sequence button");
   // While a case is at the agent station the hint reads "Deciding now"; wait for the node to be idle again.
   const hinted = await waitFor(async () => (await page.getByText("Rules check first, then the AI agent").count()) === 1, 10000);
@@ -496,11 +497,105 @@ async function alertsPart(browser) {
   await page.close();
 }
 
+// The third screen: the feed of every decision. Real rows first (the detail of one opens to what the agent read, the evidence check and
+// the Visual Trace session), then a made-up feed for what replay cannot provoke on demand: a held case, a conversion, a live cost, an
+// agent that gave no answer. The flow stays the screen the page opens on.
+async function decisionsPart(browser) {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await page.goto(BASE);
+  await page.waitForSelector(".canvas .react-flow__node");
+  check((await page.locator(".tabs button").count()) === 3, "the menu does not have three entries");
+  check((await page.locator(".tabs button[aria-current=page]").innerText()).includes("Agent flow"), "the page does not open on the flow");
+  check((await page.locator(".tabs button").nth(2).innerText()).includes("Decisions"), "the third menu entry is not Decisions");
+  // The seals at the top: the production state and the mode with the model.
+  const seals = await waitFor(async () => (await page.locator(".seals .seal").allInnerTexts()).some((t) => /Production running/.test(t)), 15000);
+  check(seals, "the production seal does not say it is running");
+  const sealText = (await page.locator(".seals").innerText()).replace(/\s+/g, " ");
+  check(/Replay · gpt-5\.4/.test(sealText), `the mode and model seal is not shown: ${sealText}`);
+  await page.click('.tabs button:has-text("Decisions")');
+  check(await waitFor(async () => (await page.evaluate(() => window.location.hash)) === "#/decisions", 3000), "the route is not #/decisions");
+  await page.waitForSelector(".dec-row", { timeout: 15000 });
+  const real = page.locator(".dec-row").first();
+  const text = await real.innerText();
+  check(/floor\s+\d/i.test(text) && /agent\s+(\d|none)/i.test(text) && /final\s+\d/i.test(text), `a row does not state floor, agent and final: ${text.slice(0, 160)}`);
+  check(/replay/.test(await real.locator(".dec-cost").innerText()), "a replayed decision does not show replay in place of a cost");
+  check(!/\$\d/.test(await real.locator(".dec-cost").innerText()), "a replayed decision shows a dollar cost");
+  await real.locator(".dec-main").click();
+  check(await waitFor(async () => (await page.locator(".dec-detail").count()) === 1, 10000), "a row does not open to its detail");
+  const detail = await page.locator(".dec-detail").innerText();
+  for (const word of ["Floor", "What the agent read", "Evidence check", "Visual Trace"]) check(detail.toLowerCase().includes(word.toLowerCase()), `the detail lacks ${word}`);
+  if (process.env.SHOT_DIR) {
+    for (const label of ["Light", "Dark"]) {
+      await page.click(`.theme button:has-text("${label}")`);
+      await sleep(300);
+      await page.screenshot({ path: `${process.env.SHOT_DIR}/decisions-real-detail-${label.toLowerCase()}.png`, fullPage: true });
+    }
+    await page.click(`.theme button:has-text("Light")`);
+  }
+  check((await page.locator(".dec-calls li").count()) >= 1, "the opened decision lists no tool call although the agent called tools");
+  check(/Session \d+/.test(detail), "the detail does not name the Visual Trace session");
+  if (process.env.SHOT_DIR) {
+    // The real feed, from the recordings in replay: the list, and the first row open, in both themes.
+    for (const label of ["Light", "Dark"]) {
+      await page.click(`.theme button:has-text("${label}")`);
+      await sleep(300);
+      await page.screenshot({ path: `${process.env.SHOT_DIR}/decisions-real-${label.toLowerCase()}.png`, fullPage: true });
+    }
+    await page.click(`.theme button:has-text("Light")`);
+  }
+  await real.locator(".dec-main").click();
+  check((await page.locator(".dec-detail").count()) === 0, "a row does not close");
+  await page.close();
+
+  const item = (id, extra) => ({ decisionId: id, controlId: `DEC-${id}`, analyte: "Potassium", value: { text: "6.9", unit: "mmol/L" }, decidedAt: "2026-11-02 10:00:00", mode: "live", route: "readback",
+    floor: { severity: 3, ruleId: "crit-potassium", note: "critical by rule" }, agent: { decision: "CRITICAL", severity: 3, confidence: "high", rationale: "read the history", evidence: ["current-result", "delta-assessment"] },
+    final: { severity: 3 }, held: false, cost: { tokens: 2800, latencyMs: 2400, model: "gpt-5.4-mini", usd: 0.0027 }, rounds: 2, toolCallCount: 4, toolFailureCount: 0, ...extra });
+  const feed = { more: false, items: [
+    item(5, { agent: { decision: "NON_CRITICAL", severity: 0, confidence: "high", rationale: "looks normal alone", evidence: ["current-result"] }, held: true }),
+    item(4, { analyte: "Glucose", route: "review", floor: { severity: 0, ruleId: "", note: "" }, agent: { failureKind: "timeout" }, final: { severity: 1 }, conversion: { original: "5.1 mmol/L", converted: "91.9", unit: "mg/dL", standard: "reference unit of the analyte" } }),
+    item(3, { mode: "replay", route: "release", floor: { severity: 0, ruleId: "", note: "" }, agent: { decision: "NON_CRITICAL", severity: 0, confidence: "medium", evidence: [] }, final: { severity: 0 }, cost: { tokens: 2800, latencyMs: 2400, model: "gpt-5.4", usd: null } }),
+    item(2, {}),
+  ] };
+  for (const [theme, name] of [["light", "light"], ["dark", "dark"]]) {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: theme });
+    const p = await ctx.newPage();
+    await p.route(/\/readback\/api\/decisions(\?.*)?$/, (route) => route.fulfill({ json: feed }));
+    await p.goto(`${BASE}/#/decisions`);
+    await p.waitForSelector(".dec-row", { timeout: 15000 });
+    check((await p.locator(".dec-row").count()) === 4, "the made-up feed does not show four rows");
+    const rows = await p.locator(".dec-row").allInnerTexts();
+    check(/floor\s+3[\s\S]*agent\s+0[\s\S]*final\s+3[\s\S]*held/i.test(rows[0]), `the held row does not show floor 3, agent 0, final 3 and the held seal: ${rows[0]}`);
+    check((await p.locator(".dec-row").first().locator(".held svg").count()) === 1, "the held seal has no icon");
+    check(/5\.1 mmol\/L → 91\.9 mg\/dL/.test(rows[1]) && /agent\s+none/i.test(rows[1]) && /no answer \(timeout\)/.test(rows[1]), `the conversion or the missing answer is not inline: ${rows[1]}`);
+    check(/replay/.test(rows[2]) && !/\$\d/.test(rows[2]), `the replayed row shows a cost: ${rows[2]}`);
+    check((await p.locator(".dec-row").first().locator(".dec-who .dec-value").innerText()).replace(/\s+/g, " ").trim() === "6.9 mmol/L", "the first column does not lead with the value of the result");
+    check(await p.locator(".dec-row").first().locator(".dec-value").evaluate((e) => /mono|Mono|Courier/.test(getComputedStyle(e).fontFamily)), "the value is not in the monospaced face");
+    check(await p.locator(".dec-row").first().locator(".comp-num").first().evaluate((e) => /mono|Mono|Courier/.test(getComputedStyle(e).fontFamily)), "the composition numbers are not in the monospaced face");
+    check((await p.locator(".dec-row").nth(2).locator(".dec-conv").innerText()).trim() === "" && !/not converted/i.test(rows[2]), "a row without conversion does not leave the cell empty");
+    check(/\$0\.0027/.test(rows[3]), `the live row shows no dollar cost: ${rows[3]}`);
+    check(/current-result/.test(rows[0]) && /delta-assessment/.test(rows[3]), "the evidence tags are not shown");
+    const bare = await p.evaluate(() => [...document.querySelectorAll(".dec-row .sev, .dec-row .held")].filter((e) => !e.querySelector("svg") || !e.textContent.trim()).length);
+    check(bare === 0, `${bare} severity or held element(s) of the feed lack an icon or a text`);
+    check((await p.locator("body").innerText()).indexOf("Authorization") === -1 && !/password/i.test(await p.locator("body").innerText()), "the Decisions screen shows a credential word");
+    if (process.env.SHOT_DIR) {
+      await p.screenshot({ path: `${process.env.SHOT_DIR}/decisions-${name}.png`, fullPage: true });
+      await p.route(/\/readback\/api\/decisions\/DEC-\d+$/, (route) => route.fulfill({ json: { sessionId: 4242, rounds: 2, evidenceCheck: "ok", policyRefusal: "refused: an answer below the floor severity 3 is not accepted",
+        toolCalls: [{ seq: 1, tool: "get_patient_history", status: "ok", arguments: "{}", result: "{}", reason: "", durationMs: 12 }, { seq: 2, tool: "get_delta_assessment", status: "ok", arguments: "{}", result: "{}", reason: "", durationMs: 9 },
+          { seq: 3, tool: "search_policy", status: "refused", arguments: "{}", result: "", reason: "identifier-looking argument", durationMs: 1 }] } }));
+      await p.locator(".dec-row").first().locator(".dec-main").click();
+      await p.waitForSelector(".dec-detail");
+      await p.screenshot({ path: `${process.env.SHOT_DIR}/decisions-detail-${name}.png`, fullPage: true });
+    }
+    await ctx.close();
+  }
+}
+
 const browser = await chromium.launch();
 try {
   if (PARTS.includes("demo")) await demoPart(browser);
   if (PARTS.includes("alerts")) await alertsPart(browser);
   if (PARTS.includes("tools")) await toolsPart(browser);
+  if (PARTS.includes("decisions")) await decisionsPart(browser);
   if (PARTS.includes("flow")) await flowPart(browser);
   if (PARTS.includes("task")) await taskPart(browser);
   if (PARTS.includes("public")) await publicPart(browser);

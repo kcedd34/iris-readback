@@ -11,7 +11,7 @@ import time
 import urllib.error
 import urllib.request
 
-from common import oru, query, scalar, wait_for
+from common import iris, oru, query, scalar, wait_for
 import send_tcp
 import tempfile
 
@@ -67,6 +67,35 @@ def flow_part():
         check(isinstance(entry.get("toolCalls"), list), "toolCalls of a decided entry is not a list")
         for call_entry in entry.get("toolCalls", []):
             check(set(call_entry) == {"seq", "tool", "status", "summary"}, "a tool call entry of the flow carries more than seq, tool, status and summary: %s" % sorted(call_entry))
+    # The feed of decisions: closed field list, newest first, paged, bounded, and no patient identifier.
+    status, text, took = call(API, "observer", "GET", "/decisions?limit=5")
+    feed = js(text) or {}
+    check(status == 200 and set(feed) == {"items", "more"}, "/decisions did not answer {items, more}: %s %s" % (status, text[:120]))
+    items = feed.get("items", [])
+    stored = scalar("SELECT COUNT(*) FROM Readback_Trace.Decision")
+    check(len(items) <= 5 and (len(items) > 0 or int(stored or 0) == 0), "/decisions?limit=5 returned %d items with %s decisions stored" % (len(items), stored))
+    check([i["decisionId"] for i in items] == sorted((i["decisionId"] for i in items), reverse=True), "the feed is not newest first")
+    for item in items:
+        check(set(item) <= {"decisionId", "controlId", "analyte", "value", "decidedAt", "mode", "route", "floor", "agent", "final", "held", "conversion", "cost", "rounds", "toolCallCount", "toolFailureCount"},
+              "a feed item carries a field outside the contract: %s" % sorted(item))
+        check(isinstance(item["held"], bool) and set(item["floor"]) == {"severity", "ruleId", "note"}, "a feed item has a malformed held or floor part")
+    if feed.get("more") and items:
+        older = (js(call(API, "observer", "GET", "/decisions?limit=5&before=%s" % items[-1]["decisionId"])[1]) or {}).get("items", [])
+        check(all(i["decisionId"] < items[-1]["decisionId"] for i in older), "the next page of the feed is not older")
+    check(len((js(call(API, "observer", "GET", "/decisions?limit=100000")[1]) or {}).get("items", [])) <= 200, "the feed is not capped at 200")
+    blob_feed = call(API, "observer", "GET", "/decisions?limit=200")[1]
+    ids_feed = [r["PatientId"] for r in query("SELECT DISTINCT TOP 50 PatientId FROM Readback_Msg.LabResult", ["PatientId"])]
+    check(not any(i and i in blob_feed for i in ids_feed), "the feed carries a patient identifier")
+    check(not any(k in blob_feed for k in ("InputText", "RawOutput", "rawOutput")), "the feed carries a prompt or a raw output")
+    check(call(API, None, "GET", "/decisions")[0] == 401, "/decisions without credentials is not refused")
+    check(call(API, "observer", "POST", "/decisions", {})[0] in (404, 405), "a POST to /decisions is not refused")
+    # What the agent read must reach the public observer: the read-only role needs SELECT on the tool call rows, or both lists come back empty.
+    with_calls = [i for i in items if i.get("toolCallCount", 0) > 0]
+    if with_calls:
+        view = js(call(API, "observer", "GET", "/decisions/" + with_calls[0]["controlId"])[1]) or {}
+        check(len(view.get("toolCalls", [])) == with_calls[0]["toolCallCount"], "the decision view shows %d tool calls, the feed says %s: the observer cannot read them" % (len(view.get("toolCalls", [])), with_calls[0]["toolCallCount"]))
+        flow_entries = [d for d in full.get("decided", []) if d["controlId"] == with_calls[0]["controlId"]]
+        check(not flow_entries or len(flow_entries[0]["toolCalls"]) > 0, "the flow entry of a case with tool calls lists none")
     check(call(API, "observer", "GET", "/flow?after=abc")[0] == 400, "after=abc is not refused with 400")
     check(call(API, "observer", "GET", "/flow?after=-1")[0] == 400, "after=-1 is not refused with 400")
     blob = call(API, "observer", "GET", "/flow?after=0")[1]
@@ -100,6 +129,89 @@ def flow_part():
     check("error" in (js(second[1]) or {}), "the 429 body is not the product's error body")
     # Without credentials the platform refuses, whatever the path.
     check(call(API, None, "GET", "/flow")[0] == 401, "/flow without credentials is not refused")
+
+
+def alerts_part():
+    """The same sample submitted twice is two cases with two decisions and two alerts, each with its own level of escalation."""
+    ids = []
+    for _ in range(2):
+        status, text, _ = call(API, "observer", "POST", "/flow/submit", {"scenarioId": "potassium-critical-value"})
+        check(status == 200, "submit did not answer 200: %s %s" % (status, text[:100]))
+        ids += (js(text) or {}).get("controlIds", [])
+        time.sleep(1.3)
+    check(len(ids) == 2 and ids[0] != ids[1], "two submissions of the same sample must give two case ids: %s" % ids)
+    check(all(i.startswith("RBSAMPLE0001-S") for i in ids), "the case id must carry the sample's id and a suffix of its own: %s" % ids)
+
+    def both_waiting():
+        snap = js(call(API, "observer", "GET", "/flow")[1]) or {}
+        found = {w["controlId"]: w for w in snap.get("waiting", []) if w.get("controlId") in ids}
+        return found if len(found) == 2 else None
+
+    found = wait_for(both_waiting, 60)
+    check(found is not None, "both submissions did not reach the waiting list")
+    if not found:
+        return
+    check(found[ids[0]]["decisionId"] != found[ids[1]]["decisionId"], "the two cases share one decision")
+
+    def alert_of(case):
+        return scalar("SELECT ID FROM Ens_Alerting.ManagedAlert WHERE SessionId = (SELECT SessionId FROM Readback_Trace.Decision WHERE MessageControlId = '%s')" % case)
+
+    # The read-back task says the concrete rule, with the value and the limit, and resolves the evidence it cites.
+    view = js(call(API, "communicator1", "GET", "/taskview/%s" % found[ids[0]]["decisionId"])[1]) or {}
+    lines = view.get("ruleLines") or []
+    check(any("6.9 mmol/L \u2265 6.5 mmol/L" in l and "potassium" in l for l in lines), "the task does not state the rule with value and limit: %s" % lines)
+    items = ((view.get("agent") or {}).get("evidenceItems")) or []
+    check(all(set(i) == {"id", "text"} for i in items), "the evidence items do not carry an id and a text: %s" % items)
+    check(all(i["text"] for i in items if i["id"] == "current-result"), "the current result is not resolved to its value")
+
+    first, second = alert_of(ids[0]), alert_of(ids[1])
+    check(first and second and first != second, "the two cases must have two alerts: %s %s" % (first, second))
+    iris('set a=##class(Ens.Alerting.ManagedAlert).%%OpenId(%s) set a.EscalationLevel=1 write a.%%Save(),!' % first)
+
+    def levels():
+        snap = js(call(API, "observer", "GET", "/flow")[1]) or {}
+        now = {w["controlId"]: w for w in snap.get("waiting", []) if w.get("controlId") in ids}
+        return now if len(now) == 2 and now[ids[0]].get("alertLevel") == 1 else None
+
+    now = wait_for(levels, 20)
+    check(now is not None, "the escalated alert did not show on its own case")
+    if now:
+        check(not now[ids[1]].get("alertLevel"), "the second case took the first one's level of escalation: %s" % now[ids[1]].get("alertLevel"))
+    alerts = js(call(API, "observer", "GET", "/alerts")[1]) or []
+    mine = {a["controlId"]: a for a in alerts if a.get("controlId") in ids}
+    check(len(mine) == 2 and mine[ids[0]]["decisionId"] != mine[ids[1]]["decisionId"], "the open alerts do not show two decisions: %s" % list(mine))
+
+
+def decisions_part():
+    """What the Decisions screen is fed: the held seal, the rounded conversion and the concrete rule in the detail of the floor."""
+    def feed_item(case):
+        feed = js(call(API, "observer", "GET", "/decisions?limit=50")[1]) or {}
+        return next((i for i in feed.get("items", []) if i["controlId"] == case), None)
+
+    cases = {}
+    for scenario in ("potassium-agent-tries-to-lower", "glucose-sharp-rise"):
+        status, text, _ = call(API, "observer", "POST", "/flow/submit", {"scenarioId": scenario})
+        check(status == 200, "submit of %s did not answer 200: %s" % (scenario, text[:100]))
+        cases[scenario] = (js(text) or {}).get("controlIds", ["?"])[-1]
+        time.sleep(1.3)
+    held = wait_for(lambda: feed_item(cases["potassium-agent-tries-to-lower"]), 60)
+    check(held is not None, "the held case did not reach the feed")
+    if held:
+        check(held["held"] is True and held["floor"]["severity"] == 3 and held["final"]["severity"] == 3, "the floor did not hold: %s" % held)
+        check(held["agent"].get("severity", 3) < 3, "the agent was meant to answer below critical: %s" % held["agent"])
+        check(held["route"] == "readback", "the held case must stay at read-back: %s" % held["route"])
+        check(held["value"] == {"text": "6.7", "unit": "mmol/L"}, "the feed does not carry the value of the result: %s" % held.get("value"))
+        detail = js(call(API, "observer", "GET", "/decisions/%s" % held["controlId"])[1]) or {}
+        lines = detail.get("ruleLines") or []
+        check(any("6.7 mmol/L \u2265 6.5 mmol/L" in l for l in lines), "the detail of the floor does not state the rule with value and limit: %s" % lines)
+    glucose = wait_for(lambda: feed_item(cases["glucose-sharp-rise"]), 60)
+    check(glucose is not None, "the glucose case did not reach the feed")
+    if glucose:
+        conv = glucose.get("conversion") or {}
+        check(conv.get("unit") == "mmol/L" and len(str(conv.get("converted", "")).split(".")[-1]) == 1 and "." in str(conv.get("converted", "")), "the conversion is not rounded to one decimal: %s" % conv)
+        check(held is None or "conversion" not in held, "a case with no conversion carries a conversion")
+        detail = js(call(API, "observer", "GET", "/decisions/%s" % glucose["controlId"])[1]) or {}
+        check(len(detail.get("ruleLines") or []) >= 1, "the floor of the glucose case has no rule sentence although its floor is above zero: %s" % detail.get("floorNote"))
 
 
 def send(texts):
@@ -172,11 +284,15 @@ def main():
     if not PASSWORD:
         print("FAIL: READBACK_DEMO_PASSWORD is not set")
         return 1
-    parts = os.environ.get("PARTS", "flow,task").split(",")
+    parts = os.environ.get("PARTS", "flow,task,alerts,decisions").split(",")
     if "flow" in parts:
         flow_part()
     if "task" in parts:
         task_part()
+    if "alerts" in parts:
+        alerts_part()
+    if "decisions" in parts:
+        decisions_part()
     if failures:
         print("FAILED (%d)" % len(failures))
         return 1

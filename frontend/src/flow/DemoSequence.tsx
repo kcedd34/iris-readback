@@ -3,10 +3,11 @@ import { ApiError } from "../api/client";
 import type { FlowState } from "./types";
 import { submitScenario } from "./useFlow";
 
-/** Two shipped scenarios, in order: a critical that stops at read-back, then one a person reviews. */
+/** Three shipped scenarios, in order: a critical that stops at read-back, one a person reviews, and one in which the agent tries to lower a critical and the floor holds. */
 const SEQUENCE = [
   { id: "potassium-critical-value", analyte: "Potassium" },
   { id: "potassium-borderline", analyte: "Potassium" },
+  { id: "potassium-agent-tries-to-lower", analyte: "Potassium" },
 ];
 const GAP_MS = 2600;
 
@@ -58,7 +59,7 @@ export function DemoSequence({ run, running, message, live }: ReturnType<typeof 
   return (
     <div className="demo-sequence">
       <button type="button" onClick={() => void run()} disabled={running}>{running ? "Running the demo sequence" : "Run demo sequence"}</button>
-      <p className="picker-note">A critical potassium stops at read-back; a borderline one goes to a person to review. Recorded decisions, synthetic data.</p>
+      <p className="picker-note">A critical potassium stops at read-back; a borderline one goes to a person to review; in the third the agent tries to lower a critical and the floor holds it. Recorded decisions, synthetic data.</p>
       {message && <p className="error" role="alert">{message}</p>}
     </div>
   );

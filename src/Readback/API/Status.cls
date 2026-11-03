@@ -8,6 +8,7 @@ XData UrlMap
 {
 <Routes>
   <Route Url="/status" Method="GET" Call="GetStatus"/>
+  <Route Url="/decisions" Method="GET" Call="GetDecisions"/>
   <Route Url="/decisions/:controlId" Method="GET" Call="GetDecision"/>
   <Route Url="/indicators" Method="GET" Call="GetIndicators"/>
   <Route Url="/alerts" Method="GET" Call="GetAlerts"/>
@@ -86,8 +87,82 @@ ClassMethod GetDecision(pControlId As %String) As %Status
 	Set tRes.rounds = $Select(tTrace.Rounds'="":+tTrace.Rounds, 1:1), tRes.policyRefusal = tTrace.PolicyRefusal, tRes.evidenceCheck = tTrace.EvidenceCheck
 	Set tRes.toolCalls = ##class(Readback.Trace.Rebuild).CallsOf(tTrace)
 	Set tRes.notifications = ..Notifications(tTrace.SessionId)
+	Set tRes.ruleLines = ..RuleLinesOf(tTrace)
 	Write tRes.%ToJSON()
 	Quit $$$OK
+}
+
+/// The sentences of the rules that raised the floor of a decision (the value against its limit, the change over its window), or an
+/// empty list when the floor is zero or the lab result is no longer stored.
+ClassMethod RuleLinesOf(pTrace As Readback.Trace.Decision) As %DynamicArray
+{
+	Quit:+pTrace.FloorSeverity=0 []
+	Set tControlId = pTrace.MessageControlId
+	&sql(SELECT TOP 1 ID INTO :tLabId FROM Readback_Msg.LabResult WHERE MessageControlId = :tControlId ORDER BY ID DESC)
+	Quit:SQLCODE'=0 []
+	Set tLab = ##class(Readback.Msg.LabResult).%OpenId(tLabId)
+	Quit:'$IsObject(tLab) []
+	Quit ##class(Readback.Trace.TaskText).RuleLines(pTrace, tLab, ##class(Readback.API.Flow).AnalyteName(tControlId))
+}
+
+/// The feed of every decision, newest first, for the Decisions screen. A closed field list: the case id and what the product
+/// decided, never the patient, the prompt text or the raw output of the model. limit: 50 by default, 200 at most; before: a
+/// decision id, for the next page.
+ClassMethod GetDecisions() As %Status
+{
+	Set tLimit = +$Get(%request.Data("limit", 1))
+	Set:(tLimit<1) tLimit = 50
+	Set:(tLimit>200) tLimit = 200
+	Set tBefore = +$Get(%request.Data("before", 1))
+	Set tStmt = ##class(%SQL.Statement).%New()
+	Set tSC = tStmt.%Prepare("SELECT TOP "_(tLimit + 1)_" ID FROM Readback_Trace.Decision WHERE (? = 0 OR ID < ?) ORDER BY ID DESC")
+	If $System.Status.IsError(tSC) { Quit ..Fail(..#HTTP500INTERNALSERVERERROR, "the decisions could not be read") }
+	Set tRS = tStmt.%Execute(tBefore, tBefore)
+	Set tItems = [], tN = 0, tMore = 0
+	While tRS.%Next() {
+		Set tN = tN + 1
+		If tN > tLimit { Set tMore = 1  Quit }
+		Set tTrace = ##class(Readback.Trace.Decision).%OpenId(tRS.%Get("ID"))
+		Do tItems.%Push(..FeedItem(tTrace))
+	}
+	Set tRes = {"items":(tItems)}
+	Do tRes.%Set("more", tMore, "boolean")
+	Write tRes.%ToJSON()
+	Quit $$$OK
+}
+
+/// One decision of the feed. Only the fields of the contract; every free text goes through the same redaction as the other views.
+ClassMethod FeedItem(pTrace As Readback.Trace.Decision) As %DynamicObject
+{
+	Set tItem = {}
+	Set tItem.decisionId = +pTrace.%Id()
+	Set tItem.controlId = pTrace.MessageControlId
+	Set tItem.analyte = ##class(Readback.API.Flow).AnalyteName(pTrace.MessageControlId)
+	Set tItem.value = {"text":(pTrace.OriginalValue),"unit":(pTrace.OriginalUnit)}
+	Set tItem.decidedAt = pTrace.CreatedAt
+	Set tItem.mode = pTrace.Mode
+	Set tItem.route = pTrace.Route
+	Set tItem.floor = {"severity":(+pTrace.FloorSeverity),"ruleId":(pTrace.FloorRuleId),"note":(##class(Readback.Config.Mode).Redact(pTrace.FloorNote))}
+	If pTrace.AgentCalled && (pTrace.AgentDecision '= "") {
+		Set tAgent = {"decision":(pTrace.AgentDecision),"severity":(+pTrace.AgentSeverity),"confidence":(pTrace.AgentConfidence)}
+		Set tAgent.rationale = ##class(Readback.Config.Mode).Redact($Extract(pTrace.Rationale, 1, 300))
+		Set tAgent.evidence = ##class(Readback.API.Flow).EvidenceList(pTrace.Evidence)
+	} Else {
+		Set tAgent = {"failureKind":($Select(pTrace.AgentCalled:pTrace.FailureKind, 1:"not-called"))}
+	}
+	Set tItem.agent = tAgent
+	Set tItem.final = {"severity":(+pTrace.FinalSeverity)}
+	Do tItem.%Set("held", $Select(pTrace.PolicyRefusal'="":1, 1:0), "boolean")
+	If pTrace.ConversionOutcome = "converted" {
+		Set tItem.conversion = {"original":(pTrace.OriginalValue_" "_pTrace.OriginalUnit),"converted":(##class(Readback.Config.Analyte).Round(##class(Readback.API.Flow).AnalyteCodeOf(pTrace.MessageControlId), pTrace.ConvertedValue)),"unit":(pTrace.ConvertedUnit),"standard":"reference unit of the analyte"}
+	}
+	Set tCost = {"tokens":(+pTrace.InputTokens + pTrace.OutputTokens),"latencyMs":($Select(pTrace.RecordedLatencyMs'="":+pTrace.RecordedLatencyMs, 1:+pTrace.LatencyMs)),"model":(pTrace.Model)}
+	If (pTrace.Mode '= "replay") && pTrace.CostKnown { Set tCost.usd = pTrace.CostUsd } Else { Do tCost.%Set("usd", "", "null") }
+	Set tItem.cost = tCost
+	Set tItem.rounds = $Select(pTrace.Rounds'="":+pTrace.Rounds, 1:1)
+	Set tItem.toolCallCount = +pTrace.ToolCallCount
+	Set tItem.toolFailureCount = +pTrace.ToolFailureCount
+	Quit tItem
 }
 
 /// The notification events of a session, in time order.

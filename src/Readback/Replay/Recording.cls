@@ -65,8 +65,20 @@ ClassMethod ActiveModel() As %String
 ClassMethod Lookup(pControlId As %String, pPromptVersion As %String) As Readback.Replay.Recording
 {
 	Set tId = ..KeyIdxExists(..ActiveSet(), pControlId, pPromptVersion, .tFound)
+	If 'tId {
+		// A demo submission carries a suffix that makes its case id unique; the recording is the one of the sample.
+		Set tBase = ..BaseId(pControlId)
+		Quit:tBase=pControlId ""
+		Set tId = ..KeyIdxExists(..ActiveSet(), tBase, pPromptVersion, .tFound)
+	}
 	Quit:'tId ""
 	Quit ..%OpenId(tFound)
+}
+
+/// The case id of the shipped sample behind a case id of a demo submission: the suffix "-S" and digits taken off.
+ClassMethod BaseId(pControlId As %String) As %String
+{
+	Quit $Select($Match(pControlId, ".+-S\d+"):$Piece(pControlId, "-S", 1, $Length(pControlId, "-S") - 1), 1:pControlId)
 }
 
 /// Replaces every recording of the sets present in a JSON Lines file with the file's rows.

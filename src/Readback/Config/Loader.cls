@@ -167,6 +167,9 @@ ClassMethod LoadAnalytes(pFile As %String, Output pCount As %Integer) As %Status
 		If tRow.%IsDefined("molarMass") {
 			If (tRow.%GetTypeOf("molarMass") '= "number") || (tRow.molarMass '> 0) { Set tSC = $$$ERROR($$$GeneralError, "Analyte row "_tNo_" has a molarMass that is not a number greater than 0")  Quit }
 		}
+		If tRow.%IsDefined("decimals") {
+			If (tRow.%GetTypeOf("decimals") '= "number") || (tRow.decimals '? 1N) || (tRow.decimals > 4) { Set tSC = $$$ERROR($$$GeneralError, "Analyte row "_tNo_" has a decimals value that is not a whole number from 0 to 4")  Quit }
+		}
 	}
 	Quit:$$$ISERR(tSC) tSC
 	TStart
@@ -176,6 +179,7 @@ ClassMethod LoadAnalytes(pFile As %String, Output pCount As %Integer) As %Status
 		Set tAnalyte = ##class(Readback.Config.Analyte).%New()
 		Set tAnalyte.AnalyteCode = tRow.analyteCode, tAnalyte.Name = tRow.name, tAnalyte.ReferenceUnit = tRow.referenceUnit
 		Set:tRow.%IsDefined("molarMass") tAnalyte.MolarMass = tRow.molarMass
+		Set:tRow.%IsDefined("decimals") tAnalyte.Decimals = tRow.decimals
 		Set tSC = tAnalyte.%Save()
 		If $$$ISERR(tSC) { TRollback  Quit }
 		Set pCount = pCount + 1

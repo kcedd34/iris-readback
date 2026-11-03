@@ -3,6 +3,7 @@
 # and the build (docs/probes.md Probe 13).
 
 limit_req_zone $binary_remote_addr zone=submit:1m rate=1r/s;
+limit_req_zone $binary_remote_addr zone=feed:1m rate=5r/s;
 
 server {
     listen 80;
@@ -56,6 +57,16 @@ server {
     # Read-only paths of the product: the proxy adds the read-only account on the server side.
     location ~ ^/readback/api/(status|flow|flow/samples|alerts|indicators)$ {
         if ($request_method !~ ^(GET|HEAD)$) { return 405; }
+        proxy_intercept_errors on;
+        proxy_set_header Authorization "Basic ${READONLY_AUTH}";
+        include /etc/nginx/readback-proxy.inc;
+        proxy_pass http://${IRIS_UPSTREAM};
+    }
+    # The feed of every decision: its own rate limit (the screen polls it), GET only.
+    location = /readback/api/decisions {
+        if ($request_method !~ ^(GET|HEAD)$) { return 405; }
+        limit_req zone=feed burst=10 nodelay;
+        limit_req_status 429;
         proxy_intercept_errors on;
         proxy_set_header Authorization "Basic ${READONLY_AUTH}";
         include /etc/nginx/readback-proxy.inc;

@@ -34,7 +34,7 @@ def main():
     if proc.returncode:
         print("FAIL: the test browser could not be installed:", proc.stderr[-400:])
         return 1
-    parts = os.environ.get("PARTS", "flow,task,public,a11y,demo,alerts,tools").split(",")
+    parts = os.environ.get("PARTS", "flow,task,public,a11y,demo,alerts,tools,decisions").split(",")
     env = dict(os.environ, SHOT_DIR=os.path.join(ROOT, ".local", "ui"), OPENAI_API_KEY="")
     code = 0
     plain = [p for p in parts if p != "public"]

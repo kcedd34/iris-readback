@@ -35,3 +35,9 @@ export const MoonIcon = (p: P) => (
 export const SimulationIcon = (p: P) => (
   <svg {...base} {...p}><path d="M5.5 1h5v1.4L9.3 3.6v3.2l3.9 6.1A1.5 1.5 0 0 1 11.9 15H4.1a1.5 1.5 0 0 1-1.3-2.1l3.9-6.1V3.6L5.5 2.4V1Zm.6 8.3-1.5 2.4h6.8L9.9 9.3H6.1Z" fillRule="evenodd" /></svg>
 );
+export const HeldIcon = (p: P) => (
+  <svg {...base} {...p}><path d="M8 1 2 3.4v4.2c0 3.4 2.4 6 6 7.4 3.6-1.4 6-4 6-7.4V3.4L8 1Zm-.9 4.3h1.8v3.6H7.1V5.3Zm0 4.7h1.8v1.8H7.1V10Z" fillRule="evenodd" /></svg>
+);
+export const ToolIcon = (p: P) => (
+  <svg {...base} {...p}><path d="M11.6 1.2a3.6 3.6 0 0 0-3.3 4.9L1.4 13a1.3 1.3 0 0 0 1.8 1.8l6.9-6.9a3.6 3.6 0 0 0 4.9-3.3c0-.4-.1-.8-.2-1.1L12.4 6.2 10 5.8l-.4-2.4L11.7 1.3c-.03 0-.07-.1-.1-.1Z" /></svg>
+);

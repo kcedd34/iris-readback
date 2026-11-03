@@ -174,6 +174,13 @@ ClassMethod DecidedEntry(pTrace As Readback.Trace.Decision) As %DynamicObject
 	Quit tEntry
 }
 
+/// The analyte code of the latest stored result of a case, or empty.
+ClassMethod AnalyteCodeOf(pControlId As %String) As %String
+{
+	&sql(SELECT TOP 1 AnalyteCode INTO :tCode FROM Readback_Msg.LabResult WHERE MessageControlId = :pControlId ORDER BY ID DESC)
+	Quit $Select(SQLCODE=0:tCode, 1:"")
+}
+
 /// The analyte name of the latest stored result of a case, or its code, or empty.
 ClassMethod AnalyteName(pControlId As %String) As %String
 {
@@ -232,7 +239,7 @@ ClassMethod Waiting(Output pTotal As %Integer) As %DynamicArray
 	If SQLCODE < 0 { Throw ##class(%Exception.General).%New("waiting count failed", SQLCODE) }
 	Set tAlerts = ##class(Readback.Notify.Alerts).Open()
 	Set tIter = tAlerts.%GetIterator()
-	While tIter.%GetNext(.tKey, .tAlert) { Set tByCase(tAlert.controlId) = tAlert }
+	While tIter.%GetNext(.tKey, .tAlert) { Set:tAlert.decisionId'="" tByDecision(tAlert.decisionId) = tAlert }
 	Set tStmt = ##class(%SQL.Statement).%New()
 	Set tSC = tStmt.%Prepare("SELECT TOP "_..#MaxWaiting_" ID FROM Readback_Trace.Decision WHERE Route = 'readback' AND ConfirmedAt IS NULL ORDER BY ID DESC")
 	If $System.Status.IsError(tSC) { Throw ##class(%Exception.General).%New("waiting list failed", 5001) }
@@ -249,9 +256,9 @@ ClassMethod Waiting(Output pTotal As %Integer) As %DynamicArray
 		Set tEntry.taskId = tTrace.TaskId
 		Set tEntry.assignedTo = ..AssignedTo(tTrace.TaskId)
 		Set tEntry.mode = tTrace.Mode
-		If $Data(tByCase(tTrace.MessageControlId)) {
-			Set tEntry.alertLevel = tByCase(tTrace.MessageControlId).level
-			Set tEntry.alertState = tByCase(tTrace.MessageControlId).state
+		If $Data(tByDecision(tTrace.%Id())) {
+			Set tEntry.alertLevel = tByDecision(tTrace.%Id()).level
+			Set tEntry.alertState = tByDecision(tTrace.%Id()).state
 		}
 		Do tList.%Push(tEntry)
 	}
@@ -332,14 +339,42 @@ ClassMethod Drop(pScenario As %DynamicObject, Output pControlIds As %DynamicArra
 		Set tTarget = "flow-"_$Translate($Justify(tSeq, 8), " ", "0")_"-"_$Translate($Justify(tN, 2), " ", "0")_"-"_$Piece(tName, "/", $Length(tName, "/"))
 		Set tStaging = ##class(%File).NormalizeFilename(tTarget, ..Staging())
 		Set tFinal = ##class(%File).NormalizeFilename(tTarget, ..Inbox())
-		If '##class(%File).CopyFile(tSource, tStaging) { Quit }
+		Set tId = ..WriteUnique(tSource, tStaging, tSeq)
+		If tId = "" { Quit }
 		If '##class(%File).Rename(tStaging, tFinal) { Quit }
-		Do pControlIds.%Push(..ControlIdOfFile(tFinal))
+		Do pControlIds.%Push(tId)
 		// Distinct modification times keep the file service's order the order written.
 		Hang 0.05
 	}
 	If tN '= pScenario.files.%Size() { Quit $System.Status.Error(5001, "the scenario files could not all be written") }
 	Quit $$$OK
+}
+
+/// Copies a shipped sample to the staging file with a case id of its own: MSH-10 gets the suffix "-S" and the number of the
+/// submission, so that every submission is a new case (the same sample sent twice must not share an id, the alert and the
+/// trace). Returns the new id, or "" when the file could not be read or written. The recording of the sample is found
+/// through Readback.Replay.Recording.BaseId.
+ClassMethod WriteUnique(pSource As %String, pTarget As %String, pSeq As %Integer) As %String
+{
+	Set tIn = ##class(%Stream.FileBinary).%New()
+	Quit:$System.Status.IsError(tIn.LinkToFile(pSource)) ""
+	Set tText = tIn.Read(tIn.Size)
+	Set tEnd = $Length(tText)
+	For tMark = $Char(13), $Char(10) {
+		Set tAt = $Find(tText, tMark)
+		If tAt, (tAt - 1) < tEnd { Set tEnd = tAt - 1 }
+	}
+	Set tMsh = $Extract(tText, 1, tEnd)
+	Quit:$Extract(tMsh, 1, 3)'="MSH" ""
+	Set tOld = $Piece(tMsh, "|", 10)
+	Quit:tOld="" ""
+	Set tNew = tOld_"-S"_pSeq
+	Set $Piece(tMsh, "|", 10) = tNew
+	Set tOut = ##class(%Stream.FileBinary).%New()
+	Quit:$System.Status.IsError(tOut.LinkToFile(pTarget)) ""
+	Do tOut.Write(tMsh_$Extract(tText, tEnd + 1, *))
+	Quit:$System.Status.IsError(tOut.%Save()) ""
+	Quit tNew
 }
 
 /// MSH-10 of an HL7 file, or empty.
@@ -383,9 +418,10 @@ ClassMethod TaskView(pDecisionId As %String, pUser As %String) As %DynamicObject
 	Set tView.analyteName = ..AnalyteName(pControlId)
 	Set tView.valueText = tLab.ValueText
 	Set tView.unit = tLab.Unit
-	Set tView.convertedValue = tTrace.ConvertedValue
+	Set tView.convertedValue = ##class(Readback.Config.Analyte).Round(tLab.AnalyteCode, tTrace.ConvertedValue)
 	Set tView.convertedUnit = tTrace.ConvertedUnit
 	Set tView.reason = ##class(Readback.Config.Mode).Redact($Select(tWhy.ok:tWhy.reason, 1:""))
+	Set tView.ruleLines = ##class(Readback.Trace.TaskText).RuleLines(tTrace, tLab, tView.analyteName)
 	Set tView.floorNote = ##class(Readback.Config.Mode).Redact(tTrace.FloorNote)
 	Set tView.mode = tTrace.Mode
 	Set tView.taskId = tTrace.TaskId
@@ -393,6 +429,7 @@ ClassMethod TaskView(pDecisionId As %String, pUser As %String) As %DynamicObject
 	If tTrace.SchemaValid {
 		Set tAgent = {"decision":(tTrace.AgentDecision), "severity":(tTrace.AgentSeverity), "confidence":(tTrace.AgentConfidence), "rationale":(##class(Readback.Config.Mode).Redact(tTrace.Rationale))}
 		Set tAgent.evidence = ..EvidenceList(tTrace.Evidence)
+		Set tAgent.evidenceItems = ##class(Readback.Trace.TaskText).Resolve(tTrace, tLab, tAgent.evidence)
 		Set tView.agent = tAgent
 	} Else {
 		Set tView.agentAbsent = {"failureKind":(tTrace.FailureKind), "failureReason":(##class(Readback.Config.Mode).Redact(tTrace.FailureReason))}

@@ -5,9 +5,11 @@ for the paths that take the person's own credentials. At least 30 requests: the 
 with the proxy's own English JSON body and no platform content, headers or cookies.
 """
 import base64
+import concurrent.futures
 import http.client
 import json
 import os
+import re
 import sys
 import time
 import urllib.parse
@@ -56,7 +58,7 @@ def main():
         return 1
     # --- allowed, with no credentials from the visitor (the proxy supplies the read-only account)
     for path in ("/", "/ui-config.json", "/readback/api/status", "/readback/api/flow", "/readback/api/flow?after=0", "/readback/api/flow/samples",
-                 "/readback/api/alerts", "/readback/api/indicators?from=2020-01-01%2000:00:00&to=2030-01-01%2000:00:00"):
+                 "/readback/api/alerts", "/readback/api/decisions", "/readback/api/decisions?limit=5", "/readback/api/indicators?from=2020-01-01%2000:00:00&to=2030-01-01%2000:00:00"):
         status, h, data = request("GET", path)
         check(status == 200, "allowed path %s answered %s" % (path, status))
         check("content-security-policy" in h, "allowed path %s has no content security policy" % path)
@@ -105,7 +107,7 @@ def main():
     refused("GET", "/" + "a" * 6000, "a very long path")
     # --- a wrong method on an allowed path
     for method, path in (("POST", "/readback/api/status"), ("DELETE", "/readback/api/flow"), ("PUT", "/readback/api/flow/samples"), ("POST", "/readback/api/alerts"),
-                         ("GET", "/readback/api/flow/submit"), ("PATCH", "/readback/api/flow/submit"), ("POST", "/readback/api/decisions/1"),
+                         ("GET", "/readback/api/flow/submit"), ("PATCH", "/readback/api/flow/submit"), ("POST", "/readback/api/decisions/1"), ("POST", "/readback/api/decisions"), ("PUT", "/readback/api/decisions"), ("DELETE", "/readback/api/decisions?limit=1"),
                          ("POST", "/readback/api/taskview/1"), ("DELETE", "/workflow/rest/task/1%7C%7Ccommunicator1"), ("POST", "/workflow/rest/tasks"), ("POST", "/ui-config.json")):
         refused(method, path, "wrong method", {"Authorization": basic("communicator1")}, body=b"{}" if method in ("POST", "PUT", "PATCH") else None)
 
@@ -118,6 +120,33 @@ def main():
         seen.append(request("POST", "/readback/api/flow/submit", {"Content-Type": "application/json"}, json.dumps({"scenarioId": "no-such-scenario"}).encode())[0])
     check(429 in seen, "a burst of submissions was never rate limited: %s" % seen)
     check(all(s in (400, 429) for s in seen), "a burst of invalid submissions got an unexpected status: %s" % seen)
+
+    # --- the feed of decisions: the closed field list, no patient, no raw prompt or output, and a flood answers 429
+    ITEM_KEYS = {"decisionId", "controlId", "analyte", "decidedAt", "mode", "route", "floor", "agent", "final", "held", "conversion", "cost", "rounds", "toolCallCount", "toolFailureCount"}
+    time.sleep(1.5)
+    status, h, data = request("GET", "/readback/api/decisions?limit=200")
+    feed = json.loads(data) if status == 200 else {}
+    check(status == 200 and set(feed) == {"items", "more"}, "the feed answered %s with keys %s" % (status, sorted(feed)))
+    check(len(feed.get("items", [])) <= 200, "the feed is not bounded")
+    for item in feed.get("items", []):
+        check(set(item) <= ITEM_KEYS and {"decisionId", "controlId", "route", "floor", "agent", "final", "held", "cost"} <= set(item), "a feed item has keys outside the closed list: %s" % sorted(item))
+        check(set(item["agent"]) <= {"decision", "severity", "confidence", "rationale", "evidence", "failureKind"}, "the agent part of a feed item carries more than the contract: %s" % sorted(item["agent"]))
+        check(set(item["cost"]) == {"tokens", "latencyMs", "model", "usd"}, "the cost part of a feed item is not the contract: %s" % sorted(item["cost"]))
+        check(item["mode"] != "replay" or item["cost"]["usd"] is None, "a replayed decision shows a cost")
+    check(not any(k in data for k in ("InputText", "inputText", "rawOutput", "RawOutput", "patientId", "PatientId", "prompt")), "the feed carries a prompt, a raw output or a patient field")
+    check(PASSWORD not in data, "the feed carries the demo password")
+    check(not re.search(r"SYN\d{6,}", data), "the feed carries a patient identifier")
+    page = json.loads(request("GET", "/readback/api/decisions?limit=2")[2])
+    check(len(page.get("items", [])) <= 2, "the feed ignores its limit")
+    if page.get("more") and page.get("items"):
+        nxt = json.loads(request("GET", "/readback/api/decisions?limit=2&before=%s" % page["items"][-1]["decisionId"])[2])
+        check(all(i["decisionId"] < page["items"][-1]["decisionId"] for i in nxt.get("items", [])), "the next page is not older than the first")
+    time.sleep(1.5)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=40) as pool:
+        flood = list(pool.map(lambda _: request("GET", "/readback/api/decisions?limit=1")[0], range(60)))
+    check(429 in flood and 200 in flood, "a flood of the feed was not rate limited as expected: %s" % sorted(set(flood)))
+    check(all(code in (200, 429) for code in flood), "a flood of the feed got an unexpected status: %s" % sorted(set(flood)))
+    time.sleep(1.5)
 
     check(count >= 30, "only %d requests were made" % count)
     if failures:
