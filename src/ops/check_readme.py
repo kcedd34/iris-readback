@@ -334,10 +334,12 @@ def check(text, report, before=None, delta=None, guard=None):
     if "Carlos Eduardo Dias Duarte" not in two.get("Author", ""):
         fail("author", "the author section must name Carlos Eduardo Dias Duarte")
 
-    # 5. Pending markers only in the Fast path and the closing list, and the closing list has exactly three items.
+    # 5. Pending markers only in the Fast path and the closing list, and the closing list has exactly two items.
     closing = two.get("Still to publish", "")
-    if len(list_items(closing)) != 3:
-        fail("pending", f"the closing list has {len(list_items(closing))} items, it must have exactly 3")
+    if len(list_items(closing)) != 2:
+        fail("pending", f"the closing list has {len(list_items(closing))} items, it must have exactly 2 (Open Exchange and the IPM package)")
+    if not re.search(r"(?m)^- Video[^\n]*https://youtu\.be/[\w-]+", two.get("Fast path", "")):
+        fail("pending", "the Fast path must link the video as https://youtu.be/...")
     allowed = two.get("Fast path", "") + closing
     if text.count(PENDING) != allowed.count(PENDING):
         fail("pending", f"'{PENDING}' appears outside the Fast path and the closing list")

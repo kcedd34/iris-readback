@@ -101,9 +101,19 @@ def test_the_dataset_numbers_may_be_stated_in_prose():
     assert not any("outside the figure blocks" in out for out in failing(README))
 
 
-def test_a_closing_list_with_four_items_fails():
+def test_a_closing_list_with_three_items_fails():
     out = failing(README + "- one more thing: [PENDING: publication]\n")
     assert any("pending" in line for line in out)
+
+
+def test_the_video_link_is_required_in_the_fast_path():
+    out = failing(README.replace("https://youtu.be/Kh7ZY3tUWs4", "[PENDING: publication]", 1))
+    assert any("youtu.be" in line for line in out)
+
+
+def test_a_video_link_in_another_format_fails():
+    out = failing(README.replace("https://youtu.be/Kh7ZY3tUWs4", "https://www.youtube.com/watch?v=Kh7ZY3tUWs4", 1))
+    assert any("youtu.be" in line for line in out)
 
 
 def test_a_pending_marker_outside_the_allowed_places_fails():

@@ -6,7 +6,7 @@ An InterSystems AI Hub agent triages laboratory results inside an IRIS Interoper
 
 ## Fast path
 
-- Video, the main demonstration: [PENDING: publication]
+- Video, the main demonstration: https://youtu.be/Kh7ZY3tUWs4
 - Live demo (replay mode, reset every hour): http://109.123.244.170/
 - Repository: https://github.com/kcedd34/iris-readback
 - IPM package: `zpm "install iris-readback"` [PENDING: publication]
@@ -245,7 +245,7 @@ This entry also answers the Community Opportunity idea [DPI-I-689](https://ideas
 
 ## How it works
 
-The video is the main demonstration: it shows a result arriving, the agent deciding, a critical stopping at the read-back, a person repeating the value and the alert escalating when nobody does. In short:
+The [video](https://youtu.be/Kh7ZY3tUWs4) is the main demonstration: it shows a result arriving, the agent deciding, a critical stopping at the read-back, a person repeating the value and the alert escalating when nobody does. In short:
 
 A lab result enters the production. The rules decide first and fix a floor: a value over the critical limit, or a sharp change against the patient's earlier results, is critical whatever the agent says. The agent then investigates the result through four read-only tools, the earlier results, the delta assessment, the laboratory policy and the sample quality, and answers in a strict format; it may raise the severity, and a result it cannot decide goes to a person. A release guard after the answer lets a result go automatically only when the floor is zero, the sample is good and the value is not near a limit.
 
@@ -276,4 +276,3 @@ Carlos Eduardo Dias Duarte. Released under the MIT licence, see `LICENSE`.
 
 - Open Exchange address of the application: [PENDING: publication]
 - Link of the published IPM package: [PENDING: publication]
-- Link of the video on YouTube: [PENDING: publication]
