@@ -65,12 +65,12 @@ KEY_LINES = gate.key_figures(REPORT, BEFORE, DELTA, GUARD)
 
 def test_the_key_figures_block_is_the_generated_one():
     assert KEY_LINES and all(line in README for line in KEY_LINES)
-    assert all(line.startswith("- ") for line in KEY_LINES)
+    assert all(line.startswith("|") for line in KEY_LINES) and len(KEY_LINES) > 10
 
 
-@pytest.mark.parametrize("line", KEY_LINES)
+@pytest.mark.parametrize("line", KEY_LINES[2:])
 def test_a_changed_key_figure_fails(line):
-    digit = next(i for i in range(len(line) - 1, -1, -1) if line[i].isdigit())
+    digit = next(i for i in range(len(line) - 1, -1, -1) if line[i].isdigit())  # the last digit of the row is in a model column
     changed = line[:digit] + str((int(line[digit]) + 1) % 10) + line[digit + 1:]
     assert any("figures" in out and "Key figures" in out for out in failing(README.replace(line, changed, 1)))
 
@@ -230,3 +230,48 @@ def test_the_package_manifest_ships_the_agent_and_governance_classes():
         assert os.path.exists(os.path.join(ROOT, "src", "Readback", cls + ".cls")), cls
     assert os.path.exists(os.path.join(ROOT, "data", "config", "release-guard.json"))
     assert os.path.exists(os.path.join(ROOT, "data", "config", "agent-tools.json"))
+
+
+def test_a_key_figures_row_for_one_model_is_a_column_not_a_line():
+    assert KEY_LINES[0].count("|") == 4 and all(line.count("|") == 4 for line in KEY_LINES)
+
+
+def test_the_bold_summary_is_required_and_has_no_number():
+    summary = next(l for l in README.splitlines() if l.startswith("**Neither model"))
+    assert any("summary" in out for out in failing(README.replace(summary + "\n", "", 1)))
+    assert any("summary" in out and "number" in out for out in failing(README.replace(summary, summary.replace("Neither model", "Neither of the 2 models"), 1)))
+
+
+def test_the_numbers_section_has_at_most_five_items():
+    text = README.replace("### What the numbers say, and what they do not say\n", "### What the numbers say, and what they do not say\n\n- one\n- two\n", 1)
+    assert any("summary" in out and "at most" in out for out in failing(text))
+
+
+@pytest.mark.parametrize("command", gate.RUN_IT_COMMANDS)
+def test_the_run_it_block_needs_its_five_commands(command):
+    run = README.split("## Run it", 1)[1].split("## For judges", 1)[0]
+    assert any("run-it" in out for out in failing(README.replace(run, run.replace(command, "xxxx"), 1)))
+
+
+def test_the_run_it_block_links_to_the_full_steps():
+    assert any("run-it" in out for out in failing(README.replace("(#required-by-the-organizers)", "(#nowhere)", 1)))
+
+
+@pytest.mark.parametrize("name", gate.BONUSES)
+def test_a_bonus_without_a_row_fails(name):
+    table = README.split("## Technology bonuses", 1)[1].split("## Feedback", 1)[0]
+    row = next(l for l in table.splitlines() if l.startswith("|") and name in l.split("|")[1])
+    assert any("bonus" in out and name in out for out in failing(README.replace(row + "\n", "", 1)))
+
+
+def test_a_bonus_that_names_a_missing_file_fails():
+    assert any("bonus" in out and "does not exist" in out for out in failing(README.replace("src/Readback/Notify/Pager.cls", "src/Readback/Notify/Nothing.cls", 1)))
+
+
+def test_embedded_python_must_say_where_it_is_used_or_that_it_is_not():
+    assert any("bonus" in out for out in failing(README.replace("Not used at run time", "Used everywhere", 1)))
+
+
+def test_the_feedback_links_the_four_reports():
+    assert any("feedback" in out for out in failing(README.replace("issues/41", "issues/40", 1)))
+    assert any("feedback" in out for out in failing(README.replace("reported from this project;", "reported from this project; no issue has been filed;", 1)))

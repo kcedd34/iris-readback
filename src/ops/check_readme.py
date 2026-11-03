@@ -21,8 +21,8 @@ MODELS = ["gpt-5.4-mini", "gpt-5.4"]
 
 # Level-2 headings in the order the README must have them, then the level-3 headings of the organizers' four items.
 SECTIONS = [
-    "Fast path", "For judges", "Demo", "Required by the organizers", "What the production contains",
-    "Feedback on AI Hub EAP", "Idea DPI-I-689", "How it works", "Built with", "Author", "Still to publish",
+    "Fast path", "Run it", "For judges", "Demo", "Required by the organizers", "What the production contains",
+    "Technology bonuses", "Feedback on AI Hub EAP", "Idea DPI-I-689", "How it works", "Built with", "Author", "Still to publish",
 ]
 REQUIRED_ITEMS = {
     "Early Access image and build": [IMAGE, "154"],
@@ -30,6 +30,10 @@ REQUIRED_ITEMS = {
     "LLM provider and key variable": ["OpenAI", "OPENAI_API_KEY"],
     "Start and verify": ["docker compose up", "verify.sh"],
 }
+RUN_IT_COMMANDS = ["docker load", "cp .env.example .env", "src/ops/preflight.sh", "docker compose up", "src/ops/verify.sh"]
+BONUSES = ["PEX", "Workflow Engine", "Custom outbound adapter", "Embedded Python", "Vector Search", "Docker", "IPM", "Online demo", "DPI-I-689"]
+MAX_NUMBERS_ITEMS = 5
+FEEDBACK_ISSUES = 4
 ACCOUNTS = ["communicator1", "communicator2", "observer"]
 DEMO_URL = "http://109.123.244.170/"
 IDEA_URL = "https://ideas.intersystems.com/ideas/DPI-I-689"
@@ -60,30 +64,35 @@ def load_companions(report_path=None):
 
 
 def key_figures(report, before, delta, guard):
-    """The figures the prose of the README is allowed to rely on, one line each, generated from the report and its companions."""
-    lines = []
+    """The figures the prose of the README is allowed to rely on, as a table with one row per metric and one column per model, generated from the report and its companions."""
+    rows = {}
+
+    def put(label, name, value):
+        rows.setdefault(label, {})[name] = value
+
     for name in MODELS:
         now, old = report["models"][name], before["models"][name]
         floor = delta["releasedCriticals"][name]
         effect = guard["models"][name]
-        clear = now["matrixFinal"]
-        released_now = clear["RECOLLECT"]["NON_CRITICAL"] + clear["NEEDS_REVIEW"]["NON_CRITICAL"]
         final = now["matrixFinal"]["CRITICAL"]
+        released_now = now["matrixFinal"]["RECOLLECT"]["NON_CRITICAL"] + now["matrixFinal"]["NEEDS_REVIEW"]["NON_CRITICAL"]
         contextual_now = now["agreementByCategory"]["contextual-critical"]
         contextual_old = old["agreementByCategory"]["contextual-critical"]
-        lines += [
-            f"- {name}: silenced criticals {now['silencedCriticals']}",
-            f"- {name}: criticals released as non-critical, without the delta floor {floor['withoutDeltaFloor']}, with it {floor['withDeltaFloor']} (first round, recorded answers replayed)",
-            f"- {name}: criticals released as non-critical in the current round {final['NON_CRITICAL']}; residual contextual criticals not detected {len(now['missedCriticals'])}, sent to a person {final['NEEDS_REVIEW']}",
-            f"- {name}: contextual criticals raised by the agent alone, without tools {contextual_old['agentAgrees']} of {contextual_old['cases']}, with tools {contextual_now['agentAgrees']} of {contextual_now['cases']}",
-            f"- {name}: contextual criticals ending critical, without tools {contextual_old['finalAgrees']} of {contextual_old['cases']}, with tools {contextual_now['finalAgrees']} of {contextual_now['cases']}",
-            f"- {name}: downgrade attempts held by the floor {now['downgradeAttempts']} (without tools {old['downgradeAttempts']})",
-            f"- {name}: review rate {now['reviewRate'] * 100:.1f}% (without tools {old['reviewRate'] * 100:.1f}%)",
-            f"- {name}: releases held for a person by the release guard {now['releaseGuardHolds']}",
-            f"- {name}: results that were not clear-cut released as non-critical, without the release guard {effect['notClearCutReleasedWithoutGuard']}, with it {released_now} (recorded answers replayed); review rate without the guard {effect['reviewRateWithoutGuard'] * 100:.1f}%",
-            f"- {name}: tool calls per result {now['toolCallsPerResult']:.2f}",
-            f"- {name}: invalid answers {now['invalidRate'] * 100:.1f}%",
-        ]
+        put("Rule-critical results silenced", name, now["silencedCriticals"])
+        put("Criticals released as non-critical, delta floor off, then on (first round, recorded answers replayed)", name, f"{floor['withoutDeltaFloor']} to {floor['withDeltaFloor']}")
+        put("Criticals released as non-critical in the current round", name, final["NON_CRITICAL"])
+        put("Residual contextual criticals: not detected / sent to a person", name, f"{len(now['missedCriticals'])} / {final['NEEDS_REVIEW']}")
+        put(f"Contextual criticals raised by the agent alone, without tools, then with tools (of {contextual_now['cases']})", name, f"{contextual_old['agentAgrees']} to {contextual_now['agentAgrees']}")
+        put(f"Contextual criticals ending critical, without tools, then with tools (of {contextual_now['cases']})", name, f"{contextual_old['finalAgrees']} to {contextual_now['finalAgrees']}")
+        put("Downgrade attempts held by the floor, without tools, then with tools", name, f"{old['downgradeAttempts']} to {now['downgradeAttempts']}")
+        put("Review rate, without tools, then with tools", name, f"{old['reviewRate'] * 100:.1f}% to {now['reviewRate'] * 100:.1f}%")
+        put("Releases held for a person by the release guard", name, now["releaseGuardHolds"])
+        put("Results not clear-cut released as non-critical, guard off, then on (recorded answers replayed)", name, f"{effect['notClearCutReleasedWithoutGuard']} to {released_now}")
+        put("Review rate without the release guard", name, f"{effect['reviewRateWithoutGuard'] * 100:.1f}%")
+        put("Tool calls per result", name, f"{now['toolCallsPerResult']:.2f}")
+        put("Invalid answers", name, f"{now['invalidRate'] * 100:.1f}%")
+    lines = ["| Metric | " + " | ".join(MODELS) + " |", "|---|" + "---|" * len(MODELS)]
+    lines += [f"| {label} | " + " | ".join(str(values[name]) for name in MODELS) + " |" for label, values in rows.items()]
     return lines
 
 
@@ -266,6 +275,50 @@ def check(text, report, before=None, delta=None, guard=None):
         fail("claim", "the judges' section must say that no rule-critical result was silenced")
     if not re.search(r"(?i)generator", results) or not re.search(r"(?i)calibrat", results):
         fail("claim", "the judges' section must say the delta limits were calibrated knowing the generator")
+
+    # The summary sentence in bold before the key figures carries no number: the numbers are in the table, generated.
+    lead = results.split(f"### {KEY_FIGURES}", 1)[0]
+    bold = [l.strip() for l in lead.splitlines() if re.fullmatch(r"\*\*[^*]+\*\*", l.strip())]
+    if not bold:
+        fail("summary", f"the '{JUDGES}' section needs a one-sentence summary in bold before '{KEY_FIGURES}'")
+    elif any(re.search(r"\d", l) for l in bold):
+        fail("summary", "the bold summary must not state numbers; the numbers are in the generated table")
+    said = three.get("What the numbers say, and what they do not say", "")
+    if len(list_items(said)) > MAX_NUMBERS_ITEMS:
+        fail("summary", f"'What the numbers say' has {len(list_items(said))} items, at most {MAX_NUMBERS_ITEMS}")
+
+    # Run it: five commands right after the Fast path, linking to the full steps.
+    run = two.get("Run it", "")
+    for command in RUN_IT_COMMANDS:
+        if command not in run:
+            fail("run-it", f"the 'Run it' block does not contain '{command}'")
+    if "(#required-by-the-organizers)" not in run:
+        fail("run-it", "the 'Run it' block must link to the full steps in 'Required by the organizers'")
+    code = re.findall(r"```[^\n]*\n(.*?)```", run, re.S)
+    if len([l for l in "\n".join(code).splitlines() if l.strip() and not l.lstrip().startswith("#")]) != 5:
+        fail("run-it", "the 'Run it' code block must have exactly five command lines")
+
+    # Technology bonuses: each bonus named, with where it is used and a file that exists.
+    bonus = two.get("Technology bonuses", "")
+    for name in BONUSES:
+        row = next((l for l in bonus.splitlines() if l.startswith("|") and name in l.split("|")[1]), None)
+        if row is None:
+            fail("bonus", f"the 'Technology bonuses' table has no row for '{name}'")
+            continue
+        for path in re.findall(r"`([^`\s]+\.[A-Za-z]+|Dockerfile)`", row):
+            if "/" in path or path in ("Dockerfile",) or path.endswith((".xml", ".yml")):
+                if not os.path.exists(os.path.join(ROOT, path)):
+                    fail("bonus", f"the row '{name}' names {path}, which does not exist")
+    if "Embedded Python" in bonus and not re.search(r"(?i)embedded python[^\n]*\bnot used\b", bonus) and not re.search(r"(?i)embedded python[^\n]*(class|\.cls)", bonus):
+        fail("bonus", "the Embedded Python row must say where it is used, or that it is not used at run time")
+
+    # Feedback: the reports are linked, none is said to be pending.
+    feedback = two.get("Feedback on AI Hub EAP", "")
+    links = set(re.findall(r"intersystems-community/ai-hub-eap/issues/(\d+)", feedback)) - {"40"}
+    if len(links) < FEEDBACK_ISSUES:
+        fail("feedback", f"the feedback section links {len(links)} reported issues besides issue 40, it must link {FEEDBACK_ISSUES}")
+    if re.search(r"(?i)no issue has been filed|none has been (filed|reported)", feedback):
+        fail("feedback", "the feedback section still says that no issue has been filed")
 
     # Idea justification.
     idea = two.get("Idea DPI-I-689", "")

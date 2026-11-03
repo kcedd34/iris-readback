@@ -14,34 +14,41 @@ An InterSystems AI Hub agent triages laboratory results inside an IRIS Interoper
 - Community Opportunity idea: https://ideas.intersystems.com/ideas/DPI-I-689
 - Measured evaluation, full report: `data/eval/report.md`
 
+## Run it
+
+```
+docker load -i irishealth-community-2026.3.0AI.154.0-docker.tar.gz   # then docker tag, if the name differs
+cp .env.example .env   # set READBACK_DEMO_PASSWORD; leave OPENAI_API_KEY empty for replay
+src/ops/preflight.sh
+docker compose up -d --build
+src/ops/verify.sh
+```
+
+Full steps, with the image rename and the provider key: [Required by the organizers](#required-by-the-organizers).
+
 ## For judges
 
 The evaluation is the strongest evidence of this entry, so it comes first. It runs the whole product, rules, retrieval, the agent with its tools, composition, release guard and budget, over a synthetic dataset of 240 subject cases (30 in each of 8 categories, seed 2026) for two models, and compares the route the product chose with the expected one. The expected decision of every case comes from construction rules written by one author; there was no second annotator. Full detail, with the cases listed, is in `data/eval/report.md`; the round before the agent had tools is kept in `data/eval/report-before-tools.md` for comparison. Every evaluation number in this README comes from the blocks below, which are generated from the report and checked against it by the gate.
 
+**Neither model silenced a critical result. The tools made the agent better informed and its decisions easier to audit, but they did not change the final outcome, and they made each decision slower and costlier.**
+
 ### Key figures
 
-- gpt-5.4-mini: silenced criticals 0
-- gpt-5.4-mini: criticals released as non-critical, without the delta floor 19, with it 2 (first round, recorded answers replayed)
-- gpt-5.4-mini: criticals released as non-critical in the current round 0; residual contextual criticals not detected 2, sent to a person 2
-- gpt-5.4-mini: contextual criticals raised by the agent alone, without tools 6 of 30, with tools 28 of 30
-- gpt-5.4-mini: contextual criticals ending critical, without tools 28 of 30, with tools 28 of 30
-- gpt-5.4-mini: downgrade attempts held by the floor 36 (without tools 24)
-- gpt-5.4-mini: review rate 27.6% (without tools 17.3%)
-- gpt-5.4-mini: releases held for a person by the release guard 22
-- gpt-5.4-mini: results that were not clear-cut released as non-critical, without the release guard 10, with it 0 (recorded answers replayed); review rate without the guard 22.6%
-- gpt-5.4-mini: tool calls per result 4.00
-- gpt-5.4-mini: invalid answers 0.0%
-- gpt-5.4: silenced criticals 0
-- gpt-5.4: criticals released as non-critical, without the delta floor 7, with it 2 (first round, recorded answers replayed)
-- gpt-5.4: criticals released as non-critical in the current round 0; residual contextual criticals not detected 2, sent to a person 2
-- gpt-5.4: contextual criticals raised by the agent alone, without tools 12 of 30, with tools 28 of 30
-- gpt-5.4: contextual criticals ending critical, without tools 28 of 30, with tools 28 of 30
-- gpt-5.4: downgrade attempts held by the floor 2 (without tools 18)
-- gpt-5.4: review rate 28.5% (without tools 15.7%)
-- gpt-5.4: releases held for a person by the release guard 1
-- gpt-5.4: results that were not clear-cut released as non-critical, without the release guard 0, with it 0 (recorded answers replayed); review rate without the guard 28.3%
-- gpt-5.4: tool calls per result 3.97
-- gpt-5.4: invalid answers 0.0%
+| Metric | gpt-5.4-mini | gpt-5.4 |
+|---|---|---|
+| Rule-critical results silenced | 0 | 0 |
+| Criticals released as non-critical, delta floor off, then on (first round, recorded answers replayed) | 19 to 2 | 7 to 2 |
+| Criticals released as non-critical in the current round | 0 | 0 |
+| Residual contextual criticals: not detected / sent to a person | 2 / 2 | 2 / 2 |
+| Contextual criticals raised by the agent alone, without tools, then with tools (of 30) | 6 to 28 | 12 to 28 |
+| Contextual criticals ending critical, without tools, then with tools (of 30) | 28 to 28 | 28 to 28 |
+| Downgrade attempts held by the floor, without tools, then with tools | 24 to 36 | 18 to 2 |
+| Review rate, without tools, then with tools | 17.3% to 27.6% | 15.7% to 28.5% |
+| Releases held for a person by the release guard | 22 | 1 |
+| Results not clear-cut released as non-critical, guard off, then on (recorded answers replayed) | 10 to 0 | 0 to 0 |
+| Review rate without the release guard | 22.6% | 28.3% |
+| Tool calls per result | 4.00 | 3.97 |
+| Invalid answers | 0.0% | 0.0% |
 
 ### Confusion matrices, cost and latency
 
@@ -100,15 +107,10 @@ Agent decision against the expected decision:
 ### What the numbers say, and what they do not say
 
 - **No result critical by rule was silenced, for either model.** A result the rule table calls critical was never released, never sent to review and never lowered: zero silenced criticals for gpt-5.4 and zero for gpt-5.4-mini, including the cases in which the agent answered less than critical, which the composition kept critical.
-- **The agent alone is not the defence.** Before the deterministic delta floor, expected-critical results the rules did not know were released as non-critical. With the delta floor, a rule that raises a result by its change against the patient's earlier results, the released criticals fell to the residual level in the key figures. That reduction was measured on the first round (no tools) by replaying the recorded answers; in the current round, in which the agent reads the earlier results through tools, no critical is released.
-- **The tools made the agent better informed, not the product safer.** Reading the earlier results and the policy through tools, the agent alone raised far more of the contextual criticals than without tools, and the final outcome did not move, because the floor, with its change rule, already covered those cases. The price was a multiple of both cost and latency, shown in the block of each model. Nothing in this round shows that the tools add safety; they make each decision easier to audit, because every call is recorded and visible.
-- **Both models read everything, every time.** Each agent called all four tools on practically every result (tool calls per result in the key figures). The evaluation does not show an agent choosing which tools it needs; it shows one that reads everything each time, and what that changed is read from the figures above.
+- **The tools made the agent better informed, not the product safer.** Before the deterministic delta floor, expected-critical results the rules did not know were released as non-critical; with the floor, a rule that raises a result by its change against the patient's earlier results, they fell to the residual level in the key figures (measured on the first round, by replaying the recorded answers). Then the agent got tools and raised far more of the contextual criticals on its own, and the final outcome did not move, because the floor already covered those cases. Both models called all four tools on practically every result: the evaluation shows an agent that reads everything each time, not one that chooses. The price was a multiple of cost and latency, in the block of each model; what the tools add is a decision that is easier to audit, because every call is recorded.
 - **The release guard sends what is uncertain to a person.** gpt-5.4-mini's agent, answering calmly, had released results that were not clear-cut: a new sample was needed, or the value was near its critical limit on a hemolyzed sample. The guard is deterministic, runs after the answer and cannot be lifted by the agent; replayed on the recorded answers with no new call, it sent those results to review and no other row of the matrix changed. The review rate is higher than without tools in both models, which is the price of the guard and of the agent's own caution.
-- **Two cases remain for both models, held for a person and not detected.** Two contextual criticals, sodium near its high critical limit, fall under every limit: neither the value rule, nor the delta rule, nor the agent caught them. They go to review because their value is inside the borderline band of the guard, which is not the same as being detected as critical, and that coverage is partly by construction: see the caveats. They are listed by case in the report.
-- **Caveat that goes with the guard.** Its limits come from the laboratory policy and were checked against the dataset generator: the hemolysis limit (100) is the policy's own number, but the policy gives no number for "near the critical limit", and the borderline band (93 percent of the limit) starts where the dataset's contextual and ambiguous cases start. The guard therefore covers those cases partly by construction; it shows that a deterministic guard can close this kind of hole, not that the limits are clinically calibrated.
-- **Caveat that goes with the reduction.** The delta limits were chosen by the author knowing the range of the dataset generator, so the coverage is partly by construction. The result shows that the architecture can close this kind of hole with a deterministic rule; it is not a clinical calibration, and the dataset is synthetic and single-author.
-- **What is guaranteed and what is not.** The guarantee that holds, measured: the agent cannot lower a result that is critical by rule. The guarantee that does not exist: a contextual critical that no rule models is caught only if the delta floor, the agent or a review catches it.
-- **Default model and the cheaper option.** The default is gpt-5.4. gpt-5.4-mini is documented as the cheaper option, with its cost, latency and errors measured in the same blocks: it costs less and answers faster, its agent tries to lower criticals more often (every attempt held by the floor) and the guard holds more of its releases.
+- **Two cases remain for both models, held for a person and not detected.** Two contextual criticals, sodium near its high critical limit, fall under every limit: neither the value rule, nor the delta rule, nor the agent caught them. They go to review because their value is inside the borderline band of the guard, which is not the same as being detected as critical. They are listed by case in the report.
+- **Caveats that go with the delta floor and the guard.** Both sets of limits were chosen knowing the range of the dataset generator: the delta limits were calibrated by the author on it, and the guard's hemolysis limit (100) is the policy's own number, but the policy gives no number for "near the critical limit" and the borderline band (93 percent of the limit) starts where the dataset's contextual and ambiguous cases start. The coverage is therefore partly by construction: the results show that deterministic rules can close this kind of hole, not that the limits are clinically calibrated, and the dataset is synthetic and single-author. What is guaranteed, measured: the agent cannot lower a result that is critical by rule. What is not: a contextual critical that no rule models is caught only if the floor, the agent or a review catches it.
 
 ## Demo
 
@@ -134,7 +136,7 @@ The exposure is minimal: only port 80 is open, and the proxy answers 404 for eve
 - The page that anyone can open acts as the `observer` account, which can only look: the proxy adds that identity to the reads it forwards, and a person who wants to confirm a read-back signs in with a communicator account.
 - The proxy forwards a short list of Readback paths and nothing else, limits how often a demo case can be submitted, and answers every other path with a plain JSON refusal that carries no platform content or header.
 - The demo uses plain HTTP, which is why the credential is a shared demonstration one and the data is synthetic. A deployment would terminate TLS in front of the proxy.
-- The agent's tools are read-only and bound to the case on the server side; a call that names another patient is refused by policy, and the refusal is recorded.
+- No tool accepts a patient or case identifier: the server binds the case before the session starts. The scope policy is a second layer: a call that names another patient is refused and the refusal is recorded.
 
 ## Required by the organizers
 
@@ -190,9 +192,23 @@ This is the architecture of the product, the Interoperability components it real
 - **Alerting with escalation**: a critical result raises a managed alert over the platform's alert engine, with a custom delivery-and-receipt channel; the alert moves to the next person when nobody confirms in time.
 - **Tracing**: every decision keeps its inputs, the floor, the agent's answer, the composition, the tool calls in order, tokens and cost, linked to the Visual Trace session, and is readable through a small REST API. In the platform's Visual Trace each tool call is a step of the session, and in the flow of the panel the agent's node lights up its calls as sub-steps.
 
+## Technology bonuses
+
+| Bonus | Where it is used | File |
+|---|---|---|
+| PEX (Production Extension) | Unit conversion with the UCUM library, in Java, before the rules run | `java/src/com/readback/units/UnitsOperation.java` |
+| Workflow Engine | The read-back and the human review are Workflow tasks, assigned by rotation to a role | `src/Readback/Workflow/ReadbackTask.cls` |
+| Custom outbound adapter | The delivery-and-receipt channel of the critical-result alert: an outbound adapter with its own operation, which keeps the receipt apart from the confirmation | `src/Readback/Notify/Pager.cls` |
+| Embedded Python | Not used at run time: what runs inside IRIS is ObjectScript and Java. Python runs outside it, as the dataset generator and the evaluation runner | `src/python/readback/dataset/generator.py` |
+| Vector Search | Policy passages and similar confirmed cases, found by meaning with the IRIS vector store and local embeddings | `src/Readback/Retrieval/Engine.cls` |
+| Docker | The image build and the compose stack, including the reverse proxy of the demo | `Dockerfile` |
+| IPM | The package descriptor; `zpm "load"` installs it from the repository, publication pending | `module.xml` |
+| Online demo | http://109.123.244.170/ in replay mode, behind a proxy that forwards only the Readback paths | `src/ops/proxy/nginx.conf.template` |
+| Community Opportunity idea DPI-I-689 | Traceability of an LLM pipeline over Interoperability: every decision, tool call and human step is recorded | `src/Readback/Trace/Decision.cls` |
+
 ## Feedback on AI Hub EAP
 
-Observed on the Early Access build 154 while building this product. Each item says whether it worked, needed a workaround here, or is a candidate for a report. No issue has been filed by this project yet: the candidates are to be checked against the open issues of `intersystems-community/ai-hub-eap` for duplicates before anything is reported.
+Observed on the Early Access build 154 while building this product. Each item says whether it worked, needed a workaround here, or is a candidate for a report. The four candidates below were checked against the issues of `intersystems-community/ai-hub-eap` for duplicates and reported from this project; the argument types in policies were already reported by someone else.
 
 ### What worked
 
@@ -213,12 +229,14 @@ Observed on the Early Access build 154 while building this product. Each item sa
 - **The local embedding model is described as bundled, and the first use downloads it** (about 87 MB); the product fetches it at image build time so that a running container needs no network.
 - **The argument types differ between the policies**: an object in the authorization policy, a JSON string in the audit callbacks. This is already reported in the tracker as [issue 40](https://github.com/intersystems-community/ai-hub-eap/issues/40).
 
-### Candidates for a report, after a search for duplicates
+### Reported from this project
 
-- **The agent loop has no default bound and outlives the caller's timeout.** With a distinct argument on every call and no iteration limit, a test ran past four thousand rounds and went on after the caller had given up, until the container stopped; with a real provider that is open-ended spend. Setting an iteration limit makes the call stop with a clear error, but the Interoperability adapter has no setting for it.
-- **An exception inside a policy is swallowed silently**, leaving no trace in the places read. The product's policies catch their own errors and a test proves their entries exist.
-- **An error text relayed from the provider reaches the event log and the message header unredacted**, and a provider that echoes the credential puts it there. Reproduced with a local mock that echoes the header; not yet reproduced with the platform's operation alone.
-- **The embedding class description says the model is bundled**, which the first run contradicts.
+Each report has a reproduction that does not use this product: the stock build 154 image and a small mock provider, with no key.
+
+- **[Issue 41](https://github.com/intersystems-community/ai-hub-eap/issues/41), bug: the agent loop has no default bound and outlives the caller's timeout.** With a distinct argument on every call and no iteration limit, the loop made thousands of provider requests and went on after the caller had given up; with a real provider that is open-ended spend. Setting an iteration limit makes the call stop with a clear error, but the Interoperability adapter has no setting for it.
+- **[Issue 42](https://github.com/intersystems-community/ai-hub-eap/issues/42), enhancement: provider error text reaches the event log and the message header unredacted**, and a provider that echoes the credential puts it there. Reproduced with the platform's own operation and a mock that echoes the header; the real service masks the key.
+- **[Issue 43](https://github.com/intersystems-community/ai-hub-eap/issues/43), enhancement: an exception inside an audit policy is swallowed silently**, with no error and no log line, while the same failure in an authorization policy is reported. The product's policies catch their own errors and a test proves their entries exist.
+- **[Issue 44](https://github.com/intersystems-community/ai-hub-eap/issues/44), bug: the embedding class description says the model is bundled and needs no network**, while the first `Create()` downloads it and fails offline.
 
 ## Idea DPI-I-689
 
