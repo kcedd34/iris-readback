@@ -55,27 +55,14 @@ if grep -q "^READBACK \(START\|CONFIG\|ROLES\|WEBAPP\|UNITS\) FAILED" "$log"; th
 fi
 rm -f "$log"
 
-# Once per instance: the IPM client (absent from the image) and the community workflow REST module.
-# Needs network. Without it the tasks and the read-back rule still work through the engine.
-marker="$(iris session IRIS -U USER <<'OS' 2>/dev/null | grep -c '^RB_IPM_DONE'
-write "RB_IPM_"_$select($data(^Readback("ipm")):"DONE",1:"TODO"),!
+# The IPM client and the community package workflow-rest are installed while the image is built (src/ops/prepare-image.sh), so the start needs no network.
+# If they are missing the image is not the one this repository builds: say so, and rebuild.
+wf="$(iris session IRIS -U USER <<'OS' 2>/dev/null | grep -c '^RB_WF=1'
+write "RB_WF=",##class(%Dictionary.ClassDefinition).%ExistsId("isc.wf.REST"),!
 halt
 OS
 )"
-if [ "$marker" = "0" ]; then
-  echo "Readback: installing the IPM client and workflow-rest (needs network)..."
-  if wget -q -T 30 -O /tmp/zpm-installer.xml https://pm.community.intersystems.com/packages/zpm/latest/installer; then
-    ipmlog="$(mktemp)"
-    iris session IRIS -U USER <<'OS' 2>&1 | tee "$ipmlog" | grep -E "^READBACK|ERROR" 
-set sc=$system.OBJ.Load("/tmp/zpm-installer.xml","c")
-zpm "repo -n registry -r -url https://pm.community.intersystems.com/"
-zpm "install workflow-rest"
-if ##class(%Dictionary.ClassDefinition).%ExistsId("isc.wf.REST") { set ^Readback("ipm")=$horolog  write "READBACK IPM "_"INSTALLED",! } else { write "READBACK IPM "_"NOT INSTALLED: see the output above",! }
-halt
-OS
-    rm -f "$ipmlog"
-  else
-    echo "Readback: could not download the IPM client; the workflow REST layer is not installed. Tasks still work through the engine."
-  fi
+if [ "$wf" = "0" ]; then
+  echo "READBACK WORKFLOW LAYER MISSING: workflow-rest is not in this image. Rebuild it with network access: docker compose build --no-cache iris" >&2
 fi
 exit 0

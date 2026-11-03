@@ -24,6 +24,8 @@ docker compose up -d --build
 src/ops/verify.sh
 ```
 
+Measured: from clone to a working panel in 2 minutes on a clean machine, with the image already loaded (77 s in the last run: image build 56 s with no build cache, start 15 s, verification 1 s; the IPM client and the workflow layer are installed while the image is built, so the start needs no network).
+
 Full steps, with the image rename and the provider key: [Required by the organizers](#required-by-the-organizers).
 
 ## For judges
@@ -174,7 +176,7 @@ src/ops/verify.sh
 curl -s http://127.0.0.1:8080/readback/api/status
 ```
 
-`src/ops/preflight.sh` checks that the image is loaded and that the password reaches the product as you wrote it. Any printable password works: quotes, an apostrophe, `#`, `!`, a backslash, `&`, `;` and spaces inside were all tested end to end. Three things are refused with a message, because they would change the password on the way: a single `$` in `.env` (compose reads it as a variable, so write `$$` for a literal one), a `#` after a space in `.env` (compose reads it as a comment), and a space at either end. `src/ops/verify.sh` waits until the production is running and exits non-zero if it is not; it then waits for the task list layer, which installs after the start, and only warns if that layer is not there. Open http://127.0.0.1:8080 for the panel. The first build downloads the small local embedding model once, so it needs network that one time. The whole battery of checks, from a clean stack, is `tests/e2e/triage_check.sh`.
+`src/ops/preflight.sh` checks that the image is loaded and that the password reaches the product as you wrote it. Any printable password works: quotes, an apostrophe, `#`, `!`, a backslash, `&`, `;` and spaces inside were all tested end to end. Three things are refused with a message, because they would change the password on the way: a single `$` in `.env` (compose reads it as a variable, so write `$$` for a literal one), a `#` after a space in `.env` (compose reads it as a comment), and a space at either end. `src/ops/verify.sh` waits until the production is running and exits non-zero if it is not; it then checks that the task list layer is in the image and exits non-zero if it is not. Open http://127.0.0.1:8080 for the panel. The build downloads the small local embedding model and installs the IPM client and the workflow layer, so it needs network that one time; the running container needs none. The whole battery of checks, from a clean stack, is `tests/e2e/triage_check.sh`.
 
 The product can also be installed as an IPM package into an instance that has the AI Hub: with the repository on disk, `zpm "load /path/to/iris-readback"` installs it, builds the unit conversion component and starts the production. Policy retrieval stays unavailable on such an instance until the embedding model is provided, as the image does; everything else works.
 

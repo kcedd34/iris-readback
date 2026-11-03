@@ -8,24 +8,26 @@ RUN mkdir -p /opt/readback /opt/readback/fastembed /data/in /data/archive /data/
  && chown -R irisowner:irisowner /opt/readback /data
 USER irisowner
 
-# The local embedding model is not part of the base image: the platform downloads it on first use into this
-# directory. It is fetched here, at build time, so the running container needs no network (docs/probes.md Probe 8).
-# This step needs network access once. If it fails, the build goes on and retrieval reports itself unavailable.
+# Everything that needs the network happens here, once, at build time, so the running container needs none:
+# the local embedding model (docs/probes.md Probe 8; soft, retrieval reports itself unavailable without it) and the IPM client with
+# the community package workflow-rest (hard, with retries: the build fails if they do not install).
+# This layer comes before the application files, so editing the source does not repeat the downloads.
 ENV FASTEMBED_CACHE_DIR=/opt/readback/fastembed
-RUN (iris start IRIS quietly \
-     && printf 'set emb=##class(%%AI.RAG.Embedding.FastEmbed).Create()\nhalt\n' | iris session IRIS -U USER ; \
-     iris stop IRIS quietly) \
- || echo "embedding model warm-up skipped: retrieval will report itself unavailable"
+COPY --chown=irisowner:irisowner src/ops/prepare-image.sh /opt/readback/prepare-image.sh
+RUN chmod +x /opt/readback/prepare-image.sh && /opt/readback/prepare-image.sh
 
-COPY --chown=irisowner:irisowner src /opt/readback/src
-COPY --chown=irisowner:irisowner tests /opt/readback/tests
-COPY --chown=irisowner:irisowner data/samples /opt/readback/samples
+# The Java unit component changes rarely: build it before the application files so a source edit does not rebuild it.
+COPY --chown=irisowner:irisowner java /opt/readback/java
+RUN chmod +x /opt/readback/java/build.sh && /opt/readback/java/build.sh
+
+# Application files, least to most often edited.
+COPY --chown=irisowner:irisowner data/policy /opt/readback/data/policy
 COPY --chown=irisowner:irisowner data/config /opt/readback/data/config
 COPY --chown=irisowner:irisowner data/replay /opt/readback/data/replay
-COPY --chown=irisowner:irisowner data/policy /opt/readback/data/policy
-COPY --chown=irisowner:irisowner java /opt/readback/java
-RUN chmod +x /opt/readback/src/ops/*.sh /opt/readback/java/build.sh /opt/readback/tests/java/run_java_tests.sh \
- && /opt/readback/java/build.sh
+COPY --chown=irisowner:irisowner data/samples /opt/readback/samples
+COPY --chown=irisowner:irisowner tests /opt/readback/tests
+COPY --chown=irisowner:irisowner src /opt/readback/src
+RUN chmod +x /opt/readback/src/ops/*.sh /opt/readback/tests/java/run_java_tests.sh
 
 EXPOSE 52773 5001
 

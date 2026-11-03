@@ -286,3 +286,8 @@ def test_embedded_python_must_name_the_class_with_python_methods_and_its_caller(
 def test_the_feedback_links_the_four_reports():
     assert any("feedback" in out for out in failing(README.replace("issues/41", "issues/40", 1)))
     assert any("feedback" in out for out in failing(README.replace("reported from this project;", "reported from this project; no issue has been filed;", 1)))
+
+
+def test_the_run_it_time_statement_is_required():
+    out = failing(README.replace("from clone to a working panel in", "from clone to a panel in", 1))
+    assert any("measured time" in line for line in out)

@@ -297,6 +297,8 @@ def check(text, report, before=None, delta=None, guard=None):
     code = re.findall(r"```[^\n]*\n(.*?)```", run, re.S)
     if len([l for l in "\n".join(code).splitlines() if l.strip() and not l.lstrip().startswith("#")]) != 5:
         fail("run-it", "the 'Run it' code block must have exactly five command lines")
+    if not re.search(r"(?i)from clone to a working panel in \d+(\.\d+)? minutes? on a clean machine, with the image already loaded", run):
+        fail("run-it", "the 'Run it' section must state the measured time: 'from clone to a working panel in N minutes on a clean machine, with the image already loaded'")
 
     # Technology bonuses: each bonus named, with where it is used and a file that exists.
     bonus = two.get("Technology bonuses", "")
