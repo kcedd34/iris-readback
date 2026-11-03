@@ -32,9 +32,8 @@
 
 # Never part of the application. Redundant with the allowlist, on purpose.
 
-# spec-kit
+# planning artifacts
 specs/
-.specify/
 **/spec.md
 **/plan.md
 **/tasks.md
@@ -44,11 +43,8 @@ specs/
 **/checklists/
 **/constitution.md
 
-# development agent
-.claude/
+# local agent folders
 .agents/
-CLAUDE.md
-**/CLAUDE.md
 
 # internal documentation, including the PRD under any name
 docs/

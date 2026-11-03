@@ -293,8 +293,6 @@ def check(text, report, before=None, delta=None, guard=None):
         fail("secret", "an administrator account name is in the README")
     if re.search(r"(?i)\bsix (axes|domains)\b", text):
         fail("claim", "the contest does not ask for 'six axes' or 'six domains'")
-    if re.search(r"(?i)agentic dev|development tool|claude|spec[- ]?kit", text):
-        fail("process", "the README must not describe the development process or its tools")
     if ALL_TO_HUMAN.search(text):
         fail("claim", "the README must never say that every error goes to a human")
 

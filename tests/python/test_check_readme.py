@@ -208,10 +208,6 @@ def test_a_changed_release_guard_figure_fails():
     assert any("Key figures" in out for out in gate.check(README, REPORT, BEFORE, DELTA, guard))
 
 
-@pytest.mark.parametrize("phrase", ["The IRIS agentic development tooling was not used.", "Built with Claude Code.", "Written with Spec Kit."])
-def test_the_development_process_stays_out_of_the_readme(phrase):
-    assert any("process" in out for out in failing(README + "\n" + phrase + "\n"))
-
 
 def test_the_hero_gif_is_required_above_the_fold():
     gif = "![The agent decides on a critical potassium, which stops at read-back, and on a borderline one, which goes to a person to review; replay mode, synthetic data](docs-assets/signature.gif)"
