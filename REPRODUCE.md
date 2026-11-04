@@ -4,7 +4,7 @@ How to run the test battery, how to reproduce the evaluation and the ablation (f
 
 ## 1. Prerequisites of the test battery
 
-`tests/e2e/triage_check.sh` runs every check, 31 steps, and stops at the first failure. It needs:
+`tests/e2e/triage_check.sh` runs every check, 32 steps, and stops at the first failure. It needs:
 
 - Docker with the compose plugin, and the image `irishealth-community:2026.3.0AI.154.0`;
 - Python 3 with `pytest` (`python3 -m pip install pytest`; nothing else, the rest is the standard library);

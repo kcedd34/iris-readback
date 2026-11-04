@@ -47,6 +47,7 @@ step "read-only MCP server";      (cd tests/e2e && "$PY" mcp_check.py)
 step "MCP client session (gateway and MCP Inspector)"; tests/e2e/mcp_client_check.sh
 step "ui browser";               "$PY" tests/e2e/ui_check.py
 step "live path against a mock"; "$PY" tests/e2e/live_mock_check.py
+step "pilot run leaves the shipped files alone"; (cd tests/e2e && "$PY" pilot_check.py)
 step "agent tools against a mock"; (cd tests/e2e && "$PY" tools_check.py)
 step "agent governance against a mock"; (cd tests/e2e && "$PY" governance_check.py)
 step "password with special characters"; (cd tests/e2e && "$PY" password_check.py)
