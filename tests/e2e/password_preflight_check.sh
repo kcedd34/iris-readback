@@ -29,5 +29,27 @@ expect accept "no password line"                       'OPENAI_API_KEY=\n'
 # The environment variable is passed on untouched by compose: a dollar sign is fine there.
 if env READBACK_DEMO_PASSWORD='com$dolar' READBACK_PREFLIGHT_PASSWORD_ONLY=1 READBACK_ENV_FILE=/nonexistent src/ops/preflight.sh >/dev/null 2>&1; then :; else echo "FAIL: a dollar sign in the environment variable was refused"; fail=1; fi
 if env READBACK_DEMO_PASSWORD=' x' READBACK_PREFLIGHT_PASSWORD_ONLY=1 src/ops/preflight.sh >/dev/null 2>&1; then echo "FAIL: a leading space in the environment variable was accepted"; fail=1; fi
+
+# The image check, with a stand-in for docker that knows only the images named in LOADED. No stack, no image needed.
+stub="$(mktemp -d)"
+trap 'rm -f "$file"; rm -rf "$stub"' EXIT
+printf '#!/usr/bin/env bash\n[ "$1 $2" = "image inspect" ] && case " $LOADED " in *" $3 "*) exit 0;; esac\nexit 1\n' > "$stub/docker"
+chmod +x "$stub/docker"
+b154=irishealth-community:2026.3.0AI.154.0
+b109=irishealth-community:2027.1.0AI.109.0
+image_case() { # image_case "what" "loaded images" "READBACK_BASE_IMAGE" "env file content" accept|refuse "text the output must hold"
+  printf '%b' "$4" > "$file"
+  out="$(env -u READBACK_BASE_IMAGE ${3:+READBACK_BASE_IMAGE=$3} LOADED="$2" PATH="$stub:$PATH" READBACK_DEMO_PASSWORD=x READBACK_ENV_FILE="$file" src/ops/preflight.sh 2>&1)" && got=accept || got=refuse
+  [ "$got" = "$5" ] || { echo "FAIL: $1: expected $5, got $got"; fail=1; }
+  case "$out" in *"$6"*) ;; *) echo "FAIL: $1: the message lacks '$6'"; fail=1 ;; esac
+}
+image_case "build 154 by default"               "$b154"       ""     ''                                accept "build 154"
+image_case "build 109 from the environment"     "$b109"       "$b109" ''                               accept "build 109"
+image_case "build 109 from .env"                "$b109"       ""     "READBACK_BASE_IMAGE=$b109\n"     accept "build 109"
+image_case "nothing loaded names both builds"   ""            ""     ''                                refuse "irishealth-community-2027.1.0AI.109.0-docker.tar.gz"
+image_case "nothing loaded gives the 154 steps" ""            ""     ''                                refuse "docker tag <name-printed-by-docker-load>:<tag> $b154"
+image_case "only 109 loaded, 154 chosen"        "$b109"       ""     ''                                refuse "READBACK_BASE_IMAGE=$b109"
+image_case "only 154 loaded, 109 chosen"        "$b154"       "$b109" ''                               refuse "READBACK_BASE_IMAGE=$b154"
+image_case "another name is used as it is"      "my/own:tag"  "my/own:tag" ''                          accept "Only build 154"
 [ "$fail" = "0" ] && echo "password preflight check passed"
 exit "$fail"

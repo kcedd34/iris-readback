@@ -15,6 +15,7 @@ import sys
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 PENDING = "[PENDING: publication]"
 IMAGE = "irishealth-community:2026.3.0AI.154.0"
+IMAGE_109 = "irishealth-community:2027.1.0AI.109.0"
 CLASSES = ["CRITICAL", "RECOLLECT", "NEEDS_REVIEW", "NON_CRITICAL"]
 COLUMNS = CLASSES + ["none"]
 MODELS = ["gpt-5.4-mini", "gpt-5.4"]
@@ -25,8 +26,8 @@ SECTIONS = [
     "Technology bonuses", "Feedback on AI Hub EAP", "Idea DPI-I-689", "How it works", "Built with", "Author", "Still to publish",
 ]
 REQUIRED_ITEMS = {
-    "Early Access image and build": [IMAGE, "154"],
-    "Load and rename the image": ["docker load", "docker tag"],
+    "Early Access image and build": [IMAGE, "154", IMAGE_109, "109"],
+    "Load and rename the image": ["docker load", "docker tag", IMAGE_109, "READBACK_BASE_IMAGE"],
     "LLM provider and key variable": ["OpenAI", "OPENAI_API_KEY"],
     "Start and verify": ["docker compose up", "verify.sh"],
 }
@@ -414,6 +415,10 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
         fail("ipm-restart", "the README must say the production is running again after the instance restarts on an IPM installation, and cite tests/e2e/ipm_check.sh")
     if "Confirm the read-back" not in text or "does not match is refused" not in text:
         fail("readback-steps", "the Demo section must say where to open a read-back task and that a wrong value is refused and counted")
+    if "passes on build 154 and on build 109" not in text:
+        fail("tested-builds", "the README must say what was tested on each Early Access build (the battery passes on build 154 and on build 109)")
+    if "SECURITYRESOURCE" not in text or "Found when moving to build 109" not in text:
+        fail("build-difference", "the README must describe the RESOURCE to SECURITYRESOURCE difference between the builds, in the Feedback section")
 
     # 1. The thesis is the first sentence after the title.
     body_lines = [l for l in text.splitlines() if l.strip()]

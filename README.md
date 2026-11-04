@@ -17,7 +17,7 @@ The rules guarantee the safety and the agent explains. An InterSystems AI Hub ag
 ## Run it
 
 ```
-docker load -i irishealth-community-2026.3.0AI.154.0-docker.tar.gz   # then docker tag, if the name differs
+docker load -i irishealth-community-2026.3.0AI.154.0-docker.tar.gz   # then docker tag, if the name differs (build 109: see below)
 cp .env.example .env   # set READBACK_DEMO_PASSWORD; leave OPENAI_API_KEY empty for replay
 src/ops/preflight.sh
 docker compose up -d --build
@@ -163,11 +163,13 @@ The exposure is minimal: only port 80 is open, and the proxy answers 404 for eve
 
 ### Early Access image and build
 
-The product is built on the InterSystems IRIS for Health Community image with the AI Hub, Early Access **build 154**, tagged `irishealth-community:2026.3.0AI.154.0`. The image comes from the Early Access portal. It is not redistributed here, and nothing in this project pushes it to a registry.
+The product is built on the InterSystems IRIS for Health Community image with the AI Hub, Early Access. It runs on two builds of that image: **build 154**, tagged `irishealth-community:2026.3.0AI.154.0` (the default), and **build 109**, tagged `irishealth-community:2027.1.0AI.109.0`. The image comes from the Early Access portal. It is not redistributed here, and nothing in this project pushes it to a registry.
+
+Tested on both: the full battery of 32 steps (`tests/e2e/triage_check.sh`) passes on build 154 and on build 109, each in a stack of its own, and the evaluation in replay gives the shipped report on both. One difference between the builds matters: build 109 renamed the `RESOURCE` parameter of `%AI.MCP.Service` to `SECURITYRESOURCE` and no longer reads the old one, so a service written for 154 stops checking its resource; the product sets both and every tool checks the resource itself.
 
 ### Load and rename the image
 
-The archive downloaded from the portal is named like `irishealth-community-2026.3.0AI.154.0-docker.tar.gz`.
+The archive downloaded from the portal is named like `irishealth-community-2026.3.0AI.154.0-docker.tar.gz` (or `...109.0...` for build 109). Load the one the portal offers you:
 
 ```
 docker load -i irishealth-community-2026.3.0AI.154.0-docker.tar.gz
@@ -176,7 +178,15 @@ docker tag <name-printed-by-docker-load>:<tag> irishealth-community:2026.3.0AI.1
 src/ops/preflight.sh
 ```
 
-The `docker tag` line is only needed when the loaded image does not already have that name. `src/ops/preflight.sh` checks that the tag exists and, if it does not, prints these steps.
+For build 109, load the 109 archive, tag it `irishealth-community:2027.1.0AI.109.0`, and choose it in `.env` (the default is build 154):
+
+```
+docker tag <name-printed-by-docker-load>:<tag> irishealth-community:2027.1.0AI.109.0
+echo 'READBACK_BASE_IMAGE=irishealth-community:2027.1.0AI.109.0' >> .env
+src/ops/preflight.sh
+```
+
+The `docker tag` line is only needed when the loaded image does not already have that name. `src/ops/preflight.sh` checks that the chosen tag exists, says which build it found, and, if it does not exist, prints the load and tag steps for both builds (and tells you when the other build is the one that is loaded).
 
 ### LLM provider and key variable
 
@@ -269,7 +279,7 @@ What was tested: a complete session with the MCP Inspector through the gateway (
 
 ## Feedback on AI Hub EAP
 
-Observed on the Early Access build 154 while building this product. Each item says whether it worked, needed a workaround here, or is a candidate for a report. The five candidates below were checked against the issues of `intersystems-community/ai-hub-eap` for duplicates and reported from this project; the argument types in policies were already reported by someone else.
+Observed on the Early Access build 154 while building this product, and checked again on build 109. Each item says whether it worked, needed a workaround here, or is a candidate for a report. The five candidates below were checked against the issues of `intersystems-community/ai-hub-eap` for duplicates and reported from this project; the argument types in policies were already reported by someone else.
 
 ### What worked
 
@@ -289,6 +299,10 @@ Observed on the Early Access build 154 while building this product. Each item sa
 - **The provider does not read the key from the environment on its own**; the key is passed with an environment reference, and an unset variable gives an opaque error.
 - **The local embedding model is described as bundled, and the first use downloads it** (about 87 MB); the product fetches it at image build time so that a running container needs no network.
 - **The argument types differ between the policies**: an object in the authorization policy, a JSON string in the audit callbacks. This is already reported in the tracker as [issue 40](https://github.com/intersystems-community/ai-hub-eap/issues/40).
+
+### Found when moving to build 109
+
+- **`RESOURCE` became `SECURITYRESOURCE` in `%AI.MCP.Service`, and the old parameter is ignored without a warning.** On build 109 the class does no authorization of its own unless `SECURITYRESOURCE` is set or `OnAuthenticate()` is overridden (its description says so). The read-only MCP server of this product set `RESOURCE`, so on 109 an authenticated account without the resource listed and called the tools; the step of the battery that checks this account caught it. The product now sets both parameters and each tool checks the resource itself, and a test calls the tools directly as an account without it. A request without credentials is answered 401 on 154 and 404 on 109; both refuse. Not yet reported to the tracker.
 
 ### Reported from this project
 

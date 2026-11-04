@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Checks, before anything else runs, that the AI Hub build 154 image is present locally and that the demo password
-# reaches the product exactly as it was written.
+# Checks, before anything else runs, that the AI Hub image of the chosen Early Access build (154 or 109) is present locally
+# and that the demo password reaches the product exactly as it was written.
+# The build is chosen with READBACK_BASE_IMAGE (environment or .env); without it the product uses build 154.
 # The image must never be pulled from or pushed to a public registry.
 set -uo pipefail
 cd "$(dirname "$0")/../.."
-image="${READBACK_BASE_IMAGE:-irishealth-community:2026.3.0AI.154.0}"
+build154="irishealth-community:2026.3.0AI.154.0"
+build109="irishealth-community:2027.1.0AI.109.0"
 
 # The demo password. Whatever the person writes is passed on untouched, with two exceptions that would change it on the way:
 #  - in the .env file compose reads a dollar sign as the start of a variable (com$dolar arrives as "com"): write $$ for a literal one;
@@ -69,19 +71,46 @@ if [ "${READBACK_PREFLIGHT_PASSWORD_ONLY:-}" = "1" ]; then
   exit 0
 fi
 
+# The chosen image: the environment, then the .env file compose reads, then build 154.
+image="${READBACK_BASE_IMAGE:-}"
+if [ -z "$image" ] && [ -f "${READBACK_ENV_FILE:-.env}" ]; then
+  image="$(grep -m1 '^READBACK_BASE_IMAGE=' "${READBACK_ENV_FILE:-.env}" | cut -d= -f2- | sed -e "s/^[\"']//" -e "s/[\"']\$//" || true)"
+fi
+image="${image:-$build154}"
+
+load_steps() {
+  cat <<MSG
+
+Download the IRIS for Health Community image with AI Hub from the Early Access portal, then load it and tag it with the
+name this project expects. The product runs on two Early Access builds; use the one the portal offers you.
+
+  Build 154 (the default):
+    docker load -i irishealth-community-2026.3.0AI.154.0-docker.tar.gz
+    docker tag <name-printed-by-docker-load>:<tag> $build154
+
+  Build 109:
+    docker load -i irishealth-community-2027.1.0AI.109.0-docker.tar.gz
+    docker tag <name-printed-by-docker-load>:<tag> $build109
+    echo 'READBACK_BASE_IMAGE=$build109' >> .env     # the default is build 154
+
+'docker images | grep irishealth' shows the name a loaded image received. Then run this script again.
+MSG
+}
+
 if docker image inspect "$image" >/dev/null 2>&1; then
-  echo "Image $image found."
+  case "$image" in
+    "$build154") echo "Image $image found (AI Hub Early Access build 154)." ;;
+    "$build109") echo "Image $image found (AI Hub Early Access build 109)." ;;
+    *) echo "Image $image found. Only build 154 ($build154) and build 109 ($build109) were tested; this one is used as it is." ;;
+  esac
   exit 0
 fi
-cat >&2 <<MSG
-Image $image is not loaded locally.
 
-Download the IRIS for Health Community image with AI Hub (build 154) from the Early Access
-portal as a .tar file, then load it and tag it with the name this project expects:
-
-  docker load -i <downloaded-file>.tar
-  docker tag <loaded-image-name>:<tag> $image
-
-'docker images' shows the name the loaded image received. Then run this script again.
-MSG
+echo "Image $image is not loaded locally." >&2
+for other in "$build154" "$build109"; do
+  if [ "$other" != "$image" ] && docker image inspect "$other" >/dev/null 2>&1; then
+    echo "The image $other is loaded, though. To use it, set READBACK_BASE_IMAGE=$other in .env (or in the environment), or load $image as below." >&2
+  fi
+done
+load_steps >&2
 exit 1

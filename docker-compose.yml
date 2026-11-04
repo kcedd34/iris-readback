@@ -4,7 +4,7 @@ services:
     build:
       context: .
       args:
-        IRIS_IMAGE: ${IRIS_IMAGE:-irishealth-community:2026.3.0AI.154.0}
+        IRIS_IMAGE: ${READBACK_BASE_IMAGE:-irishealth-community:2026.3.0AI.154.0}
     image: ${READBACK_IMAGE:-iris-readback:local}
     environment:
       # Name only; the value comes from the shell or an untracked .env file. Empty means replay mode later.

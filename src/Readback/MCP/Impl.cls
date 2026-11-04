@@ -7,9 +7,21 @@ Class Readback.MCP.Impl
 /// A case id as the panel shows it, never a patient identifier.
 Parameter CaseIdPattern = "^[A-Za-z0-9._-]{1,50}$";
 
+/// The resource the caller must hold. Checked by every tool before it reads anything, whatever the platform's own authorization does.
+Parameter Resource = "Readback_MCP";
+
+/// Refuses the call unless the current user holds the Readback_MCP resource. The first line of every tool.
+ClassMethod Authorize() [ Private ]
+{
+	If '$System.Security.Check(..#Resource, "USE") {
+		Do ..Fail("not authorized: the account "_$Username_" does not hold the "_..#Resource_" resource, which the read-only tools require")
+	}
+}
+
 /// The critical results that wait for a person to repeat the value, with who they are assigned to and the state of their alert.
 ClassMethod ListPendingCriticals() As %String
 {
+	Do ..Authorize()
 	Set tTotal = 0
 	Set tList = ##class(Readback.API.Flow).Waiting(.tTotal)
 	Quit ..Out({"count":(tTotal),"pending":(tList),"note":"These critical results wait for a person to repeat the value. This server cannot confirm a read-back."})
@@ -19,6 +31,7 @@ ClassMethod ListPendingCriticals() As %String
 /// what a person did. No model is asked: the sentences come from the record.
 ClassMethod ExplainDecision(controlId As %String) As %String
 {
+	Do ..Authorize()
 	If '$Match($Get(controlId), ..#CaseIdPattern) { Do ..Fail("controlId must be a case id such as RB2026-00001-S1") }
 	Set tD = ##class(Readback.API.Status).DecisionJson(controlId)
 	If '$IsObject(tD) { Do ..Fail("no decision recorded for that case id") }
@@ -47,6 +60,7 @@ ClassMethod ExplainDecision(controlId As %String) As %String
 /// The measured evaluation: the confusion matrices, silenced and missed criticals, cost and latency, per model, from data/eval/report.json.
 ClassMethod ReadEvaluation() As %String
 {
+	Do ..Authorize()
 	Set tReport = ..File("report.json")
 	Set tOut = {"source":"data/eval/report.json","header":(tReport.header),"models":{}}
 	Set tI = tReport.models.%GetIterator()
@@ -63,6 +77,7 @@ ClassMethod ReadEvaluation() As %String
 /// The ablation: which layer keeps a critical from being released, from data/eval/ablation.json.
 ClassMethod ReadAblation() As %String
 {
+	Do ..Authorize()
 	Set tAblation = ..File("ablation.json")
 	Do tAblation.%Remove("origin")
 	Set tAblation.source = "data/eval/ablation.json"

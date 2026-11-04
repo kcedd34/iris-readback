@@ -49,6 +49,18 @@ def tool(name, **arguments):
     return out, err
 
 
+def direct(user, call):
+    """Logs in as the user inside an ObjectScript session and calls a tool method of the product directly, with no web application, gateway or service
+    in between, so the platform's own authorization plays no part. Returns (answer text, error text)."""
+    password = PASSWORD.replace('"', '""')
+    # One line: the console refuses an account without the console service as soon as the login is done, so the call has to be in the same line.
+    script = ('if \'$system.Security.Login("%s","%s") { write "RB_ERR=login failed",! } else { try { set r=%s write "RB_OUT=",r,! } catch ex { write "RB_ERR=",ex.DisplayString(),! } }') % (user, password, call)
+    lines = iris(script)
+    out = next((l[7:] for l in lines if l.startswith("RB_OUT=")), None)
+    err = next((l[7:] for l in lines if l.startswith("RB_ERR=")), None)
+    return out, err
+
+
 # The tables a tool could change. The production's own message headers and event log are not here: the alert engine writes to them on a timer while the check runs.
 TABLES = ("Readback_Trace.Decision", "Readback_Trace.ToolCall", "Readback_Msg.LabResult", "Readback_Retrieval.IndexedCase", "Readback_Trace.ReadbackAttempt",
           "EnsLib_Workflow.TaskResponse")
@@ -66,7 +78,8 @@ def main():
 
     # --- the service is closed: credentials, then the role, and the public proxy does not route it
     status, headers, _ = http(base + "/v1/services")
-    check(status == 401, "the MCP service answered %s without credentials" % status)
+    # Build 154 answers 401 (the service's own login); build 109 answers 404 from the web layer. Both refuse; neither serves anything.
+    check(status in (401, 404), "the MCP service answered %s without credentials" % status)
     # An application of the MCP Server type is not served to a plain HTTP client that carries credentials (the web layer answers 404): the way in is the
     # platform's gateway, checked by mcp_client_check.sh. Here: nothing is served to a direct caller, whoever it is.
     for user in ("communicator1", "observer"):
@@ -137,6 +150,16 @@ def main():
     check(out is None and err, "a patient identifier was accepted as a case id")
     out, err = tool("explain_decision", controlId="x'; DROP TABLE y; --")
     check(out is None and err, "a value that is not a case id was accepted")
+
+    # --- the tools check the resource themselves: called directly, as an account without it, each one refuses before it returns any data
+    impl = "##class(Readback.MCP.Impl)"
+    calls = {"list_pending_criticals": impl + ".ListPendingCriticals()", "explain_decision": impl + '.ExplainDecision("%s")' % (control or "RB-NO-SUCH-CASE"),
+             "read_evaluation": impl + ".ReadEvaluation()", "read_ablation": impl + ".ReadAblation()"}
+    for name, call in calls.items():
+        out, err = direct("communicator1", call)
+        check(out is None and err and "Readback_MCP" in err and "not authorized" in err, "%s called directly by an account without the resource was not refused: %s %s" % (name, (out or "")[:80], err))
+        out, err = direct("observer", call)
+        check(out is not None and err is None, "%s called directly by the read-only account failed: %s" % (name, err))
 
     if failures:
         print("FAILED (%d)" % len(failures))

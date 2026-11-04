@@ -433,3 +433,9 @@ def test_the_readme_citing_a_missing_file_fails():
 def test_the_readme_must_keep_the_restart_and_the_readback_steps(original):
     out = failing(README.replace(original, "xxxx", 1))
     assert any(("ipm-restart" in line or "readback-steps" in line) for line in out)
+
+
+@pytest.mark.parametrize("original", ["passes on build 154 and on build 109", "SECURITY" "RESOURCE", "Found when moving to build 109"])
+def test_the_readme_must_keep_the_tested_builds_and_the_difference(original):
+    out = failing(README.replace(original, "xxxx"))
+    assert any(("tested-builds" in line or "build-difference" in line) for line in out)

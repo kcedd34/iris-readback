@@ -27,6 +27,7 @@ Method TestNoToolTakesAPatientIdentifier()
 Method TestTheServiceIsGatedByItsResource()
 {
 	Do $$$AssertEquals(##class(Readback.MCP.Service).#RESOURCE, "Readback_MCP", "the service needs the Readback_MCP resource")
+	Do $$$AssertEquals(##class(Readback.MCP.Service).#SECURITYRESOURCE, "Readback_MCP", "the resource is also named for the build that reads SECURITYRESOURCE")
 	Do $$$AssertEquals(##class(Readback.MCP.Service).#SPECIFICATION, "Readback.MCP.Tools", "the service serves only the read-only tool set")
 }
 

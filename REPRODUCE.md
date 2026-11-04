@@ -6,7 +6,7 @@ How to run the test battery, how to reproduce the evaluation and the ablation (f
 
 `tests/e2e/triage_check.sh` runs every check, 32 steps, and stops at the first failure. It needs:
 
-- Docker with the compose plugin, and the image `irishealth-community:2026.3.0AI.154.0`;
+- Docker with the compose plugin, and the image of build 154 (`irishealth-community:2026.3.0AI.154.0`, the default) or of build 109 (`irishealth-community:2027.1.0AI.109.0`, chosen with `READBACK_BASE_IMAGE` in `.env` or in the environment; the battery reads the variable too);
 - Python 3 with `pytest` (`python3 -m pip install pytest`; nothing else, the rest is the standard library);
 - Node.js 20 or later and npm (the interface checks run `npm ci` in `frontend/`);
 - the Chromium of Playwright: the interface checks install it themselves (`npx playwright install chromium`, about 150 MB);
