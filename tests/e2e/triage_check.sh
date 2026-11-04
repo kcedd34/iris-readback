@@ -15,6 +15,7 @@ step "clean stack, no key";      docker compose down -v >/dev/null 2>&1 || true
                                  src/ops/verify.sh 240
 step "unit suites";              tests/e2e/run_unit_tests.sh
 step "bootstrap stops on a compile error"; tests/e2e/bootstrap_fail_check.sh
+step "start waits for the Java gateway"; tests/e2e/start_check.sh
 step "java unit converter";      tests/java/run_java_tests.sh
 step "python tests";             "$PY" -m pytest -q tests/python
 step "units end to end";         "$PY" tests/e2e/units_check.py
