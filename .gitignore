@@ -4,6 +4,7 @@
 # allowed: README, license and build
 !/.gitignore
 !/README.md
+!/REPRODUCE.md
 !/LICENSE
 !/Dockerfile
 !/docker-compose.yml
