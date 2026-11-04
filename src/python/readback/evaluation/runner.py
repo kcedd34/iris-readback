@@ -260,7 +260,8 @@ def run_live(model, resume=False, yes=False, output_cap=None, replay_set=None, p
         restore_ceilings(previous)
         if variant:
             run_status('set sc=##class(Readback.Eval.Control).UseDefaultDelta()\n' + STATUS_LINE)
-    for folder in (WORK, OUT):
+    # A pilot records nothing, so it leaves the shipped folder alone and keeps its settings in the work folder only.
+    for folder in ((WORK, OUT) if record_answers else (WORK,)):
         os.makedirs(folder, exist_ok=True)
         with open(os.path.join(folder, "meta-{}.json".format(name)), "w") as handle:
             json.dump({"settings": "temperature 0; strict JSON schema; output cap {} tokens; model {}".format(cap or 400, model), "ceilings": ceilings}, handle, indent=2)

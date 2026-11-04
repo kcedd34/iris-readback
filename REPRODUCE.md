@@ -55,7 +55,13 @@ docker compose down -v && docker compose up -d && src/ops/verify.sh
 src/ops/evaluate.sh live gpt-5.4
 ```
 
-Without `--yes` nothing is sent: the command prints the number of messages and the estimated cost and stops. The estimate is the price table (`data/config/price-table.json`, dated) times the tokens per call. The measured cost of the shipped runs is 9.73 USD per thousand results for `gpt-5.4` and 2.84 for `gpt-5.4-mini`, so a full run of the 446 messages costs about 4.30 USD and about 1.30 USD. Add `--yes` to run it:
+Without `--yes` nothing is sent: the command prints the number of messages and the estimated cost and stops. The estimate is the price table (`data/config/price-table.json`, dated) times the tokens per call. The measured cost of the shipped runs is 9.73 USD per thousand results for `gpt-5.4` and 2.84 for `gpt-5.4-mini`, so a full run of the 446 messages costs about 4.30 USD and about 1.30 USD. To try the paid path for a few cents first, add `--pilot 5`: it sends 14 messages (about five subject cases, one per category, with the earlier results of their patients), estimates about 0.05 USD for `gpt-5.4-mini`, and records nothing; the rows go to `.local/eval/` and the files under `data/` stay as shipped.
+
+```
+src/ops/evaluate.sh live gpt-5.4-mini --pilot 5 --yes
+```
+
+Add `--yes` to run the full set:
 
 ```
 src/ops/evaluate.sh live gpt-5.4 --yes
