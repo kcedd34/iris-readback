@@ -283,7 +283,7 @@ def test_embedded_python_must_name_the_class_with_python_methods_and_its_caller(
     assert any("bonus" in out for out in failing(README.replace("`[ Language = python ]`", "`python`", 1)))
 
 
-def test_the_feedback_links_the_four_reports():
+def test_the_feedback_links_the_reports():
     assert any("feedback" in out for out in failing(README.replace("issues/41", "issues/40", 1)))
     assert any("feedback" in out for out in failing(README.replace("reported from this project;", "reported from this project; no issue has been filed;", 1)))
 
