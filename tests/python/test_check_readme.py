@@ -107,12 +107,12 @@ def test_a_closing_list_with_three_items_fails():
 
 
 def test_the_video_link_is_required_in_the_fast_path():
-    out = failing(README.replace("https://youtu.be/Kh7ZY3tUWs4", "[PENDING: publication]", 1))
+    out = failing(README.replace("https://youtu.be/04fxknWoucU", "[PENDING: publication]", 1))
     assert any("youtu.be" in line for line in out)
 
 
 def test_a_video_link_in_another_format_fails():
-    out = failing(README.replace("https://youtu.be/Kh7ZY3tUWs4", "https://www.youtube.com/watch?v=Kh7ZY3tUWs4", 1))
+    out = failing(README.replace("https://youtu.be/04fxknWoucU", "https://www.youtube.com/watch?v=04fxknWoucU", 1))
     assert any("youtu.be" in line for line in out)
 
 

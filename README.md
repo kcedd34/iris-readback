@@ -6,7 +6,7 @@ The rules guarantee the safety and the agent explains. An InterSystems AI Hub ag
 
 ## Fast path
 
-- Video, the main demonstration: https://youtu.be/Kh7ZY3tUWs4
+- Video, the main demonstration: https://youtu.be/04fxknWoucU
 - Live demo (replay mode, reset every hour): http://109.123.244.170/
 - Repository: https://github.com/kcedd34/iris-readback
 - IPM package: `zpm "install iris-readback"` [PENDING: publication]
@@ -265,7 +265,7 @@ What was tested: a complete session with the MCP Inspector through the gateway (
 
 ## Feedback on AI Hub EAP
 
-Observed on the Early Access build 154 while building this product. Each item says whether it worked, needed a workaround here, or is a candidate for a report. The four candidates below were checked against the issues of `intersystems-community/ai-hub-eap` for duplicates and reported from this project; the argument types in policies were already reported by someone else.
+Observed on the Early Access build 154 while building this product. Each item says whether it worked, needed a workaround here, or is a candidate for a report. The five candidates below were checked against the issues of `intersystems-community/ai-hub-eap` for duplicates and reported from this project; the argument types in policies were already reported by someone else.
 
 ### What worked
 
@@ -294,6 +294,7 @@ Each report has a reproduction that does not use this product: the stock build 1
 - **[Issue 42](https://github.com/intersystems-community/ai-hub-eap/issues/42), enhancement: provider error text reaches the event log and the message header unredacted**, and a provider that echoes the credential puts it there. Reproduced with the platform's own operation and a mock that echoes the header; the real service masks the key.
 - **[Issue 43](https://github.com/intersystems-community/ai-hub-eap/issues/43), enhancement: an exception inside an audit policy is swallowed silently**, with no error and no log line, while the same failure in an authorization policy is reported. The product's policies catch their own errors and a test proves their entries exist.
 - **[Issue 44](https://github.com/intersystems-community/ai-hub-eap/issues/44), bug: the embedding class description says the model is bundled and needs no network**, while the first `Create()` downloads it and fails offline.
+- **[Issue 46](https://github.com/intersystems-community/ai-hub-eap/issues/46), docs: a `%AI.MCP.Service` web application without the "MCP Server" type bit is answered 404 by `iris-mcp-server`**, which reports that the endpoint "did not identify itself"; with type 18 it works. Found while building the read-only MCP server of this product. Related to issue 21.
 
 ## Idea DPI-I-689
 
@@ -313,7 +314,7 @@ What an LLM tracing tool records, and where each item is in Readback (the decisi
 
 ## How it works
 
-The [video](https://youtu.be/Kh7ZY3tUWs4) is the main demonstration: it shows a result arriving, the agent deciding, a critical stopping at the read-back, a person repeating the value and the alert escalating when nobody does. In short:
+The [video](https://youtu.be/04fxknWoucU) is the main demonstration: it shows a result arriving, the agent deciding, a critical stopping at the read-back, a person repeating the value and the alert escalating when nobody does. In short:
 
 A lab result enters the production. The rules decide first and fix a floor: a value over the critical limit, or a sharp change against the patient's earlier results, is critical whatever the agent says. The agent then investigates the result through four read-only tools, the earlier results, the delta assessment, the laboratory policy and the sample quality, and answers in a strict format; it may raise the severity, and a result it cannot decide goes to a person. A release guard after the answer lets a result go automatically only when the floor is zero, the sample is good and the value is not near a limit.
 
