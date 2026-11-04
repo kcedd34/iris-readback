@@ -25,6 +25,7 @@ ClassMethod Run(pHome As %String = "") As %Status
 		Set tFailed = tFailed + ..Report("units component registered", ##class(Readback.Units.Setup).EnsureComponent(), 1)
 		Set tFailed = tFailed + ..Report("policy index", ##class(Readback.Retrieval.Engine).Prepare(), 0)
 		Set tFailed = tFailed + ..Report("web application", ##class(Readback.API.Status).EnsureWebApp(), 1)
+		Set tFailed = tFailed + ..Report("MCP server web application", ##class(Readback.MCP.Setup).EnsureWebApp(), 1)
 		Set tFailed = tFailed + ..Report("workflow roles", ##class(Readback.Workflow.Setup).EnsureRoles(), 1)
 		Set tFailed = tFailed + ..Report("production started", ..Start(), 1)
 	} Catch ex {

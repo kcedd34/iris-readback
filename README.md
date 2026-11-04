@@ -212,6 +212,42 @@ This is the architecture of the product, the Interoperability components it real
 - **Alerting with escalation**: a critical result raises a managed alert over the platform's alert engine, with a custom delivery-and-receipt channel; the alert moves to the next person when nobody confirms in time.
 - **Tracing**: every decision keeps its inputs, the floor, the agent's answer, the composition, the tool calls in order, tokens and cost, linked to the Visual Trace session, and is readable through a small REST API. The platform's Visual Trace session shows the result, the agent's step, the task and the alerts. The tool calls, in order and with their time, are in the product's own trace and on the Decisions screen, which points to the session; the policy search, which calls another operation, also appears in the Visual Trace. In the flow of the panel the agent's node lights up its calls as sub-steps.
 
+### Read-only MCP server
+
+The product exposes a read-only MCP server: the platform's own `%AI.MCP.Service` (`src/Readback/MCP/Service.cls`) over four tools (`src/Readback/MCP/Tools.cls`): `list_pending_criticals`, `explain_decision`, `read_evaluation` and `read_ablation`. They follow the rules of the public feed: read only, no patient identifier in any answer, and the explanation of a decision is built from its trace record, with no model asked.
+
+**The read-back is deliberately not exposed.** No tool confirms a read-back, closes an alert or completes a task. An AI assistant never closes a critical result: the read-back is the one act a person must do, by repeating the value, and a tool that could do it would take that act away from the person. This is a security decision, not a gap.
+
+The access is closed. The service is the web application `/readback/mcp` on the management port, which the public proxy does not route. A caller needs the resource `Readback_MCP`, held by the role `ReadbackMcp`, and only the read-only demonstration account `observer` has that role.
+
+To connect a client, run the platform's gateway, `iris-mcp-server`, which the image ships, inside the container with this configuration in `/tmp/mcp.toml` (the password is the demonstration password of the `observer` account):
+
+```
+[[iris]]
+name = "readback"
+[iris.server]
+host = "127.0.0.1"
+port = 1972
+username = "observer"
+password = "<the demonstration password>"
+[[iris.endpoints]]
+path = "/readback/mcp"
+```
+
+```
+docker compose exec iris /usr/irissys/bin/iris-mcp-server -c /tmp/mcp.toml -t http://127.0.0.1:8000 run
+```
+
+Any MCP client that speaks the streamable HTTP transport connects to `http://127.0.0.1:8000/mcp` with the header `Authorization: Basic <observer:password in base64>`; the tools are listed as `readback_mcp_list_pending_criticals`, `readback_mcp_explain_decision`, `readback_mcp_read_evaluation` and `readback_mcp_read_ablation`, and the gateway lists none to a caller without credentials. The client verified here is the MCP Inspector 2.13.0 in command-line mode:
+
+```
+npx @modelcontextprotocol/inspector@2.13.0 --cli http://127.0.0.1:8000/mcp --transport http --header "Authorization: Basic <base64>" --method tools/list
+```
+
+The web application of the service is created with the type 18, the REST type plus the "MCP Server" bit (16). An application of type 2 only works over plain HTTP but the gateway answers it with a 404 and reports that it "did not identify itself" (`docs/probes.md`, Probe 17).
+
+What was tested: a complete session with the MCP Inspector through the gateway (`tests/e2e/mcp_client_check.sh`): the four tools are listed and no other, the pending criticals and the evaluation are read, a call to a tool that would confirm the read-back is answered `tool_not_found`, and a caller without credentials and an account without the resource are listed no tool; the tools in the platform's own tool manager (`tests/e2e/mcp_check.py`, `tests/objectscript/Readback/Test/McpToolsTest.cls`, `tests/python/test_mcp_source.py`): exactly the four read tools, none of them confirms anything, no table of the product changes when they are called and no answer carries a patient identifier; and over plain HTTP, the service serves nobody directly (401 without credentials, 404 with them: an application of the MCP Server type is reached through the gateway), an account without the `Readback_MCP` resource is listed no tool through the gateway, and the public proxy does not route the service.
+
 ## Technology bonuses
 
 | Bonus | Where it is used | File |
@@ -223,6 +259,7 @@ This is the architecture of the product, the Interoperability components it real
 | Vector Search | Policy passages and similar confirmed cases, found by meaning with the IRIS vector store and local embeddings | `src/Readback/Retrieval/Engine.cls` |
 | Docker | The image build and the compose stack, including the reverse proxy of the demo | `Dockerfile` |
 | IPM | The package descriptor; `zpm "load"` installs it from the repository, publication pending | `module.xml` |
+| MCP server | A read-only `%AI.MCP.Service` with four tools; it refuses to confirm a read-back, on purpose | `src/Readback/MCP/Service.cls` |
 | Online demo | http://109.123.244.170/ in replay mode, behind a proxy that forwards only the Readback paths | `src/ops/proxy/nginx.conf.template` |
 | Community Opportunity idea DPI-I-689 | Traceability of an LLM pipeline over Interoperability: every decision, tool call and human step is recorded | `src/Readback/Trace/Decision.cls` |
 

@@ -24,6 +24,7 @@ RUN chmod +x /opt/readback/java/build.sh && /opt/readback/java/build.sh
 COPY --chown=irisowner:irisowner data/policy /opt/readback/data/policy
 COPY --chown=irisowner:irisowner data/config /opt/readback/data/config
 COPY --chown=irisowner:irisowner data/replay /opt/readback/data/replay
+COPY --chown=irisowner:irisowner data/eval/report.json data/eval/ablation.json /opt/readback/data/eval/
 COPY --chown=irisowner:irisowner data/samples /opt/readback/samples
 COPY --chown=irisowner:irisowner tests /opt/readback/tests
 COPY --chown=irisowner:irisowner src /opt/readback/src

@@ -24,6 +24,9 @@ ClassMethod EnsureRoles() As %Status
 		}
 	}
 	Quit:$System.Status.IsError($Get(tSC, 1)) tSC
+	// The role that lets the read-only demonstration account use the MCP server must exist before the account is given it.
+	Set tSC = ##class(Readback.MCP.Setup).EnsureSecurity()
+	Quit:$System.Status.IsError(tSC) tSC
 	Set tPassword = ..Password()
 	Set tUsers = $ListBuild($ListBuild("communicator1", "Communicator One", ..#Communicators), $ListBuild("communicator2", "Communicator Two", ..#Communicators), $ListBuild("reviewer1", "Reviewer One", ..#Reviewers), $ListBuild("observer", "Observer without a role", ""))
 	Set tPtr = 0
@@ -38,7 +41,7 @@ ClassMethod EnsureRoles() As %Status
 		// The platform lets only the owner of an alert update it unless the user holds %Ens_AlertAdministration, and the person
 		// who confirms is not always the owner (the task goes by rotation): the platform's own alert administrator role is held
 		// by the communicators, and by nobody else.
-		Set tSC = ..EnsureSecurityUser(tName, tFull, tPassword, $Select(tRole=..#Communicators:"%EnsRole_AlertAdministrator", 1:""))
+		Set tSC = ..EnsureSecurityUser(tName, tFull, tPassword, $Select(tRole=..#Communicators:"%EnsRole_AlertAdministrator", tName="observer":"ReadbackMcp", 1:""))
 		Quit:$System.Status.IsError(tSC)
 	}
 	Quit $Get(tSC, 1)

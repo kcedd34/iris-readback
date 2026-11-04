@@ -22,6 +22,9 @@
       <!-- data/config holds the bounds of the agent's tools and the limits of the release guard. -->
       <FileCopy Name="data/config/" Target="${mgrdir}readback/data/config/"/>
       <FileCopy Name="data/policy/" Target="${mgrdir}readback/data/policy/"/>
+      <!-- The measured evaluation and the ablation, read by the read-only MCP server (Readback.MCP). -->
+      <FileCopy Name="data/eval/report.json" Target="${mgrdir}readback/data/eval/report.json"/>
+      <FileCopy Name="data/eval/ablation.json" Target="${mgrdir}readback/data/eval/ablation.json"/>
       <FileCopy Name="data/replay/" Target="${mgrdir}readback/data/replay/"/>
       <FileCopy Name="data/samples/" Target="${mgrdir}readback/samples/"/>
       <!-- src/python is imported by Readback.Demo.Generator (Embedded Python): the demo generates its messages inside IRIS. -->

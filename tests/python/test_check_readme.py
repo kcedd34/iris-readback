@@ -354,3 +354,25 @@ def test_a_tracing_map_that_cites_something_that_does_not_exist_fails(old, new, 
 def test_the_precedent_sentence_is_required_in_the_architecture():
     out = failing(README.replace("Nothing that no person confirmed enters the pool", "Anything may enter the pool", 1))
     assert any("pool of similar cases" in line for line in out)
+
+
+def test_the_mcp_section_must_state_the_refusal_of_the_read_back():
+    out = failing(README.replace("This is a security decision, not a gap.", "This is a gap.", 1))
+    assert any("mcp" in line and "security decision" in line for line in out)
+
+
+def test_the_mcp_section_must_name_the_verified_client_and_the_check():
+    out = failing(README.replace("MCP Inspector", "some client"))
+    assert any("mcp" in line and "verified" in line for line in out)
+    out = failing(README.replace("tests/e2e/mcp_client_check.sh", "tests/e2e/not_there.sh"))
+    assert any("mcp" in line for line in out)
+
+
+def test_the_mcp_section_must_list_the_four_tools():
+    out = failing(README.replace("read_ablation", "read_other"))
+    assert any("mcp" in line and "read_ablation" in line for line in out)
+
+
+def test_the_mcp_bonus_row_is_required():
+    out = failing(README.replace("| MCP server |", "| Something |", 1))
+    assert any("MCP server" in line for line in out)

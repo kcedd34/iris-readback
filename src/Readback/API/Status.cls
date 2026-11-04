@@ -55,8 +55,17 @@ ClassMethod Count(pTable As %String) As %Integer
 
 ClassMethod GetDecision(pControlId As %String) As %Status
 {
+	Set tRes = ..DecisionJson(pControlId)
+	If '$IsObject(tRes) { Quit ..Fail(..#HTTP404NOTFOUND, "no decision recorded for that case id") }
+	Write tRes.%ToJSON()
+	Quit $$$OK
+}
+
+/// The detail of the latest decision of a case as an object (the answer of the decisions route), or "" when there is none.
+ClassMethod DecisionJson(pControlId As %String) As %DynamicObject
+{
 	&sql(SELECT TOP 1 ID INTO :tId FROM Readback_Trace.Decision WHERE MessageControlId = :pControlId ORDER BY ID DESC)
-	If SQLCODE = 100 { Quit ..Fail(..#HTTP404NOTFOUND, "no decision recorded for that case id") }
+	Quit:SQLCODE=100 ""
 	If SQLCODE < 0 { Throw ##class(%Exception.General).%New("decision lookup failed", SQLCODE) }
 	Set tTrace = ##class(Readback.Trace.Decision).%OpenId(tId)
 	Set tRes = {}
@@ -88,8 +97,7 @@ ClassMethod GetDecision(pControlId As %String) As %Status
 	Set tRes.toolCalls = ##class(Readback.Trace.Rebuild).CallsOf(tTrace)
 	Set tRes.notifications = ..Notifications(tTrace.SessionId)
 	Set tRes.ruleLines = ..RuleLinesOf(tTrace)
-	Write tRes.%ToJSON()
-	Quit $$$OK
+	Quit tRes
 }
 
 /// The sentences of the rules that raised the floor of a decision (the value against its limit, the change over its window), or an

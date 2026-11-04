@@ -39,6 +39,8 @@ set sc=##class(Readback.Retrieval.Engine).Prepare()
 if \$system.Status.IsError(sc) { write "READBACK RETRIEVAL "_"FAILED: ",\$system.Status.GetErrorText(sc),! } else { write "Readback: policy index ready",! }
 set sc=##class(Readback.API.Status).EnsureWebApp()
 if \$system.Status.IsError(sc) { write "READBACK WEBAPP "_"FAILED: ",\$system.Status.GetErrorText(sc),! }
+set sc=##class(Readback.MCP.Setup).EnsureWebApp()
+if \$system.Status.IsError(sc) { write "READBACK MCP "_"FAILED: ",\$system.Status.GetErrorText(sc),! }
 set sc=##class(Readback.Workflow.Setup).EnsureRoles()
 if \$system.Status.IsError(sc) { write "READBACK ROLES "_"FAILED: ",\$system.Status.GetErrorText(sc),! }
 set sc=##class(Ens.Director).SetAutoStart("Readback.Production")

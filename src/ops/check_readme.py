@@ -31,7 +31,7 @@ REQUIRED_ITEMS = {
     "Start and verify": ["docker compose up", "verify.sh"],
 }
 RUN_IT_COMMANDS = ["docker load", "cp .env.example .env", "src/ops/preflight.sh", "docker compose up", "src/ops/verify.sh"]
-BONUSES = ["PEX", "Workflow Engine", "Custom outbound adapter", "Embedded Python", "Vector Search", "Docker", "IPM", "Online demo", "DPI-I-689"]
+BONUSES = ["PEX", "Workflow Engine", "Custom outbound adapter", "Embedded Python", "Vector Search", "Docker", "IPM", "MCP server", "Online demo", "DPI-I-689"]
 MAX_NUMBERS_ITEMS = 5
 FEEDBACK_ISSUES = 4
 ACCOUNTS = ["communicator1", "communicator2", "observer"]
@@ -343,6 +343,24 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
         for token in tokens:
             if token not in three[heading]:
                 fail("required-item", f"'{heading}' does not contain '{token}'")
+
+    # The read-only MCP server: its tools, the refusal of the read-back as a decision, the access, and what was and was not tested.
+    mcp = three.get("Read-only MCP server", "")
+    for needle in ("list_pending_criticals", "explain_decision", "read_evaluation", "read_ablation", "Readback_MCP", "iris-mcp-server", "src/Readback/MCP/Service.cls", "src/Readback/MCP/Tools.cls"):
+        if needle not in mcp:
+            fail("mcp", f"the MCP section must mention '{needle}'")
+    if not (re.search(r"(?i)deliberately not exposed", mcp) and re.search(r"(?i)never closes a critical", mcp) and re.search(r"(?i)security decision, not a gap", mcp)):
+        fail("mcp", "the MCP section must state that the read-back is deliberately not exposed, that an AI assistant never closes a critical, and that it is a security decision and not a gap")
+    if not (re.search(r"MCP Inspector", mcp) and "tests/e2e/mcp_client_check.sh" in mcp and re.search(r"(?i)type 18", mcp) and re.search(r"(?i)What was tested", mcp)):
+        fail("mcp", "the MCP section must name the client that was verified (the MCP Inspector), the check that runs it, the web application type 18 and what was tested")
+    for path in re.findall(r"`(tests/e2e/\w+\.(?:py|sh))`", mcp):
+        if not os.path.exists(os.path.join(ROOT, path)):
+            fail("mcp", f"the MCP section cites {path}, which does not exist")
+    for path in re.findall(r"`(src/Readback/MCP/\w+\.cls)`", mcp):
+        if not os.path.exists(os.path.join(ROOT, path)):
+            fail("mcp", f"the MCP section cites {path}, which does not exist")
+    if re.search(r"(?i)\btools?\b[^.]{0,40}\b(confirm|close)s? (a|the) read-back", mcp) and not re.search(r"(?i)no tool confirms", mcp):
+        fail("mcp", "the MCP section seems to offer a tool that confirms the read-back")
 
     # Demo: address, accounts, replay note, hourly reset.
     demo = two.get("Demo", "")
