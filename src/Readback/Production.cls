@@ -21,6 +21,7 @@ XData ProductionDefinition
   </Item>
   <Item Name="Readback.Inbound.HL7TCP" Category="" ClassName="Readback.Inbound.HL7TCP" PoolSize="4" Enabled="true" Foreground="false" Comment="" LogTraceEvents="true" Schedule="">
     <Setting Target="Adapter" Name="Port">5001</Setting>
+    <Setting Target="Adapter" Name="JobPerConnection">1</Setting>
     <Setting Target="Host" Name="AckMode">App</Setting>
     <Setting Target="Host" Name="TargetConfigNames">Readback.Triage</Setting>
     <Setting Target="Host" Name="MessageSchemaCategory">2.5</Setting>
@@ -44,7 +45,6 @@ XData ProductionDefinition
   </Item>
   <Item Name="Readback.Units" Category="" ClassName="Readback.Units.JavaOperation" PoolSize="1" Enabled="true" Foreground="false" Comment="Unit conversion with UCUM (Java, PEX)" LogTraceEvents="true" Schedule="">
     <Setting Target="Host" Name="%gatewayName">%Java Server</Setting>
-    <Setting Target="Host" Name="%remoteClassname">com.readback.units.UnitsOperation</Setting>
     <Setting Target="Host" Name="%gatewayExtraClasspaths">/opt/readback/java/build/readback-units.jar:/opt/readback/java/lib/ucum-1.0.9.jar:/usr/irissys/dev/java/lib/1.8/intersystems-pex-1.0.0-shaded.jar</Setting>
   </Item>
   <Item Name="Readback.Communicators" Category="" ClassName="EnsLib.Workflow.Operation" PoolSize="1" Enabled="true" Foreground="false" Comment="Read-back tasks for the communicating role" LogTraceEvents="true" Schedule="">

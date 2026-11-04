@@ -57,16 +57,17 @@ set sc=##class(Readback.MCP.Setup).EnsureWebApp()
 if \$system.Status.IsError(sc) { write "READBACK MCP "_"FAILED: ",\$system.Status.GetErrorText(sc),! }
 set sc=##class(Readback.Workflow.Setup).EnsureRoles()
 if \$system.Status.IsError(sc) { write "READBACK ROLES "_"FAILED: ",\$system.Status.GetErrorText(sc),! }
-set sc=##class(Ens.Director).SetAutoStart("Readback.Production")
-// The live agent item needs a key: it is enabled only when one is configured, so replay mode starts without errors.
+// The production is not started by IRIS at its own start: it would start before the Java gateway is ready. Only this script starts it, below, after the gateway accepts connections, and it runs at every start of the container.
+set sc=##class(Ens.Director).SetAutoStart("")
+if '##class(Ens.Director).IsProductionRunning("Readback.Production") { set sc=##class(Ens.Director).StartProduction("Readback.Production")  if \$system.Status.IsError(sc) { write "READBACK START "_"FAILED: ",\$system.Status.GetErrorText(sc),! } else { write "READBACK PRODUCTION "_"STARTED",! } } else { write "READBACK PRODUCTION "_"ALREADY RUNNING",! }
+// The live agent item needs a key: it is enabled only when one is configured, so replay mode starts without errors. An item is enabled in a running production (it is updated in place), so this comes after the start.
 set tLive=(##class(Readback.Config.Mode).Current()="live")
 set tCur=##class(Ens.Director).IsItemEnabled("Readback.Agent")
-if tLive'=tCur { set sc=##class(Ens.Director).EnableConfigItem("Readback.Agent",tLive) }
-if '##class(Ens.Director).IsProductionRunning("Readback.Production") { set sc=##class(Ens.Director).StartProduction("Readback.Production")  if \$system.Status.IsError(sc) { write "READBACK START "_"FAILED: ",\$system.Status.GetErrorText(sc),! } else { write "READBACK PRODUCTION "_"STARTED",! } } else { write "READBACK PRODUCTION "_"ALREADY RUNNING",! }
+if tLive'=tCur { set sc=##class(Ens.Director).EnableConfigItem("Readback.Agent",tLive)  if \$system.Status.IsError(sc) { write "READBACK AGENT "_"FAILED: ",\$system.Status.GetErrorText(sc),! } }
 halt
 OS
 
-if grep -q "^READBACK \(START\|CONFIG\|ROLES\|WEBAPP\|MCP\) FAILED" "$log"; then
+if grep -q "^READBACK \(START\|CONFIG\|ROLES\|WEBAPP\|MCP\|AGENT\) FAILED" "$log"; then
   echo "Readback did not start. IRIS keeps running so you can inspect it: docker compose logs iris"
 fi
 rm -f "$log"

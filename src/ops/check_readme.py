@@ -344,6 +344,14 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
             if token not in three[heading]:
                 fail("required-item", f"'{heading}' does not contain '{token}'")
 
+    # How the production starts in the container, and what happens at a restart.
+    start = three.get("Start and verify", "")
+    if not (re.search(r"only the start script", start) and "src/ops/bootstrap.sh" in start and re.search(r"docker compose restart iris", start) and "tests/e2e/start_check.sh" in start):
+        fail("start", "the 'Start and verify' section must say that only the start script starts the production, after the Java gateway accepts a connection, that a restart brings it back, and cite tests/e2e/start_check.sh")
+    for path in re.findall(r"`((?:src|tests)/[\w/.-]+\.(?:sh|py))`", start):
+        if not os.path.exists(os.path.join(ROOT, path)):
+            fail("start", f"the 'Start and verify' section cites {path}, which does not exist")
+
     # The read-only MCP server: its tools, the refusal of the read-back as a decision, the access, and what was and was not tested.
     mcp = three.get("Read-only MCP server", "")
     for needle in ("list_pending_criticals", "explain_decision", "read_evaluation", "read_ablation", "Readback_MCP", "iris-mcp-server", "src/Readback/MCP/Service.cls", "src/Readback/MCP/Tools.cls"):

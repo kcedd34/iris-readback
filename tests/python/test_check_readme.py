@@ -376,3 +376,13 @@ def test_the_mcp_section_must_list_the_four_tools():
 def test_the_mcp_bonus_row_is_required():
     out = failing(README.replace("| MCP server |", "| Something |", 1))
     assert any("MCP server" in line for line in out)
+
+
+def test_the_start_section_must_say_that_only_the_start_script_starts_the_production():
+    out = failing(README.replace("In the container only the start script", "In the container the start script", 1))
+    assert any("start" in line and "start script" in line for line in out)
+
+
+def test_a_file_cited_in_the_start_section_must_exist():
+    out = failing(README.replace("tests/e2e/start_check.sh", "tests/e2e/no_such_check.sh"))
+    assert any("start" in line for line in out)

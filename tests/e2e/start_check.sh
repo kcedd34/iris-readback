@@ -2,7 +2,9 @@
 # The start waits for the Java gateway and says so when it cannot:
 #  1. a Java gateway that is down is started and waited for by the step that sets up the unit component;
 #  2. when that step cannot succeed the bootstrap stops with a clear message, does not start the production, and exits non-zero;
-#  3. verify.sh accuses a production that is not running as soon as it is not.
+#  3. verify.sh accuses a production that is not running as soon as it is not;
+#  4. after a restart of the container the production comes back by itself (only the bootstrap starts it) and the event log of that start
+#     holds no error and no warning (Ens_Util.Log, types 1 to 3).
 # Runs against the running stack and leaves it as it found it.
 set -uo pipefail
 cd "$(dirname "$0")/../.."
@@ -30,6 +32,7 @@ echo "$out" | grep -q "READBACK ABORTED: the unit conversion component" || fail 
 echo "$out" | grep -q "READBACK PRODUCTION" && fail "the production was started after the unit component failed"
 
 # 3. verify.sh accuses a production that is not running.
+lastlog=$(printf 'set rs=##class(%%SQL.Statement).%%ExecDirect(,"SELECT MAX(ID) m FROM Ens_Util.Log") do rs.%%Next() write "RB_MAX=",+rs.m,!\nhalt\n' | iris | grep '^RB_MAX=' | cut -d= -f2)
 docker compose stop iris >/dev/null 2>&1
 started=$SECONDS
 out=$(src/ops/verify.sh 120 2>&1); code=$?
@@ -39,6 +42,12 @@ echo "$out" | tail -3
 echo "$out" | grep -q "the production is not running" || fail "verify.sh did not say that the production is not running"
 [ "$took" -lt 60 ] || fail "verify.sh took ${took}s to say it"
 docker compose start iris >/dev/null 2>&1
-src/ops/verify.sh 240 >/dev/null 2>&1 || fail "the stack did not come back after the check"
+src/ops/verify.sh 240 >/dev/null 2>&1 || fail "the stack did not come back after the check (the production did not start by itself)"
+
+# 4. The start after that restart: production running (verify.sh said so), and a clean event log.
+sleep 25
+cid=$(docker compose ps -q iris)
+bad=$(printf 'set rs=##class(%%SQL.Statement).%%ExecDirect(,"SELECT ID, Type, ConfigName, SUBSTR(Text,1,120) T FROM Ens_Util.Log WHERE ID > '"$lastlog"' AND Type IN (1,2,3) ORDER BY ID") while rs.%%Next() { write "RB_BAD ",rs.ID," t=",rs.Type," ",rs.ConfigName," ",rs.T,! }\nhalt\n' | iris | grep '^RB_BAD')
+[ -z "$bad" ] || fail "the event log of the restart holds errors or warnings: $bad"
 trap - EXIT
 echo "start check passed"
