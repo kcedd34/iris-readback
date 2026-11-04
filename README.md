@@ -6,7 +6,7 @@ The rules guarantee the safety and the agent explains. An InterSystems AI Hub ag
 
 ## Fast path
 
-- Video, the main demonstration: https://youtu.be/04fxknWoucU
+- Video, the main demonstration: https://youtu.be/ML2pBgBkqUo
 - Live demo (replay mode, reset every hour): http://109.123.244.170/
 - Repository: https://github.com/kcedd34/iris-readback
 - IPM package: `zpm "install iris-readback"` [PENDING: publication]
@@ -314,7 +314,7 @@ What an LLM tracing tool records, and where each item is in Readback (the decisi
 
 ## How it works
 
-The [video](https://youtu.be/04fxknWoucU) is the main demonstration: it shows a result arriving, the agent deciding, a critical stopping at the read-back, a person repeating the value and the alert escalating when nobody does. In short:
+The [video](https://youtu.be/ML2pBgBkqUo) is the main demonstration: it shows a result arriving, the agent deciding, a critical stopping at the read-back, a person repeating the value and the alert escalating when nobody does. In short:
 
 A lab result enters the production. The rules decide first and fix a floor: a value over the critical limit, or a sharp change against the patient's earlier results, is critical whatever the agent says. The agent then investigates the result through four read-only tools, the earlier results, the delta assessment, the laboratory policy and the sample quality, and answers in a strict format; it may raise the severity, and a result it cannot decide goes to a person. A release guard after the answer lets a result go automatically only when the floor is zero, the sample is good and the value is not near a limit.
 
