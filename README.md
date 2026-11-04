@@ -302,7 +302,7 @@ Observed on the Early Access build 154 while building this product, and checked 
 
 ### Found when moving to build 109
 
-- **`RESOURCE` became `SECURITYRESOURCE` in `%AI.MCP.Service`, and the old parameter is ignored without a warning.** On build 109 the class does no authorization of its own unless `SECURITYRESOURCE` is set or `OnAuthenticate()` is overridden (its description says so). The read-only MCP server of this product set `RESOURCE`, so on 109 an authenticated account without the resource listed and called the tools; the step of the battery that checks this account caught it. The product now sets both parameters and each tool checks the resource itself, and a test calls the tools directly as an account without it. A request without credentials is answered 401 on 154 and 404 on 109; both refuse. Not yet reported to the tracker.
+- **`RESOURCE` became `SECURITYRESOURCE` in `%AI.MCP.Service`, and the old parameter is ignored without a warning.** On build 109 the class does no authorization of its own unless `SECURITYRESOURCE` is set or `OnAuthenticate()` is overridden (its description says so). The read-only MCP server of this product set `RESOURCE`, so on 109 an authenticated account without the resource listed and called the tools; the step of the battery that checks this account caught it. The product now sets both parameters and each tool checks the resource itself, and a test calls the tools directly as an account without it. A request without credentials is answered 401 on 154 and 404 on 109; both refuse. Reported as [issue 47](https://github.com/intersystems-community/ai-hub-eap/issues/47), with a reproduction that uses none of this product's code.
 
 ### Reported from this project
 
