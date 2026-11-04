@@ -5,7 +5,9 @@
     python -m readback.evaluation.runner report
 
 live    needs the provider key in the container (the mode must be live), a clean state, and `--yes` after the estimate is shown.
-replay  needs no key and refuses to run when a key is configured (a replay must never call the provider).
+replay  needs no key and refuses to run when a key is configured (a replay must never call the provider). With no set it replays every
+        shipped set (gpt-5.4 and gpt-5.4-mini) and rebuilds the full report, identical to data/eval/report.*; with one set it writes that set's
+        report to .local/eval/report-<set> and says so, and never touches the full report.
 report  builds data/eval/report.json and report.md from the rows of every run in the work folder.
 
 The key is never read, printed or written here: the container holds it, and every printed line is masked anyway.
@@ -180,9 +182,10 @@ def export_rows(model_hint):
     return final, name, len(rows)
 
 
-def build_reports():
+def build_reports(out=None, only=None):
+    """Builds the report from the rows of the work folder, or only from the given row files, into `out` (default: the report folder)."""
     runs, metas = [], []
-    for path in sorted(glob.glob(os.path.join(WORK, "rows-*.jsonl"))):
+    for path in sorted(only if only is not None else glob.glob(os.path.join(WORK, "rows-*.jsonl"))):
         name = os.path.basename(path)[len("rows-"):-len(".jsonl")]
         runs += ["--run", "{}={}".format(name, path)]
         # The settings of a live run are kept beside its report, so a replay states the same header.
@@ -197,7 +200,7 @@ def build_reports():
     extra = ["--previous", previous] if previous else []
     if os.environ.get("EVAL_RUN_DATE"):
         extra += ["--run-date", os.environ["EVAL_RUN_DATE"]]
-    return report.main(runs + metas + extra + ["--dataset", DATASET, "--prices", PRICES, "--out", OUT])
+    return report.main(runs + metas + extra + ["--dataset", DATASET, "--prices", PRICES, "--out", out or OUT])
 
 
 def run_live(model, resume=False, yes=False, output_cap=None, replay_set=None, pilot=None, record_answers=True, variant=None):
@@ -297,6 +300,40 @@ def clean_state():
     return flag == "1", why
 
 
+def wipe_state():
+    """Empties the trace and the pool of confirmed cases, as a fresh stack would be, so that the next replay set starts clean."""
+    iris('set rs=##class(%SQL.Statement).%ExecDirect(,"DELETE FROM Readback_Trace.Decision")\n'
+         'set rs=##class(%SQL.Statement).%ExecDirect(,"DELETE FROM Readback_Retrieval.CaseVec")\nwrite "RB_WIPED",!')
+
+
+def shipped_sets():
+    """The replay sets that ship, in the order of the recordings."""
+    names = []
+    with open(RECORDINGS) as handle:
+        for line in handle:
+            if line.strip():
+                name = json.loads(line).get("replaySet") or "default"
+                if name not in names:
+                    names.append(name)
+    return names
+
+
+LAST_ROWS = []
+
+
+def run_replay_all():
+    """Replays every shipped set in turn, wiping the state between them, and rebuilds the full report: the same as the shipped one."""
+    del LAST_ROWS[:]
+    for index, name in enumerate(shipped_sets()):
+        if index:
+            wipe_state()
+        say("replay set {}".format(name))
+        code = run_replay(name)
+        if code:
+            return code
+    return build_reports(only=list(LAST_ROWS))
+
+
 def run_replay(replay_set="default"):
     mode = container_mode()
     if mode != "replay":
@@ -318,6 +355,7 @@ def run_replay(replay_set="default"):
         say("{} messages were not acknowledged AA: {}".format(len(bad), ", ".join(bad[:5])))
     complete = wait_for_traces(ids, stall_seconds=120, limit_seconds=1800)
     path, name, count = export_rows(None)
+    LAST_ROWS.append(path)
     say("exported {} rows of set {} to {}".format(count, replay_set, path))
     return 0 if complete else 1
 
@@ -334,15 +372,25 @@ def main(argv=None):
     live.add_argument("--variant", choices=["no-verdict"], default=None, help="the ablation round: the change tool gives values and variation, not the rule's verdict; records into data/eval/ablation-no-verdict.jsonl")
     live.add_argument("--pilot", type=int, default=None, help="send only about N subject cases (balanced across categories) with their history, record nothing")
     rep = sub.add_parser("replay")
-    rep.add_argument("replay_set", nargs="?", default="default")
+    rep.add_argument("replay_set", nargs="?", default=None, help="one shipped set; without it every shipped set is replayed and the full report is rebuilt")
     sub.add_parser("report")
     args = parser.parse_args(argv)
     if args.command == "live":
         # A live run is dated the day it is made; a replay or a rebuilt report keeps the date of the report it rebuilds.
         os.environ.setdefault("EVAL_RUN_DATE", datetime.date.today().isoformat())
         code = run_live(args.model, args.resume, args.yes, args.output_cap, args.replay_set, args.pilot, record_answers=not args.pilot, variant=args.variant)
+    elif args.command == "replay" and args.replay_set is None:
+        return run_replay_all()
     elif args.command == "replay":
         code = run_replay(args.replay_set)
+        if code:
+            return code
+        # One set never overwrites the full report: its report goes to a folder of its own, unless EVAL_OUT says where.
+        if "EVAL_OUT" in os.environ:
+            return build_reports(only=list(LAST_ROWS))
+        partial = os.path.join(WORK, "report-" + args.replay_set)
+        say("one set only: the report of {} is written to {}; the full report in {} is not touched (run `replay` with no set to rebuild it)".format(args.replay_set, partial, OUT))
+        return build_reports(out=partial, only=list(LAST_ROWS))
     else:
         return build_reports()
     ran = args.command == "replay" or args.yes

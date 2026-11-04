@@ -378,7 +378,7 @@ def build(today=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--out", default=os.path.join(ROOT, "data/eval/ablation.json"))
-    parser.add_argument("--date", default=None)
+    parser.add_argument("--date", default=os.environ.get("ABLATION_DATE"), help="the measuredOn date; ABLATION_DATE does the same, so the output can be made identical to the shipped file")
     args = parser.parse_args(argv)
     data = build(args.date)
     with open(args.out, "w") as handle:

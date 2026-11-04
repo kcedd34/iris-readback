@@ -66,6 +66,22 @@ for k in RB_GUARD RB_BOUNDS RB_TOOLS RB_GEN RB_MCPSET RB_MCP RB_MCPAPP; do
   printf '%s' "$tools" | grep -q "$k=1" || fail "$k: the agent's configuration or tool set is not usable on the installed instance: $tools"
 done
 
+# The package installs no start script, so the platform itself must bring the production back: the instance is restarted three times, and
+# each time the production runs again and its event log holds no error.
+for i in 1 2 3; do
+  docker restart "$name" >/dev/null || fail "the instance did not restart"
+  for _ in $(seq 1 60); do [ "$(docker inspect -f '{{.State.Health.Status}}' "$name" 2>/dev/null)" = healthy ] && break; sleep 3; done
+  back=""
+  for _ in $(seq 1 40); do
+    back="$(echo 'write "RB_STATE=",##class(Ens.Director).IsProductionRunning("Readback.Production"),! halt' | sess | grep -o 'RB_STATE=[01]')"
+    [ "$back" = "RB_STATE=1" ] && break
+    sleep 3
+  done
+  [ "$back" = "RB_STATE=1" ] || fail "the production did not come back after restart $i of the instance"
+done
+errors="$(printf '%s\n' 'set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) AS N FROM Ens_Util.Log WHERE Type = 2 AND Text NOT LIKE ?","Retrieval is not available%")' 'do rs.%Next() write "RB_ERRS=",rs.%Get("N"),!' 'halt' | sess | grep -o 'RB_ERRS=[0-9]*')"
+[ "$errors" = "RB_ERRS=0" ] || fail "the event log holds errors after the restarts ($errors)"
+
 # The install step is safe to run again.
 echo 'set sc=##class(Readback.Install).Run() write "RERUN=",$select($system.Status.IsOK(sc):"ok",1:"FAILED"),! halt' | sess | grep -q "RERUN=ok" || fail "the install step is not repeatable"
 

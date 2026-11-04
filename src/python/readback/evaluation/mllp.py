@@ -4,6 +4,7 @@ The inbound TCP service handles one connection at a time per worker, and a conne
 anything leaves the next connection unanswered. Every message of a run goes on one connection, and no empty connection is opened as
 a readiness check. A reset before the first acknowledgement is retried on a new connection; a later reset is a real failure.
 """
+import os
 import socket
 import time
 
@@ -34,7 +35,7 @@ def read_ack(conn):
     return "NOACK"
 
 
-def send_many(messages, host="127.0.0.1", port=5001, progress=None):
+def send_many(messages, host="127.0.0.1", port=int(os.environ.get("READBACK_HL7_PORT") or 5001), progress=None):
     """messages: list of (id, text). Returns a list of (id, acknowledgement code), in order."""
     results = []
     conn = connect(host, port)

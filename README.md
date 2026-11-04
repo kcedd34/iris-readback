@@ -26,7 +26,7 @@ src/ops/verify.sh
 
 Measured: from clone to a working panel in 2 minutes on a clean machine, with the image already loaded (77 s in the last run: image build 56 s with no build cache, start 15 s, verification 1 s; the IPM client and the workflow layer are installed while the image is built, so the start needs no network).
 
-Full steps, with the image rename and the provider key: [Required by the organizers](#required-by-the-organizers).
+Full steps, with the image rename and the provider key: [Required by the organizers](#required-by-the-organizers). How to run the test battery, run a second stack, reproduce the evaluation and the ablation, free in replay or paid live, and connect an MCP client from your machine: [REPRODUCE.md](REPRODUCE.md).
 
 ## For judges
 
@@ -143,6 +143,8 @@ Open http://109.123.244.170/ and press **Run demo sequence**: a critical potassi
 
 Password: `hVWrjsSnttT8AYIn9acJ`
 
+To open a read-back task: after the demo sequence, the critical potassium waits at the read-back station of the flow, in a card marked with the account it is assigned to. Click the card; a side panel opens and asks you to sign in. Use the account the card names (the task goes by rotation to `communicator1` or `communicator2`; `observer` can look but cannot confirm). Enter whom you told and the value you repeated, and press **Confirm the read-back**. A value that does not match is refused: the task stays open and the attempt is counted and shown in the panel; only a matching value closes the task and the alert.
+
 The demo runs in replay mode against a real IRIS instance: the decisions are the recorded answers of a real run of the agent, so no key is needed and no provider is called. The data is synthetic. The demo is plain HTTP, and it is reset every hour, on the hour; it is unavailable for about half a minute while it resets.
 
 The demonstration accounts are deliberately broader than a production deployment would use, because the credential is shared and the demo has to show the escalation working. They hold `%DB_USER` on the USER database, and the two communicator accounts also hold `%EnsRole_AlertAdministrator`, so that they can close alerts they do not own: the read-back task goes by rotation to either communicator, so the person who confirms is not always the owner of the alert. None of them holds `%All`, `%Manager` or `%Admin`. The demo builds its messages with Embedded Python, and the `%Service_EmbeddedPython` resource that needs belongs to the web application, through a role that is matched only while the application serves a request, not to any account. In a production deployment each of these would be a role specific to the Readback, and the alert would be closed in a system context on behalf of the person who confirmed.
@@ -197,7 +199,7 @@ curl -s http://127.0.0.1:8080/readback/api/status
 
 In the container only the start script (`src/ops/bootstrap.sh`) starts the production, and it does so after the Java gateway of the unit conversion component accepts a connection; IRIS does not start it by itself. The script runs at every start of the container, so `docker compose restart iris` brings the production back with no other step, and if the component cannot be set up the container stops with a message instead of starting half a production. `src/ops/verify.sh` says "the production is not running" as soon as the container stops or the start reports a failure, and the event log of a start holds no error and no warning (`tests/e2e/start_check.sh` checks it).
 
-The product can also be installed as an IPM package into an instance that has the AI Hub: with the repository on disk, `zpm "load /path/to/iris-readback"` installs it, builds the unit conversion component and starts the production. Policy retrieval stays unavailable on such an instance until the embedding model is provided, as the image does; everything else works.
+The product can also be installed as an IPM package into an instance that has the AI Hub: with the repository on disk, `zpm "load /path/to/iris-readback"` installs it, builds the unit conversion component and starts the production. Policy retrieval stays unavailable on such an instance until the embedding model is provided, as the image does; everything else works. The package sets the production to start with the instance, so on an IPM installation too the production is running again after the instance restarts, with no other step (`tests/e2e/ipm_check.sh` restarts the instance three times and checks it).
 
 ## What the production contains
 

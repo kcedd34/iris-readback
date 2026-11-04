@@ -4,6 +4,7 @@ The inbound TCP service handles one connection at a time per worker, and a conne
 opened and closed without sending anything leaves the next connection unanswered. Send every
 message of a batch on one connection, and never open an empty connection as a readiness check.
 """
+import os
 import socket
 import sys
 import time
@@ -35,7 +36,7 @@ def read_ack(conn):
     return "NOACK"
 
 
-def send_many(paths, host="127.0.0.1", port=5001):
+def send_many(paths, host="127.0.0.1", port=int(os.environ.get("READBACK_HL7_PORT") or 5001)):
     """Returns a list of (path, ack code) using a single connection.
 
     A connection opened soon after another one closed can be reset before anything is acknowledged. That is

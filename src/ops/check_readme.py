@@ -301,6 +301,99 @@ def list_items(body):
     return [line for line in body.splitlines() if re.match(r"^\s*([-*]|\d+\.)\s+\S", line)]
 
 
+REPRODUCE = "REPRODUCE.md"
+REPRODUCE_SECTIONS = [
+    "1. Prerequisites of the test battery", "2. A separate stack", "3. Reproduce the evaluation", "4. Reproduce the ablation",
+    "5. Connect an MCP client from your machine",
+]
+TOP_LEVEL_FILES = ("module.xml", "docker-compose.yml", ".env.example", "LICENSE", "Dockerfile", REPRODUCE, "README.md")
+PATH_TOKEN = re.compile(r"(?<![\w/.<$-])((?:src|tests|data|frontend|java|docs-assets)/[A-Za-z0-9_./*<>{}-]+)")
+VARIABLE = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b")
+PROJECT_VARIABLE = re.compile(r"\b(?:READBACK|EVAL|ABLATION)_[A-Z0-9_]+\b")
+
+
+def repo_text(root=None):
+    """Every text file the product or its checks could read a variable from: the compose file, the sources, the tests, the example env."""
+    root = root or ROOT
+    text = ""
+    files = [os.path.join(root, n) for n in ("docker-compose.yml", ".env.example", "Dockerfile", "module.xml")]
+    for folder in ("src", "tests"):
+        for base, _, names in os.walk(os.path.join(root, folder)):
+            files += [os.path.join(base, n) for n in names if n.endswith((".sh", ".py", ".cls", ".yml", ".mjs", ".ts", ".xml", ".template"))]
+    for path in files:
+        try:
+            with open(path, encoding="utf-8") as handle:
+                text += handle.read()
+        except (OSError, UnicodeDecodeError):
+            pass
+    return text
+
+
+def shipped_replay_sets(root=None):
+    sets = set()
+    try:
+        with open(os.path.join(root or ROOT, "data", "replay", "recordings.jsonl"), encoding="utf-8") as handle:
+            for line in handle:
+                if line.strip():
+                    sets.add(json.loads(line).get("replaySet") or "default")
+    except OSError:
+        pass
+    return sets
+
+
+def cited_problems(text, name, root=None, variables_everywhere=False):
+    """What a document cites must exist: the files and folders, the python modules, the replay sets and flags of evaluate.sh, the variables."""
+    root = root or ROOT
+    problems = []
+    for token in sorted(set(PATH_TOKEN.findall(text))):
+        path = token.rstrip(".,:;)")
+        if any(c in path for c in "*<>{}"):
+            continue
+        if not os.path.exists(os.path.join(root, path)):
+            problems.append(f"{name} cites {path}, which does not exist")
+    for token in sorted(set(re.findall(r"`([^`\n]+)`", text))):
+        if token in TOP_LEVEL_FILES and not os.path.exists(os.path.join(root, token)):
+            problems.append(f"{name} cites {token}, which does not exist")
+    for module in sorted(set(re.findall(r"python3? -m (readback(?:\.\w+)+)", text))):
+        if not os.path.exists(os.path.join(root, "src", "python", *module.split(".")) + ".py"):
+            problems.append(f"{name} runs python -m {module}, which does not exist")
+    runner = ""
+    try:
+        with open(os.path.join(root, "src", "python", "readback", "evaluation", "runner.py"), encoding="utf-8") as handle:
+            runner = handle.read()
+    except OSError:
+        pass
+    sets = shipped_replay_sets(root)
+    for line in text.splitlines():
+        if "evaluate.sh" not in line:
+            continue
+        for flag in re.findall(r"(?<![\w-])(--[a-z][a-z-]*)", line):
+            if f'"{flag}"' not in runner:
+                problems.append(f"{name} gives evaluate.sh the flag {flag}, which the runner does not have")
+        sub = re.search(r"evaluate\.sh (live|replay|report)\b(?: ([\w.-]+))?", line)
+        if sub and sub.group(1) == "replay" and sub.group(2) and not sub.group(2).startswith("-") and sub.group(2) not in sets:
+            problems.append(f"{name} replays the set {sub.group(2)}, which is not a shipped replay set ({', '.join(sorted(sets))})")
+    source = repo_text(root)
+    names = set(VARIABLE.findall(text)) if variables_everywhere else set(PROJECT_VARIABLE.findall(text))
+    for variable in sorted(names):
+        if variable not in source:
+            problems.append(f"{name} names the variable {variable}, which nothing in the product or its checks reads")
+    return problems
+
+
+def reproduce_problems(text, readme, root=None):
+    """REPRODUCE.md: the five sections, a link from the README, no placeholder left, and everything it cites exists."""
+    problems = []
+    headings = re.findall(r"(?m)^## (.+?)\s*$", text)
+    for title in REPRODUCE_SECTIONS:
+        if title not in headings:
+            problems.append(f"REPRODUCE.md has no section '{title}'")
+    if "(REPRODUCE.md)" not in readme:
+        problems.append("the README does not link REPRODUCE.md")
+    problems += cited_problems(text, "REPRODUCE.md", root, variables_everywhere=True)
+    return problems
+
+
 def check(text, report, before=None, delta=None, guard=None, ablation=None):
     failures = []
     ablation = ablation if ablation is not None else load_ablation()
@@ -311,6 +404,16 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
         failures.append(f"check-readme: FAIL {rule}: {what}")
 
     two, three, order = sections_of(text)
+
+    for problem in cited_problems(text, "the README"):
+        fail("cited", problem)
+    compose = open(os.path.join(ROOT, "docker-compose.yml"), encoding="utf-8").read()
+    if '"127.0.0.1:${READBACK_MCP_PORT' not in compose:
+        fail("mcp-port", "docker-compose.yml must publish the MCP gateway port on 127.0.0.1 only, through READBACK_MCP_PORT")
+    if "after the instance restarts" not in text or "ipm_check.sh" not in text:
+        fail("ipm-restart", "the README must say the production is running again after the instance restarts on an IPM installation, and cite tests/e2e/ipm_check.sh")
+    if "Confirm the read-back" not in text or "does not match is refused" not in text:
+        fail("readback-steps", "the Demo section must say where to open a read-back task and that a wrong value is refused and counted")
 
     # 1. The thesis is the first sentence after the title.
     body_lines = [l for l in text.splitlines() if l.strip()]
@@ -583,6 +686,12 @@ def main(argv):
     with open(args.readme, encoding="utf-8") as handle:
         text = handle.read()
     failures = check(text, report, *load_companions(args.report), load_ablation(args.report))
+    reproduce = os.path.join(os.path.dirname(os.path.abspath(args.readme)), REPRODUCE)
+    if not os.path.exists(reproduce):
+        failures.append(f"check-readme: FAIL reproduce: {reproduce} does not exist")
+    else:
+        with open(reproduce, encoding="utf-8") as handle:
+            failures += [f"check-readme: FAIL reproduce: {p}" for p in reproduce_problems(handle.read(), text)]
     for line in failures:
         print(line)
     if failures:

@@ -386,3 +386,50 @@ def test_the_start_section_must_say_that_only_the_start_script_starts_the_produc
 def test_a_file_cited_in_the_start_section_must_exist():
     out = failing(README.replace("tests/e2e/start_check.sh", "tests/e2e/no_such_check.sh"))
     assert any("start" in line for line in out)
+
+
+REPRODUCE = open(os.path.join(ROOT, "REPRODUCE.md"), encoding="utf-8").read()
+
+
+def test_the_finished_reproduce_file_passes():
+    assert gate.reproduce_problems(REPRODUCE, README) == []
+
+
+@pytest.mark.parametrize("title", gate.REPRODUCE_SECTIONS)
+def test_a_missing_reproduce_section_fails(title):
+    out = gate.reproduce_problems(REPRODUCE.replace(f"## {title}", "## Renamed"), README)
+    assert any(title in line for line in out)
+
+
+def test_the_readme_must_link_the_reproduce_file():
+    assert any("link" in line for line in gate.reproduce_problems(REPRODUCE, README.replace("(REPRODUCE.md)", "(x)")))
+
+
+@pytest.mark.parametrize("original, replacement, needle", [
+    ("src/ops/evaluate.sh replay", "src/ops/nothere.sh replay", "nothere.sh"),
+    ("data/config/price-table.json", "data/config/no-prices.json", "no-prices.json"),
+    ("python3 -m readback.evaluation.ablation", "python3 -m readback.evaluation.nothing", "readback.evaluation.nothing"),
+    ("evaluate.sh replay gpt-5.4-mini", "evaluate.sh replay gpt-9", "gpt-9"),
+    ("src/ops/evaluate.sh live gpt-5.4 --variant no-verdict", "src/ops/evaluate.sh live gpt-5.4 --variant no-verdict --non" "sense", "--non" "sense"),
+    ("READBACK_MCP_PORT", "READBACK_NO" "T_A_VARIABLE", "READBACK_NO" "T_A_VARIABLE"),
+    ("`tests/e2e/triage_check.sh`", "`tests/e2e/triage_missing.sh`", "triage_missing.sh"),
+])
+def test_a_command_file_or_variable_that_does_not_exist_fails(original, replacement, needle):
+    assert original in REPRODUCE
+    out = gate.reproduce_problems(REPRODUCE.replace(original, replacement, 1), README)
+    assert any(needle in line for line in out)
+
+
+def test_a_placeholder_left_in_the_reproduce_file_fails():
+    assert any("BATTERY" "_MINUTES" in line for line in gate.reproduce_problems(REPRODUCE + "\nabout BATTERY" "_MINUTES minutes\n", README))
+
+
+def test_the_readme_citing_a_missing_file_fails():
+    out = failing(README + "\nSee `src/ops/not-there.sh`.\n")
+    assert any("cited" in line and "not-there.sh" in line for line in out)
+
+
+@pytest.mark.parametrize("original", ["after the instance restarts", "does not match is refused"])
+def test_the_readme_must_keep_the_restart_and_the_readback_steps(original):
+    out = failing(README.replace(original, "xxxx", 1))
+    assert any(("ipm-restart" in line or "readback-steps" in line) for line in out)

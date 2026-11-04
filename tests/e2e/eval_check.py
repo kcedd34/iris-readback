@@ -9,6 +9,7 @@ run on a cleaned state giving a byte-identical report. Nothing is written to dat
 import glob
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -173,6 +174,31 @@ def check_shipped_replay():
             if os.path.exists(path):
                 again = json.load(open(path))["models"].get(model)
                 check(again == published["models"].get(model), "the replay of %s differs from the published report" % replay_set)
+    # `replay` with no set replays both shipped sets and rebuilds the full report, identical byte for byte to the one in the repository;
+    # one set alone must not write the full report (it says where it wrote instead).
+    wipe_state()
+    with tempfile.TemporaryDirectory() as work:
+        env = dict(os.environ, EVAL_OUT=os.path.join(work, "out"), EVAL_WORK=os.path.join(work, "run"), PYTHON=PYTHON, OPENAI_API_KEY="")
+        # A rebuilt report keeps the date of the report it replaces, so the folder starts with the shipped one, as data/eval does.
+        os.makedirs(os.path.join(work, "out"))
+        for name in ("report.json", "report.md"):
+            shutil.copy(os.path.join(ROOT, "data", "eval", name), os.path.join(work, "out", name))
+        proc = subprocess.run([os.path.join(ROOT, "src/ops/evaluate.sh"), "replay"], cwd=ROOT, capture_output=True, text=True, env=env, timeout=1800)
+        check(proc.returncode == 0, "replay with no set failed (%s): %s" % (proc.returncode, (proc.stdout + proc.stderr)[-300:]))
+        for name in ("report.json", "report.md"):
+            made = os.path.join(work, "out", name)
+            check(os.path.exists(made) and open(made, "rb").read() == open(os.path.join(ROOT, "data", "eval", name), "rb").read(),
+                  "replay with no set did not rebuild %s identical to the shipped one" % name)
+    wipe_state()
+    with tempfile.TemporaryDirectory() as work:
+        env = {k: v for k, v in os.environ.items() if k != "EVAL_OUT"}
+        env.update(EVAL_WORK=os.path.join(work, "run"), PYTHON=PYTHON, OPENAI_API_KEY="")
+        before = open(os.path.join(ROOT, "data", "eval", "report.json"), "rb").read()
+        proc = subprocess.run([os.path.join(ROOT, "src/ops/evaluate.sh"), "replay", "gpt-5.4-mini"], cwd=ROOT, capture_output=True, text=True, env=env, timeout=900)
+        check(proc.returncode == 0, "replay of one set failed: " + (proc.stdout + proc.stderr)[-300:])
+        check(open(os.path.join(ROOT, "data", "eval", "report.json"), "rb").read() == before, "replay of one set overwrote the full report")
+        check("is not touched" in proc.stdout and os.path.exists(os.path.join(work, "run", "report-gpt-5.4-mini", "report.json")),
+              "replay of one set did not write its report elsewhere and say so")
     wipe_state()
     iris('do ##class(Readback.Replay.Recording).Activate("default")\nwrite "RB_CLEAN",!')
 

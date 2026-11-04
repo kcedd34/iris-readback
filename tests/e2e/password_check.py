@@ -17,6 +17,8 @@ import base64
 
 from common import ROOT
 
+UI = os.environ.get("UI_URL", "http://127.0.0.1:8080")
+
 LITERAL = "Sp3c!al \"q\" 'a'#h\\b &;x$y|z"
 IN_ENV_FILE = LITERAL.replace("$", "$$")
 failures = []
@@ -70,8 +72,8 @@ def main():
             time.sleep(5)
         check(status == 200, "the account communicator1 cannot sign in to the workflow layer with the password (status %s)" % status)
         check(fetch("http://127.0.0.1:%s/readback/api/status" % portal, "observer")[0] == 200, "the observer account cannot read the status with the password")
-        check(fetch("http://127.0.0.1:8080/readback/api/status")[0] == 200, "the read-only account behind the proxy does not work with the password")
-        _, config = fetch("http://127.0.0.1:8080/ui-config.json")
+        check(fetch(UI + "/readback/api/status")[0] == 200, "the read-only account behind the proxy does not work with the password")
+        _, config = fetch(UI + "/ui-config.json")
         try:
             published = json.loads(config)["accounts"][0]["password"]
         except (ValueError, KeyError, IndexError):

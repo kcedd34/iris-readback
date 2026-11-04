@@ -5,7 +5,7 @@ services:
       context: .
       args:
         IRIS_IMAGE: ${IRIS_IMAGE:-irishealth-community:2026.3.0AI.154.0}
-    image: iris-readback:local
+    image: ${READBACK_IMAGE:-iris-readback:local}
     environment:
       # Name only; the value comes from the shell or an untracked .env file. Empty means replay mode later.
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -13,6 +13,9 @@ services:
     ports:
       - "127.0.0.1:${READBACK_PORTAL_PORT:-52790}:52773"
       - "127.0.0.1:${READBACK_HL7_PORT:-5001}:5001"
+      # The MCP gateway (README: REPRODUCE.md) listens on 8000 inside the container once a person starts it; nothing is served until then.
+      # Published on the loopback only: the public proxy does not route it.
+      - "127.0.0.1:${READBACK_MCP_PORT:-8765}:8000"
     volumes:
       - readback-inbox:/data/in
     restart: unless-stopped
@@ -23,7 +26,7 @@ services:
     build:
       context: .
       dockerfile: src/ops/proxy/Dockerfile
-    image: iris-readback-ui:local
+    image: ${READBACK_UI_IMAGE:-iris-readback-ui:local}
     environment:
       # Names only; the values come from the shell or an untracked .env file.
       READBACK_DEMO_PASSWORD: ${READBACK_DEMO_PASSWORD:-}
