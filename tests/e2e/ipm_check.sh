@@ -35,6 +35,11 @@ docker exec "$name" mkdir -p /tmp/pkg && docker cp "$work/pkg.tar" "$name:/tmp/p
 log="$work/load.log"
 printf 'zpm "repo -n registry -r -url https://pm.community.intersystems.com/"\nzpm "load /tmp/pkg"\nhalt\n' | sess > "$log"
 grep -q "\[USER|iris-readback\].Activate SUCCESS" "$log" || { tail -20 "$log"; fail "zpm load of iris-readback did not succeed"; }
+# The dependency is pinned: the descriptor and the image build name the same version, and that version is the one the package pulled in.
+pinned="$(sed -n '/<Name>workflow-rest<\/Name>/{n;s|.*<Version>\(.*\)</Version>.*|\1|p}' module.xml)"
+case "$pinned" in ""|*\**|*^*|*~*) fail "module.xml does not pin workflow-rest to one version (found '$pinned')";; esac
+grep -q "zpm \"install workflow-rest $pinned\"" src/ops/prepare-image.sh || fail "src/ops/prepare-image.sh does not install workflow-rest $pinned, the version module.xml pins"
+printf 'zpm "list"\nhalt\n' | sess | grep -q "workflow-rest.*$pinned" || fail "the installed workflow-rest is not $pinned"
 grep -q "Readback install:.*FAILED" "$log" && { grep "Readback install:" "$log"; fail "an install step failed"; }
 grep -q "production started: ok" "$log" || fail "the production was not started by the install step"
 

@@ -32,7 +32,7 @@ install_workflow() {
   out="$(session <<OS 2>&1
 set sc=\$system.OBJ.Load("/tmp/zpm-installer.xml","c")
 zpm "repo -n registry -r -url ${registry_url}"
-zpm "install workflow-rest"
+zpm "install workflow-rest 1.1.1"
 write "PREPARE_WF="_##class(%Dictionary.ClassDefinition).%ExistsId("isc.wf.REST"),!
 halt
 OS
