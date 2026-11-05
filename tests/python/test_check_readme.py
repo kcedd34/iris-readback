@@ -101,9 +101,19 @@ def test_the_dataset_numbers_may_be_stated_in_prose():
     assert not any("outside the figure blocks" in out for out in failing(README))
 
 
-def test_a_closing_list_with_three_items_fails():
-    out = failing(README + "- one more thing: [PENDING: publication]\n")
+def test_a_pending_marker_anywhere_fails():
+    out = failing(README + "\n- one more thing: [PENDING: publication]\n")
     assert any("pending" in line for line in out)
+
+
+def test_the_open_exchange_link_is_required_in_the_fast_path():
+    out = failing(README.replace("https://openexchange.intersystems.com/package/Readback", "https://example.com", 1))
+    assert any("Open Exchange" in line for line in out)
+
+
+def test_the_ipm_command_is_required_in_the_fast_path():
+    out = failing(README.replace('- IPM package: `zpm "install iris-readback"`\n', "", 1))
+    assert any("IPM command" in line for line in out)
 
 
 def test_the_video_link_is_required_in_the_fast_path():
@@ -114,16 +124,6 @@ def test_the_video_link_is_required_in_the_fast_path():
 def test_a_video_link_in_another_format_fails():
     out = failing(README.replace("https://youtu.be/ML2pBgBkqUo", "https://www.youtube.com/watch?v=ML2pBgBkqUo", 1))
     assert any("youtu.be" in line for line in out)
-
-
-def test_a_pending_marker_outside_the_allowed_places_fails():
-    out = failing(README.replace("## Demo\n", "## Demo\n\nSoon: [PENDING: publication]\n", 1))
-    assert any("pending" in line and "outside" in line for line in out)
-
-
-def test_unmarked_missing_links_fail():
-    out = failing(README.replace("[PENDING: publication]", ""))
-    assert any("pending" in line for line in out)
 
 
 @pytest.mark.parametrize("extra", [
@@ -284,7 +284,8 @@ def test_embedded_python_must_name_the_class_with_python_methods_and_its_caller(
 
 
 def test_the_feedback_links_the_reports():
-    assert any("feedback" in out for out in failing(README.replace("issues/41", "issues/40", 1)))
+    head, tail = README.split("## Feedback on AI Hub EAP", 1)
+    assert any("feedback" in out for out in failing(head + "## Feedback on AI Hub EAP" + tail.replace("issues/41", "issues/40", 1)))
     assert any("feedback" in out for out in failing(README.replace("reported from this project;", "reported from this project; no issue has been filed;", 1)))
 
 

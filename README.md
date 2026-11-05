@@ -9,8 +9,8 @@ The rules guarantee the safety and the agent explains. An InterSystems AI Hub ag
 - Video, the main demonstration: https://youtu.be/ML2pBgBkqUo
 - Live demo (replay mode, reset every hour): http://109.123.244.170/
 - Repository: https://github.com/kcedd34/iris-readback
-- IPM package: `zpm "install iris-readback"` [PENDING: publication]
-- Open Exchange: [PENDING: publication]
+- IPM package: `zpm "install iris-readback"`
+- Open Exchange: https://openexchange.intersystems.com/package/Readback
 - Community Opportunity idea: https://ideas.intersystems.com/ideas/DPI-I-689
 - Measured evaluation, full report: `data/eval/report.md`
 
@@ -272,11 +272,12 @@ What was tested: a complete session with the MCP Inspector through the gateway (
 | Embedded Python | The demo's synthetic HL7 messages are generated inside IRIS by methods with `[ Language = python ]`, running the same Python generator that builds the evaluation dataset outside IRIS. "Send result" and "Run demo sequence" call it for every submission, with a case id of its own. Embedded Python is not used by the rules or the agent | `src/Readback/Demo/Generator.cls`, called from `src/Readback/API/Flow.cls` |
 | Vector Search | Policy passages and similar confirmed cases, found by meaning with the IRIS vector store and local embeddings | `src/Readback/Retrieval/Engine.cls` |
 | Docker | The image build and the compose stack, including the reverse proxy of the demo | `Dockerfile` |
-| IPM | The package descriptor; `zpm "load"` installs it from the repository, publication pending | `module.xml` |
+| IPM | The package descriptor; `zpm "load"` installs it from the repository, and the package is in the community registry as `iris-readback` | `module.xml` |
 | MCP server | A read-only `%AI.MCP.Service` with four tools; it refuses to confirm a read-back, on purpose | `src/Readback/MCP/Service.cls` |
-| Bug reports | Two bugs of the AI Hub filed in its bug tracker, with reproductions that do not use this product: [issue 18](https://github.com/intersystems-community/ai-hub-eap-bugreports/issues/18) (the agent loop has no default bound) and [issue 19](https://github.com/intersystems-community/ai-hub-eap-bugreports/issues/19) (the embedding model is described as bundled and is downloaded); the other reports are listed in [Feedback on AI Hub EAP](#feedback-on-ai-hub-eap) | `README.md` |
+| Find a bug in AI Hub | Two bugs found, reported in the AI Hub bug tracker with reproductions that do not use this product: [issue 18](https://github.com/intersystems-community/ai-hub-eap-bugreports/issues/18) (the agent loop has no default bound; first reported as [ai-hub-eap 41](https://github.com/intersystems-community/ai-hub-eap/issues/41)) and [issue 19](https://github.com/intersystems-community/ai-hub-eap-bugreports/issues/19) (the embedding model is described as bundled and is downloaded; first reported as [ai-hub-eap 44](https://github.com/intersystems-community/ai-hub-eap/issues/44)). The other reports, an enhancement or a documentation gap each, are [42](https://github.com/intersystems-community/ai-hub-eap/issues/42), [43](https://github.com/intersystems-community/ai-hub-eap/issues/43), [46](https://github.com/intersystems-community/ai-hub-eap/issues/46) and [47](https://github.com/intersystems-community/ai-hub-eap/issues/47), listed in [Feedback on AI Hub EAP](#feedback-on-ai-hub-eap) | `README.md` |
+| Video on YouTube | The main demonstration of the product: https://youtu.be/ML2pBgBkqUo | `README.md` |
 | Online demo | http://109.123.244.170/ in replay mode, behind a proxy that forwards only the Readback paths | `src/ops/proxy/nginx.conf.template` |
-| Community Opportunity idea DPI-I-689 | Traceability of an LLM pipeline over Interoperability: every decision, tool call and human step is recorded | `src/Readback/Trace/Decision.cls` |
+| Implement Community Idea (DPI-I-689) | Traceability of an LLM pipeline over Interoperability: every decision, tool call and human step is recorded | `src/Readback/Trace/Decision.cls` |
 
 ## Feedback on AI Hub EAP
 
@@ -359,8 +360,3 @@ The product runs on InterSystems IRIS for Health Community with the AI Hub (Earl
 ## Author
 
 Carlos Eduardo Dias Duarte. Released under the MIT licence, see `LICENSE`.
-
-## Still to publish
-
-- Open Exchange address of the application: [PENDING: publication]
-- Link of the published IPM package: [PENDING: publication]

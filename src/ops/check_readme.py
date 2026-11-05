@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The README gate: what the organizers require, the sections, the figures, the pending markers and a few things that must never appear.
+"""The README gate: what the organizers require, the sections, the figures, the absence of pending markers and a few things that must never appear.
 
 Usage: check_readme.py [README.md] [--report data/eval/report.json]
        check_readme.py --print-tables     prints the figure blocks the README must hold, taken from the report
@@ -23,7 +23,7 @@ MODELS = ["gpt-5.4-mini", "gpt-5.4"]
 # Level-2 headings in the order the README must have them, then the level-3 headings of the organizers' four items.
 SECTIONS = [
     "Fast path", "Run it", "For judges", "Demo", "Required by the organizers", "What the production contains",
-    "Technology bonuses", "Feedback on AI Hub EAP", "Idea DPI-I-689", "How it works", "Built with", "Author", "Still to publish",
+    "Technology bonuses", "Feedback on AI Hub EAP", "Idea DPI-I-689", "How it works", "Built with", "Author",
 ]
 REQUIRED_ITEMS = {
     "Early Access image and build": [IMAGE, "154", IMAGE_109, "109"],
@@ -32,12 +32,13 @@ REQUIRED_ITEMS = {
     "Start and verify": ["docker compose up", "verify.sh"],
 }
 RUN_IT_COMMANDS = ["docker load", "cp .env.example .env", "src/ops/preflight.sh", "docker compose up", "src/ops/verify.sh"]
-BONUSES = ["PEX", "Workflow Engine", "Custom outbound adapter", "Embedded Python", "Vector Search", "Docker", "IPM", "MCP server", "Online demo", "DPI-I-689"]
+BONUSES = ["PEX", "Workflow Engine", "Custom outbound adapter", "Embedded Python", "Vector Search", "Docker", "IPM", "MCP server", "Online demo", "DPI-I-689", "Find a bug in AI Hub", "Video on YouTube"]
 MAX_NUMBERS_ITEMS = 5
 FEEDBACK_ISSUES = 6
 BUGREPORT_ISSUES = (18, 19)
 ACCOUNTS = ["communicator1", "communicator2", "observer"]
 DEMO_URL = "http://109.123.244.170/"
+OPEN_EXCHANGE_URL = "https://openexchange.intersystems.com/package/Readback"
 IDEA_URL = "https://ideas.intersystems.com/ideas/DPI-I-689"
 
 # Portuguese letters and words, written as escapes so that no Portuguese text sits in the repository.
@@ -638,17 +639,16 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
     if "Carlos Eduardo Dias Duarte" not in two.get("Author", ""):
         fail("author", "the author section must name Carlos Eduardo Dias Duarte")
 
-    # 5. Pending markers only in the Fast path and the closing list, and the closing list has exactly two items.
-    closing = two.get("Still to publish", "")
-    if len(list_items(closing)) != 2:
-        fail("pending", f"the closing list has {len(list_items(closing))} items, it must have exactly 2 (Open Exchange and the IPM package)")
-    if not re.search(r"(?m)^- Video[^\n]*https://youtu\.be/[\w-]+", two.get("Fast path", "")):
+    # 5. Everything is published: no pending marker, the Fast path links the video, Open Exchange and the IPM command.
+    fast = two.get("Fast path", "")
+    if text.count(PENDING) or "PENDING" in text:
+        fail("pending", "a pending marker is left in the README: every link must be published by now")
+    if not re.search(r"(?m)^- Video[^\n]*https://youtu\.be/[\w-]+", fast):
         fail("pending", "the Fast path must link the video as https://youtu.be/...")
-    allowed = two.get("Fast path", "") + closing
-    if text.count(PENDING) != allowed.count(PENDING):
-        fail("pending", f"'{PENDING}' appears outside the Fast path and the closing list")
-    if text.count(PENDING) == 0:
-        fail("pending", f"no '{PENDING}' marker: the unpublished links must be marked")
+    if OPEN_EXCHANGE_URL not in fast:
+        fail("pending", f"the Fast path must link the Open Exchange page {OPEN_EXCHANGE_URL}")
+    if 'zpm "install iris-readback"' not in fast:
+        fail("pending", "the Fast path must give the IPM command: zpm \"install iris-readback\"")
 
     # 6. Things that must never appear.
     if KEY_SHAPED.search(text):
