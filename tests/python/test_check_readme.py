@@ -439,3 +439,9 @@ def test_the_readme_must_keep_the_restart_and_the_readback_steps(original):
 def test_the_readme_must_keep_the_tested_builds_and_the_difference(original):
     out = failing(README.replace(original, "xxxx"))
     assert any(("tested-builds" in line or "build-difference" in line) for line in out)
+
+
+@pytest.mark.parametrize("number", ["18", "19"])
+def test_the_bug_tracker_reports_are_linked_in_the_feedback_and_the_bonus_table(number):
+    link = "ai-hub-eap-bugreports/issues/" + number
+    assert any("feedback" in line for line in failing(README.replace(link, "ai-hub-eap-bugreports/issues/0")))

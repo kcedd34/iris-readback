@@ -274,12 +274,13 @@ What was tested: a complete session with the MCP Inspector through the gateway (
 | Docker | The image build and the compose stack, including the reverse proxy of the demo | `Dockerfile` |
 | IPM | The package descriptor; `zpm "load"` installs it from the repository, publication pending | `module.xml` |
 | MCP server | A read-only `%AI.MCP.Service` with four tools; it refuses to confirm a read-back, on purpose | `src/Readback/MCP/Service.cls` |
+| Bug reports | Two bugs of the AI Hub filed in its bug tracker, with reproductions that do not use this product: [issue 18](https://github.com/intersystems-community/ai-hub-eap-bugreports/issues/18) (the agent loop has no default bound) and [issue 19](https://github.com/intersystems-community/ai-hub-eap-bugreports/issues/19) (the embedding model is described as bundled and is downloaded); the other reports are listed in [Feedback on AI Hub EAP](#feedback-on-ai-hub-eap) | `README.md` |
 | Online demo | http://109.123.244.170/ in replay mode, behind a proxy that forwards only the Readback paths | `src/ops/proxy/nginx.conf.template` |
 | Community Opportunity idea DPI-I-689 | Traceability of an LLM pipeline over Interoperability: every decision, tool call and human step is recorded | `src/Readback/Trace/Decision.cls` |
 
 ## Feedback on AI Hub EAP
 
-Observed on the Early Access build 154 while building this product, and checked again on build 109. Each item says whether it worked, needed a workaround here, or is a candidate for a report. The five candidates below were checked against the issues of `intersystems-community/ai-hub-eap` for duplicates and reported from this project; the argument types in policies were already reported by someone else.
+Observed on the Early Access build 154 while building this product, and checked again on build 109. Each item says whether it worked, needed a workaround here, or is a candidate for a report. The five candidates below were checked against the issues of `intersystems-community/ai-hub-eap` for duplicates and reported from this project; the argument types in policies were already reported by someone else. The two that are bugs, the loop and the embedding class, were also filed in `intersystems-community/ai-hub-eap-bugreports`, the tracker for bugs found in AI Hub, with their reproductions, after a search for duplicates there.
 
 ### What worked
 
@@ -308,10 +309,10 @@ Observed on the Early Access build 154 while building this product, and checked 
 
 Each report has a reproduction that does not use this product: the stock build 154 image and a small mock provider, with no key.
 
-- **[Issue 41](https://github.com/intersystems-community/ai-hub-eap/issues/41), bug: the agent loop has no default bound and outlives the caller's timeout.** With a distinct argument on every call and no iteration limit, the loop made thousands of provider requests and went on after the caller had given up; with a real provider that is open-ended spend. Setting an iteration limit makes the call stop with a clear error, but the Interoperability adapter has no setting for it.
+- **[Issue 41](https://github.com/intersystems-community/ai-hub-eap/issues/41), bug: the agent loop has no default bound and outlives the caller's timeout.** With a distinct argument on every call and no iteration limit, the loop made thousands of provider requests and went on after the caller had given up; with a real provider that is open-ended spend. Setting an iteration limit makes the call stop with a clear error, but the Interoperability adapter has no setting for it. Also filed in the contest's bug tracker as [issue 18](https://github.com/intersystems-community/ai-hub-eap-bugreports/issues/18), with the reproduction in the report; the discussion is in issue 41.
 - **[Issue 42](https://github.com/intersystems-community/ai-hub-eap/issues/42), enhancement: provider error text reaches the event log and the message header unredacted**, and a provider that echoes the credential puts it there. Reproduced with the platform's own operation and a mock that echoes the header; the real service masks the key.
 - **[Issue 43](https://github.com/intersystems-community/ai-hub-eap/issues/43), enhancement: an exception inside an audit policy is swallowed silently**, with no error and no log line, while the same failure in an authorization policy is reported. The product's policies catch their own errors and a test proves their entries exist.
-- **[Issue 44](https://github.com/intersystems-community/ai-hub-eap/issues/44), bug: the embedding class description says the model is bundled and needs no network**, while the first `Create()` downloads it and fails offline.
+- **[Issue 44](https://github.com/intersystems-community/ai-hub-eap/issues/44), bug: the embedding class description says the model is bundled and needs no network**, while the first `Create()` downloads it and fails offline. Also filed in the contest's bug tracker as [issue 19](https://github.com/intersystems-community/ai-hub-eap-bugreports/issues/19); the discussion is in issue 44.
 - **[Issue 46](https://github.com/intersystems-community/ai-hub-eap/issues/46), docs: a `%AI.MCP.Service` web application without the "MCP Server" type bit is answered 404 by `iris-mcp-server`**, which reports that the endpoint "did not identify itself"; with type 18 it works. Found while building the read-only MCP server of this product. Related to issue 21.
 
 ## Idea DPI-I-689

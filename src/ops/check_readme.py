@@ -35,6 +35,7 @@ RUN_IT_COMMANDS = ["docker load", "cp .env.example .env", "src/ops/preflight.sh"
 BONUSES = ["PEX", "Workflow Engine", "Custom outbound adapter", "Embedded Python", "Vector Search", "Docker", "IPM", "MCP server", "Online demo", "DPI-I-689"]
 MAX_NUMBERS_ITEMS = 5
 FEEDBACK_ISSUES = 6
+BUGREPORT_ISSUES = (18, 19)
 ACCOUNTS = ["communicator1", "communicator2", "observer"]
 DEMO_URL = "http://109.123.244.170/"
 IDEA_URL = "https://ideas.intersystems.com/ideas/DPI-I-689"
@@ -622,6 +623,9 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
     links = set(re.findall(r"intersystems-community/ai-hub-eap/issues/(\d+)", feedback)) - {"40"}
     if len(links) < FEEDBACK_ISSUES:
         fail("feedback", f"the feedback section links {len(links)} reported issues besides issue 40, it must link {FEEDBACK_ISSUES}")
+    for number in BUGREPORT_ISSUES:
+        if f"ai-hub-eap-bugreports/issues/{number}" not in feedback or f"ai-hub-eap-bugreports/issues/{number}" not in bonus:
+            fail("feedback", f"issue {number} of ai-hub-eap-bugreports must be linked in the feedback section and in the bonus table")
     if re.search(r"(?i)no issue has been filed|none has been (filed|reported)", feedback):
         fail("feedback", "the feedback section still says that no issue has been filed")
 
