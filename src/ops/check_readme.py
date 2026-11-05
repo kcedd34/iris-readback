@@ -32,12 +32,13 @@ REQUIRED_ITEMS = {
     "Start and verify": ["docker compose up", "verify.sh"],
 }
 RUN_IT_COMMANDS = ["docker load", "cp .env.example .env", "src/ops/preflight.sh", "docker compose up", "src/ops/verify.sh"]
-BONUSES = ["PEX", "Workflow Engine", "Custom outbound adapter", "Embedded Python", "Vector Search", "Docker", "IPM", "MCP server", "Online demo", "DPI-I-689", "Find a bug in AI Hub", "Video on YouTube"]
+BONUSES = ["PEX", "Workflow Engine", "Custom outbound adapter", "Embedded Python", "Vector Search", "Docker", "IPM", "MCP server", "Online demo", "DPI-I-689", "Find a bug in AI Hub", "Video on YouTube", "First article on Developer Community"]
 MAX_NUMBERS_ITEMS = 5
 FEEDBACK_ISSUES = 6
 BUGREPORT_ISSUES = (18, 19)
 ACCOUNTS = ["communicator1", "communicator2", "observer"]
 DEMO_URL = "http://109.123.244.170/"
+ARTICLE_1_URL = "https://community.intersystems.com/post/ai-agent-can-raise-critical-lab-result-never-lower-it"
 OPEN_EXCHANGE_URL = "https://openexchange.intersystems.com/package/Readback"
 IDEA_URL = "https://ideas.intersystems.com/ideas/DPI-I-689"
 
@@ -647,6 +648,10 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
         fail("pending", "the Fast path must link the video as https://youtu.be/...")
     if OPEN_EXCHANGE_URL not in fast:
         fail("pending", f"the Fast path must link the Open Exchange page {OPEN_EXCHANGE_URL}")
+    if ARTICLE_1_URL not in fast:
+        fail("pending", f"the Fast path must link the first article {ARTICLE_1_URL}")
+    if ARTICLE_1_URL not in two.get("Technology bonuses", ""):
+        fail("bonus", "the 'Technology bonuses' table must link the first article")
     if 'zpm "install iris-readback"' not in fast:
         fail("pending", "the Fast path must give the IPM command: zpm \"install iris-readback\"")
 

@@ -111,6 +111,12 @@ def test_the_open_exchange_link_is_required_in_the_fast_path():
     assert any("Open Exchange" in line for line in out)
 
 
+def test_the_first_article_is_required_in_the_fast_path_and_the_bonus_table():
+    url = "https://community.intersystems.com/post/ai-agent-can-raise-critical-lab-result-never-lower-it"
+    assert any("first article" in line for line in failing(README.replace("- First article on Developer Community: " + url + "\n", "", 1)))
+    assert any("first article" in line for line in failing(README.replace(" | The product, the decision flow, the AI Hub experience and the safety model: " + url + " | ", " | x | ", 1)))
+
+
 def test_the_ipm_command_is_required_in_the_fast_path():
     out = failing(README.replace('- IPM package: `zpm "install iris-readback"`\n', "", 1))
     assert any("IPM command" in line for line in out)
