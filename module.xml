@@ -3,7 +3,7 @@
   <Document name="iris-readback.ZPM">
     <Module>
       <Name>iris-readback</Name>
-      <Version>0.1.0</Version>
+      <Version>1.0.0</Version>
       <Description>Critical lab result triage with an AI Hub agent that can raise a severity but never lower a critical, and a human read-back before anyone is notified.</Description>
       <Keywords>interoperability hl7 ai-hub workflow lab critical-results</Keywords>
       <Packaging>module</Packaging>
