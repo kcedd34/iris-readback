@@ -454,6 +454,14 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
     for needle in (DEMO_URL, "Run demo sequence", "Decisions", "held", "communicator1", "(#demo)", "(#for-judges)", "(#run-it)"):
         if needle not in quick:
             fail("quick-path", f"'{QUICK_PATH}' must mention {needle}")
+    demo_password = re.search(r"(?m)^Password: `([^`\s]+)`", two.get("Demo", ""))
+    quick_password = re.search(r"communicator1`[^\n]*?password `([^`\s]+)`", quick)
+    if not demo_password:
+        fail("quick-path", "the Demo section must give the demonstration password as: Password: `...`")
+    elif not quick_password:
+        fail("quick-path", f"'{QUICK_PATH}' must give the demonstration password beside communicator1")
+    elif quick_password.group(1) != demo_password.group(1):
+        fail("quick-path", f"the password in '{QUICK_PATH}' differs from the one in the Demo section")
     if QUICK_PATH in order and "Fast path" in order and order.index(QUICK_PATH) > order.index("Fast path"):
         fail("quick-path", f"'{QUICK_PATH}' must come before the Fast path")
     for anchor_name in ("demo", "for-judges", "run-it"):

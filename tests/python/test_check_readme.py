@@ -472,3 +472,13 @@ def test_the_two_minute_block_needs_the_real_demo_link():
 def test_the_two_minute_block_is_limited_to_six_lines():
     out = failing(README.replace("\n## Fast path\n", "7. one more line\n8. and another\n\n## Fast path\n", 1))
     assert any("at most six lines" in line for line in out)
+
+
+def test_the_two_minute_password_must_match_the_demo_section():
+    import re
+    password = re.search(r"(?m)^Password: `([^`]+)`", README).group(1)
+    quick = "with the password `" + password + "`"
+    assert quick in README
+    assert any("differs" in line for line in failing(README.replace(quick, "with the password `other-password`", 1)))
+    assert any("beside communicator1" in line for line in failing(README.replace(quick, "with the password in the Demo section", 1)))
+    assert any("differs" in line for line in failing(README.replace("Password: `" + password + "`", "Password: `other-password`", 1)))

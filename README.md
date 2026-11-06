@@ -8,7 +8,7 @@ The rules guarantee the safety and the agent explains. An InterSystems AI Hub ag
 
 1. Open the [live demo](http://109.123.244.170/) and press **Run demo sequence**: a critical stops at read-back, a borderline one goes to a person, and the agent tries to lower a critical and the floor holds it.
 2. Open the **Decisions** tab: floor, agent and final side by side; open the row with the "held" seal to see the rule, the four tool calls and the evidence check.
-3. Sign in as `communicator1` (password in the [Demo](#demo) section), open the read-back task, type a wrong value (refused), then the right one (closes the task and the alert).
+3. Sign in as `communicator1` with the password `hVWrjsSnttT8AYIn9acJ` (details in the [Demo](#demo) section), open the read-back task, type a wrong value (refused), then the right one (closes the task and the alert).
 4. The measured evaluation and the ablation are in [For judges](#for-judges) below.
 5. To run it yourself: the five commands of [Run it](#run-it), about two minutes from clone to panel.
 
