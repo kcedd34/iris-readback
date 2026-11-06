@@ -230,7 +230,7 @@ def test_the_hero_gif_is_required_above_the_fold():
     assert gif in README
     assert any("hero" in out for out in failing(README.replace(gif, "")))
     assert any("hero" in out for out in failing(README.replace("![The agent decides on a critical potassium, which stops at read-back, and on a borderline one, which goes to a person to review; replay mode, synthetic data]", "![x]")))
-    assert any("hero" in out for out in failing(README.replace(gif, "").replace("## For judges", gif + "\n\n## For judges", 1)))
+    assert any("hero" in out for out in failing(README.replace(gif, "").replace("\n## For judges\n", "\n" + gif + "\n\n## For judges\n", 1)))
 
 
 def test_the_hero_gif_is_a_gif_of_reasonable_size():
@@ -452,3 +452,23 @@ def test_the_readme_must_keep_the_tested_builds_and_the_difference(original):
 def test_the_bug_tracker_reports_are_linked_in_the_feedback_and_the_bonus_table(number):
     link = "ai-hub-eap-bugreports/issues/" + number
     assert any("feedback" in line for line in failing(README.replace(link, "ai-hub-eap-bugreports/issues/0")))
+
+
+def test_the_two_minute_block_is_required():
+    assert any("two minutes" in line for line in failing(README.replace("## For judges: two minutes", "## Something else", 1)))
+
+
+def test_the_two_minute_block_must_come_before_the_fast_path():
+    head, rest = README.split("\n## For judges: two minutes\n", 1)
+    block, tail = rest.split("\n## Fast path\n", 1)
+    moved = head + "\n## Fast path\n" + tail.split("\n## Run it\n", 1)[0] + "\n## For judges: two minutes\n" + block + "\n## Run it\n" + tail.split("\n## Run it\n", 1)[1]
+    assert any("order" in line or "before the Fast path" in line for line in failing(moved))
+
+
+def test_the_two_minute_block_needs_the_real_demo_link():
+    assert any("quick-path" in line or "two minutes" in line for line in failing(README.replace("[live demo](http://109.123.244.170/)", "live demo", 1)))
+
+
+def test_the_two_minute_block_is_limited_to_six_lines():
+    out = failing(README.replace("\n## Fast path\n", "7. one more line\n8. and another\n\n## Fast path\n", 1))
+    assert any("at most six lines" in line for line in out)

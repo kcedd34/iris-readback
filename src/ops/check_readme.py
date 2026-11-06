@@ -22,7 +22,7 @@ MODELS = ["gpt-5.4-mini", "gpt-5.4"]
 
 # Level-2 headings in the order the README must have them, then the level-3 headings of the organizers' four items.
 SECTIONS = [
-    "Fast path", "Run it", "For judges", "Demo", "Required by the organizers", "What the production contains",
+    "For judges: two minutes", "Fast path", "Run it", "For judges", "Demo", "Required by the organizers", "What the production contains",
     "Technology bonuses", "Feedback on AI Hub EAP", "Idea DPI-I-689", "How it works", "Built with", "Author",
 ]
 REQUIRED_ITEMS = {
@@ -38,6 +38,7 @@ FEEDBACK_ISSUES = 6
 BUGREPORT_ISSUES = (18, 19)
 ACCOUNTS = ["communicator1", "communicator2", "observer"]
 DEMO_URL = "http://109.123.244.170/"
+QUICK_PATH = "For judges: two minutes"
 ARTICLE_1_URL = "https://community.intersystems.com/post/ai-agent-can-raise-critical-lab-result-never-lower-it"
 OPEN_EXCHANGE_URL = "https://openexchange.intersystems.com/package/Readback"
 IDEA_URL = "https://ideas.intersystems.com/ideas/DPI-I-689"
@@ -445,6 +446,20 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
             positions.append(order.index(title))
     if positions != sorted(positions):
         fail("order", "the sections are not in the required order")
+
+    # The two-minute path: right after the GIF, before the Fast path, at most six lines, and it cites the real links.
+    quick = two.get(QUICK_PATH, "")
+    if len(list_items(quick)) > 6 or len([l for l in quick.splitlines() if l.strip()]) > 6:
+        fail("quick-path", f"'{QUICK_PATH}' must have at most six lines")
+    for needle in (DEMO_URL, "Run demo sequence", "Decisions", "held", "communicator1", "(#demo)", "(#for-judges)", "(#run-it)"):
+        if needle not in quick:
+            fail("quick-path", f"'{QUICK_PATH}' must mention {needle}")
+    if QUICK_PATH in order and "Fast path" in order and order.index(QUICK_PATH) > order.index("Fast path"):
+        fail("quick-path", f"'{QUICK_PATH}' must come before the Fast path")
+    for anchor_name in ("demo", "for-judges", "run-it"):
+        title = {"demo": "Demo", "for-judges": "For judges", "run-it": "Run it"}[anchor_name]
+        if title not in two:
+            fail("quick-path", f"'{QUICK_PATH}' links #{anchor_name}, but the README has no section '{title}'")
 
     # 3. The four items the organizers require.
     for heading, tokens in REQUIRED_ITEMS.items():
