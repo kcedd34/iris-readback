@@ -482,3 +482,9 @@ def test_the_two_minute_password_must_match_the_demo_section():
     assert any("differs" in line for line in failing(README.replace(quick, "with the password `other-password`", 1)))
     assert any("beside communicator1" in line for line in failing(README.replace(quick, "with the password in the Demo section", 1)))
     assert any("differs" in line for line in failing(README.replace("Password: `" + password + "`", "Password: `other-password`", 1)))
+
+
+def test_the_second_article_is_required_in_the_fast_path_and_the_bonus_table():
+    url = "https://community.intersystems.com/post/safety-deterministic-agent-explains-ablation-ai-hub-agent-critical-lab-results"
+    assert any("second article" in line for line in failing(README.replace("- Second article on Developer Community: " + url + "\n", "", 1)))
+    assert any("second article" in line for line in failing(README.replace("| Second article on Developer Community | The measured numbers (matrix, cost, latency, the delta floor from 19 to 2), the ablation and the AI Hub findings: " + url + " |", "| Second article on Developer Community | x |", 1)))
