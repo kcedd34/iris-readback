@@ -20,7 +20,6 @@ The rules guarantee the safety and the agent explains. An InterSystems AI Hub ag
 - IPM package: `zpm "install iris-readback"`
 - Open Exchange: https://openexchange.intersystems.com/package/Readback
 - First article on Developer Community: https://community.intersystems.com/post/ai-agent-can-raise-critical-lab-result-never-lower-it
-- Second article on Developer Community: https://community.intersystems.com/post/safety-deterministic-agent-explains-ablation-ai-hub-agent-critical-lab-results
 - Community Opportunity idea: https://ideas.intersystems.com/ideas/DPI-I-689
 - Measured evaluation, full report: `data/eval/report.md`
 
@@ -286,7 +285,6 @@ What was tested: a complete session with the MCP Inspector through the gateway (
 | MCP server | A read-only `%AI.MCP.Service` with four tools; it refuses to confirm a read-back, on purpose | `src/Readback/MCP/Service.cls` |
 | Find a bug in AI Hub | Two bugs found, reported in the AI Hub bug tracker with reproductions that do not use this product: [issue 18](https://github.com/intersystems-community/ai-hub-eap-bugreports/issues/18) (the agent loop has no default bound; first reported as [ai-hub-eap 41](https://github.com/intersystems-community/ai-hub-eap/issues/41)) and [issue 19](https://github.com/intersystems-community/ai-hub-eap-bugreports/issues/19) (the embedding model is described as bundled and is downloaded; first reported as [ai-hub-eap 44](https://github.com/intersystems-community/ai-hub-eap/issues/44)). The other reports, an enhancement or a documentation gap each, are [42](https://github.com/intersystems-community/ai-hub-eap/issues/42), [43](https://github.com/intersystems-community/ai-hub-eap/issues/43), [46](https://github.com/intersystems-community/ai-hub-eap/issues/46) and [47](https://github.com/intersystems-community/ai-hub-eap/issues/47), listed in [Feedback on AI Hub EAP](#feedback-on-ai-hub-eap) | `README.md` |
 | First article on Developer Community | The product, the decision flow, the AI Hub experience and the safety model: https://community.intersystems.com/post/ai-agent-can-raise-critical-lab-result-never-lower-it | `README.md` |
-| Second article on Developer Community | The measured numbers (matrix, cost, latency, the delta floor from 19 to 2), the ablation and the AI Hub findings: https://community.intersystems.com/post/safety-deterministic-agent-explains-ablation-ai-hub-agent-critical-lab-results | `README.md` |
 | Video on YouTube | The main demonstration of the product: https://youtu.be/ML2pBgBkqUo | `README.md` |
 | Online demo | http://109.123.244.170/ in replay mode, behind a proxy that forwards only the Readback paths | `src/ops/proxy/nginx.conf.template` |
 | Implement Community Idea (DPI-I-689) | Traceability of an LLM pipeline over Interoperability: every decision, tool call and human step is recorded | `src/Readback/Trace/Decision.cls` |
