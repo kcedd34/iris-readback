@@ -34,6 +34,7 @@ step "budget";                   "$PY" tests/e2e/budget_check.py
 step "retrieval";                "$PY" tests/e2e/retrieval_check.py
 step "retrieval offline";        tests/e2e/offline_check.sh
 step "replay";                   "$PY" tests/e2e/replay_check.py
+step "tool calls as trace steps in replay"; "$PY" tests/e2e/tool_trace_replay_check.py
 step "read-back";                "$PY" tests/e2e/readback_check.py
 step "hostile agent";            "$PY" tests/e2e/hostile_check.py
 step "intake (feature 1)";       tests/e2e/flow_check.sh

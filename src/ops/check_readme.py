@@ -591,11 +591,6 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
     fifth = items[4] if len(items) > 4 else ""
     if not (re.search(r"(?i)synthetic", fifth) and re.search(r"(?i)single author|one author", fifth) and re.search(r"(?i)generator", fifth)):
         fail("claim", "the fifth item of 'What the numbers say' must state the caveats: synthetic, a single author, limits set on the generator")
-    # The Visual Trace shows the agent's step, not each tool call: only a tool that calls another operation (the policy search) appears there.
-    for sentence in re.split(r"(?<=[.!?])\s+", text):
-        if (re.search(r"(?i)visual trace", sentence) and re.search(r"(?i)\b(each|every|all)\b[^.]{0,30}\btool calls?\b", sentence)
-                and re.search(r"(?i)\bsteps?\b", sentence) and not re.search(r"(?i)\b(not|only|except|never)\b", sentence)):
-            fail("claim", "the README says every tool call is a step of the Visual Trace; the session shows the agent's step, and only the policy search, which calls another operation, also appears there")
     if re.search(r"(?i)raised by the agent alone|the agent alone raised", text):
         fail("claim", "the agent-alone figure came from a run in which the agent saw the rule's verdict and is not stated")
     first_screen = " ".join(l for l in head.splitlines())
@@ -654,6 +649,14 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
             fail("feedback", f"issue {number} of ai-hub-eap-bugreports must be linked in the feedback section and in the bonus table")
     if re.search(r"(?i)no issue has been filed|none has been (filed|reported)", feedback):
         fail("feedback", "the feedback section still says that no issue has been filed")
+
+    # Every tool call is a Visual Trace step: the README says so, names the operation, and no longer says only the policy search shows.
+    if "Readback.Agent.ToolTrace" not in text or "labelled `replay`" not in text:
+        fail("trace", "the README must say that every tool call is a Visual Trace step, through Readback.Agent.ToolTrace, labelled `replay` in replay mode")
+    if re.search(r"(?i)policy search,? which calls another operation,? also", text):
+        fail("trace", "the README still says that only the policy search appears in the Visual Trace")
+    if "Readback.Agent.ToolTrace" not in two.get("Idea DPI-I-689", "") and "every tool call of the investigation is a step of its own" not in two.get("Idea DPI-I-689", ""):
+        fail("trace", "the DPI-I-689 section must say that every tool call is a step of the decision's session")
 
     # Idea justification.
     idea = two.get("Idea DPI-I-689", "")

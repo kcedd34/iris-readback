@@ -242,7 +242,7 @@ def test_the_hero_gif_is_a_gif_of_reasonable_size():
 def test_the_package_manifest_ships_the_agent_and_governance_classes():
     manifest = open(os.path.join(ROOT, "module.xml"), encoding="utf-8").read()
     assert '<Resource Name="Readback.PKG"/>' in manifest and '<FileCopy Name="data/config/"' in manifest
-    for cls in ("Agent/Operation", "Agent/ToolHost", "Tools/ToolSet", "Governance/AuditPolicy", "Governance/ScopePolicy", "Governance/FloorPolicy", "Triage/ReleaseGuard", "Config/ReleaseGuard"):
+    for cls in ("Agent/Operation", "Agent/ToolTrace", "Agent/TraceEmit", "Tools/ToolSet", "Governance/AuditPolicy", "Governance/ScopePolicy", "Governance/FloorPolicy", "Triage/ReleaseGuard", "Config/ReleaseGuard"):
         assert os.path.exists(os.path.join(ROOT, "src", "Readback", cls + ".cls")), cls
     assert os.path.exists(os.path.join(ROOT, "data", "config", "release-guard.json"))
     assert os.path.exists(os.path.join(ROOT, "data", "config", "agent-tools.json"))
@@ -331,13 +331,9 @@ def test_the_key_figures_state_the_run_without_the_verdict_and_not_the_agent_alo
     assert "without the rule's verdict" in README
 
 
-def test_saying_that_every_tool_call_is_a_visual_trace_step_fails():
-    out = failing(README.replace("## Demo\n", "## Demo\n\nIn the platform's Visual Trace each tool call is a step of the session.\n", 1))
-    assert any("Visual Trace" in line and "policy search" in line for line in out)
-
-
-def test_the_precise_statement_about_the_visual_trace_passes():
-    assert "the policy search, which calls another operation, also appears in the Visual Trace" in README
+def test_the_statement_about_the_visual_trace_is_the_precise_one():
+    assert "the policy search, which calls another operation, also appears in the Visual Trace" not in README
+    assert "labelled `replay`" in README
     assert failing(README) == []
 
 
@@ -495,3 +491,17 @@ def test_the_second_article_is_linked_in_both_places_or_in_neither():
     assert failing(README) == []
     assert any("second article" in line for line in failing(README.replace(first, first + fast, 1)))
     assert any("second article" in line for line in failing(README.replace(video, row + video, 1)))
+
+
+def test_the_readme_says_every_tool_call_is_a_trace_step():
+    assert not any("trace" in line for line in failing(README))
+    assert any("trace" in line for line in failing(README.replace("Readback.Agent.ToolTrace", "Readback.Agent.Other")))
+    stale = README.replace("every tool call of the investigation is a step of its own in that session", "the policy search, which calls another operation, also shows in the Visual Trace in that session", 1)
+    assert any("only the policy search" in line for line in failing(stale))
+
+
+def test_the_tool_trace_operation_and_its_check_exist():
+    for path in ("src/Readback/Agent/ToolTrace.cls", "src/Readback/Agent/TraceEmit.cls", "tests/e2e/tool_trace_replay_check.py", "tests/objectscript/Readback/Test/TraceEmitTest.cls"):
+        assert os.path.exists(os.path.join(ROOT, path)), path
+    assert "tool_trace_replay_check.py" in open(os.path.join(ROOT, "tests", "e2e", "triage_check.sh"), encoding="utf-8").read()
+    assert "Readback.Agent.ToolTrace" in open(os.path.join(ROOT, "src", "Readback", "Production.cls"), encoding="utf-8").read()

@@ -105,15 +105,25 @@ def main():
                 check(not any("patient" in k.lower() or "case" in k.lower() for k in props), "tool %s offers an identifier argument: %s" % (tool["function"]["name"], list(props)))
 
         # Each call is a step of the session in the visual trace, between the agent's request and its response.
-        steps = query("SELECT ID, SourceConfigName, TargetConfigName, MessageBodyClassName FROM Ens.MessageHeader WHERE SessionId=%s ORDER BY ID" % g["SessionId"],
-                      ["ID", "SourceConfigName", "TargetConfigName", "MessageBodyClassName"])
+        steps = query("SELECT ID, SourceConfigName, TargetConfigName, MessageBodyClassName, MessageBodyId FROM Ens.MessageHeader WHERE SessionId=%s ORDER BY ID" % g["SessionId"],
+                      ["ID", "SourceConfigName", "TargetConfigName", "MessageBodyClassName", "MessageBodyId"])
         names = [(s["SourceConfigName"], s["TargetConfigName"]) for s in steps if s["MessageBodyClassName"] == "Readback.Msg.ToolCall"]
-        check(len(names) == 3 and all(n == ("Readback.Agent", "Readback.Agent.ToolHost") for n in names), "three tool call steps expected in the visual trace: %s" % names)
+        check(len(names) == 3 and all(n == ("Readback.Agent", "Readback.Agent.ToolTrace") for n in names), "three tool call steps expected in the visual trace: %s" % names)
         order = [s["MessageBodyClassName"] for s in steps]
         request = next((i for i, s in enumerate(steps) if s["TargetConfigName"] == "Readback.Agent"), -1)
         answer = next((i for i, s in enumerate(steps) if s["SourceConfigName"] == "Readback.Agent" and s["MessageBodyClassName"].endswith("LLMResponse")), -1)
         inside = [i for i, s in enumerate(steps) if s["MessageBodyClassName"] == "Readback.Msg.ToolCall"]
         check(request >= 0 and answer > request and all(request < i < answer for i in inside), "the tool call steps are not between the agent request and its response: %s" % order)
+        # One message per call, in the order the calls were made, labelled live, with no identifier of a patient anywhere in it.
+        sent = []
+        for i in inside:
+            rows_ = query("SELECT Seq, Tool, Status, Mode, Arguments, Summary, CaseId FROM Readback_Msg.ToolCall WHERE ID=%s" % steps[i]["MessageBodyId"],
+                          ["Seq", "Tool", "Status", "Mode", "Arguments", "Summary", "CaseId"])
+            sent.extend(rows_)
+        check([r["Tool"] for r in sent] == ["get_patient_history", "get_delta_assessment", "get_sample_quality"], "the steps are not the calls in the order made: %s" % [r["Tool"] for r in sent])
+        check([r["Seq"] for r in sent] == ["1", "2", "3"], "the steps are not numbered 1, 2, 3: %s" % [r["Seq"] for r in sent])
+        check(all(r["Mode"] == "live" and r["Status"] == "ok" for r in sent), "every step of a live call must be labelled live and ok: %s" % sent)
+        check(not any("SYN9" in " ".join(r.values()) for r in sent), "a patient identifier is in a tool trace message: %s" % sent)
 
     n = t.get("none")
     if n:
@@ -148,6 +158,29 @@ def main():
     sm = t.get("same")
     if sm:
         check(sm["Route"] == "review" and sm["FailureKind"] == "tool-limit", "the same call forever must end with a person as a stalled investigation: %s" % sm)
+
+    # The trace operation switched off: the decision is exactly the same and no step is sent. A twin of the "good" case, on another patient.
+    if g:
+        out = iris('set sc=##class(Ens.Director).EnableConfigItem("Readback.Agent.ToolTrace",0,1)\nwrite !,"RB_OFF="_$system.Status.IsOK(sc),!')
+        check("RB_OFF=1" in out, "could not switch the tool trace operation off: %s" % out)
+        time.sleep(3)
+        twin = [oru(tag + "-H2", "SYN9100011", "718-7", "Hemoglobin", "12.4", "g/dL", collected="20260228080000"),
+                oru(tag + "-OFF", "SYN9100011", "718-7", "Hemoglobin", "8.1", "g/dL", ref="MODE:toolgood", indices=[("HEMOLYSIS_INDEX", "120")])]
+        acks = live.send(twin)
+        check(all(a == "AA" for _, a in acks), "an intake acknowledgement was not AA with the trace operation off: %s" % acks)
+        off = wait_for(lambda: decision(tag + "-OFF"), 60)
+        check(off is not None, "no decision with the trace operation switched off")
+        if off:
+            same = ["Route", "FinalSeverity", "FloorSeverity", "AgentSeverity", "AgentDecision", "Rounds", "ToolCallCount", "ToolFailureCount", "FailureKind", "EvidenceCheck", "SchemaValid", "PolicyRefusal", "Divergence"]
+            check([off[k] for k in same] == [g[k] for k in same], "the decision differs with the trace operation off: %s vs %s" % ([off[k] for k in same], [g[k] for k in same]))
+            check(off["FailureKind"] == "" and off["ToolFailureCount"] == "0", "a failed trace message must not fail the investigation: %s" % off)
+            check(len(calls_of(off["ID"])) == 3, "the three calls must still be recorded in the product's own trace")
+            hdr = query("SELECT Status, TargetConfigName FROM Ens.MessageHeader WHERE SessionId=%s AND MessageBodyClassName='Readback.Msg.ToolCall'" % off["SessionId"], ["Status", "TargetConfigName"])
+            print("trace headers with the operation off:", hdr)
+            # Sent to a switched-off item, a message waits in its queue (created or queued) and is never processed: the sender is not held up.
+            check(all(h["Status"] in ("1", "2") for h in hdr), "steps were processed although the operation is off: %s" % hdr)
+        out = iris('set sc=##class(Ens.Director).EnableConfigItem("Readback.Agent.ToolTrace",1,1)\nwrite !,"RB_ON="_$system.Status.IsOK(sc),!')
+        check("RB_ON=1" in out, "could not switch the tool trace operation back on: %s" % out)
 
     # No session without the limit: the only creator of a session is the operation, and it sets the limit first.
     out = iris('set sc=$system.OBJ.Load("/opt/readback/tests/objectscript/Readback/Test/SessionLimitTest.cls","ck")\n'

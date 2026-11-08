@@ -13,6 +13,9 @@ Method OnTextRequest(pRequest As EnsLib.AI.Messages.TextRequest, Output pRespons
 	If '$IsObject(tRecording) { Quit $System.Status.Error(5001, "no recorded answer") }
 	Set pResponse = ##class(EnsLib.AI.Messages.LLMResponse).%New()
 	Set pResponse.Content = tRecording.AnswerText
+	// The recorded tool calls are the same Visual Trace messages the live agent sends, labelled replay. A side channel: the
+	// response below does not depend on whether they were sent.
+	Do ##class(Readback.Agent.TraceEmit).Replay($This, ..CaseId($Select($IsObject(pRequest.TextMessage):pRequest.TextMessage.String, 1:"")), tRecording.ToolCallsJson)
 	Set pResponse.Usage = {"prompt_tokens":(+tRecording.InputTokens), "completion_tokens":(+tRecording.OutputTokens), "total_tokens":(+tRecording.InputTokens + +tRecording.OutputTokens)}
 	Quit $$$OK
 }

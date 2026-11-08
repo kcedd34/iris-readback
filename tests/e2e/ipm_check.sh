@@ -54,7 +54,7 @@ printf '%s' "$status" | grep -q '"productionRunning":true' || fail "the status d
 
 # The agent's tools and governance arrived with the package: the classes are compiled, the two configurations of the agent load, and
 # the tool set registers with the platform's own tool manager.
-classes="Readback.Agent.Operation Readback.Agent.ReplayOperation Readback.Agent.ToolHost Readback.Agent.History Readback.Tools.ToolSet Readback.Tools.Impl Readback.Tools.Binding Readback.Tools.Summary Readback.Governance.AuditPolicy Readback.Governance.ScopePolicy Readback.Governance.FloorPolicy Readback.Governance.Evidence Readback.Triage.ReleaseGuard Readback.Config.ReleaseGuard Readback.Config.AgentTools Readback.Demo.Generator Readback.MCP.Service Readback.MCP.Tools Readback.MCP.Impl Readback.MCP.Setup"
+classes="Readback.Agent.Operation Readback.Agent.ReplayOperation Readback.Agent.ToolTrace Readback.Agent.TraceEmit Readback.Agent.History Readback.Tools.ToolSet Readback.Tools.Impl Readback.Tools.Binding Readback.Tools.Summary Readback.Governance.AuditPolicy Readback.Governance.ScopePolicy Readback.Governance.FloorPolicy Readback.Governance.Evidence Readback.Triage.ReleaseGuard Readback.Config.ReleaseGuard Readback.Config.AgentTools Readback.Demo.Generator Readback.MCP.Service Readback.MCP.Tools Readback.MCP.Impl Readback.MCP.Setup"
 for c in $classes; do
   echo "write \"CLS=$c=\",##class(%Dictionary.CompiledClass).%ExistsId(\"$c\"),! halt" | sess | grep -q "CLS=$c=1" || fail "class $c is not compiled on the installed instance"
 done

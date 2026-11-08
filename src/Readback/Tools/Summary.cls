@@ -26,6 +26,28 @@ ClassMethod Of(pTool As %String, pStatus As %String, pResult As %String, pReason
 	Quit "answered"
 }
 
+/// The arguments of a call as one short line for the Visual Trace: name=value pairs, each value cut short, without any key
+/// that could name a patient or a case (no tool takes one, and the line never carries one even if a model sent it).
+ClassMethod Args(pArgs As %String) As %String
+{
+	Set tOut = ""
+	Try {
+		Set tObj = $Select($IsObject(pArgs):pArgs, $Extract(pArgs, 1) = "{":{}.%FromJSON(pArgs), 1:"")
+		If $IsObject(tObj) {
+			Set tIter = tObj.%GetIterator()
+			While tIter.%GetNext(.tKey, .tVal) {
+				Set tLow = $ZConvert(tKey, "L")
+				Continue:(tLow["patient")||(tLow["case")||(tLow["mrn")||(tLow["name")||($Extract(tLow, *-1, *) = "id")||(tLow = "id")
+				Set tText = $Select($IsObject(tVal):tVal.%ToJSON(), 1:tVal)
+				Set tOut = tOut_$Select(tOut="":"", 1:", ")_$Extract(tKey, 1, 30)_"="_$Extract(tText, 1, 60)
+			}
+		}
+	} Catch ex {
+		Set tOut = ""
+	}
+	Quit $Extract(##class(Readback.Config.Mode).Redact(tOut), 1, 150)
+}
+
 /// The tool calls of a decision in order, as short entries for the flow: seq, tool, status and a one-line summary. Never the
 /// arguments or the raw result.
 ClassMethod ForDecision(pDecisionId As %String) As %DynamicArray
