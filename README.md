@@ -4,7 +4,7 @@ An InterSystems AI Hub agent triages lab results inside an IRIS Interoperability
 
 ![The agent decides on a critical potassium, which stops at read-back, and on a borderline one, which goes to a person to review; replay mode, synthetic data](docs-assets/signature.gif)
 
-[3-minute video](https://youtu.be/ML2pBgBkqUo) · [Live demo](http://109.123.244.170/)
+[3:41 video](https://youtu.be/ML2pBgBkqUo) · [Live demo](http://109.123.244.170/)
 
 ## For judges: two minutes
 
