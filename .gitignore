@@ -5,6 +5,7 @@
 !/.gitignore
 !/README.md
 !/REPRODUCE.md
+!/DETAILS.md
 !/LICENSE
 !/Dockerfile
 !/docker-compose.yml
