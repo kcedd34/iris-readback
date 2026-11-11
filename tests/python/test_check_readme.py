@@ -10,12 +10,22 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "src", "ops"))
 import check_readme as gate  # noqa: E402
 
-README = open(os.path.join(ROOT, "README.md"), encoding="utf-8").read()
+# The tests edit one document: the README and DETAILS.md joined by a marker, so that a replace finds its text in either file.
+SEPARATOR = "\n\x00DETAILS\x00\n"
+README_ONLY = open(os.path.join(ROOT, "README.md"), encoding="utf-8").read()
+DETAILS_ONLY = open(os.path.join(ROOT, "DETAILS.md"), encoding="utf-8").read()
+README = README_ONLY + SEPARATOR + DETAILS_ONLY
 REPORT = gate.load_report(os.path.join(ROOT, "data", "eval", "report.json"))
 
 
+def gate_check(text, report, *companions):
+    readme, _, details = text.partition(SEPARATOR)
+    return gate.check(readme, report, *companions, details=details)
+
+
 def failing(text):
-    return gate.check(text, REPORT)
+    readme, _, details = text.partition(SEPARATOR)
+    return gate.check(readme, REPORT, details=details)
 
 
 def test_the_finished_readme_passes():
@@ -56,7 +66,7 @@ def test_a_changed_figure_fails():
 def test_a_report_that_disagrees_with_the_claims_fails():
     report = json.loads(json.dumps(REPORT))
     report["models"]["gpt-5.4"]["silencedCriticals"] = 1
-    assert any("claim" in line for line in gate.check(README, report))
+    assert any("claim" in line for line in gate_check(README, report))
 
 
 BEFORE, DELTA, GUARD = gate.load_companions()
@@ -82,13 +92,13 @@ def test_a_missing_key_figure_fails():
 def test_a_key_figures_block_not_generated_from_the_report_fails():
     report = json.loads(json.dumps(REPORT))
     report["models"]["gpt-5.4"]["reviewRate"] = 0.5
-    assert any("Key figures" in out for out in gate.check(README, report, BEFORE, DELTA, GUARD))
+    assert any("Key figures" in out for out in gate_check(README, report, BEFORE, DELTA, GUARD))
 
 
 def test_a_changed_companion_figure_fails():
     delta = json.loads(json.dumps(DELTA))
     delta["releasedCriticals"]["gpt-5.4-mini"]["withoutDeltaFloor"] = 20
-    assert any("Key figures" in out for out in gate.check(README, REPORT, BEFORE, delta, GUARD))
+    assert any("Key figures" in out for out in gate_check(README, REPORT, BEFORE, delta, GUARD))
 
 
 @pytest.mark.parametrize("sentence", ["The released criticals fell from 19 to 2.", "The review rate is 27.6% now.", "It costs 3.1 times more."])
@@ -114,7 +124,7 @@ def test_the_open_exchange_link_is_required_in_the_fast_path():
 def test_the_first_article_is_required_in_the_fast_path_and_the_bonus_table():
     url = "https://community.intersystems.com/post/ai-agent-can-raise-critical-lab-result-never-lower-it"
     assert any("first article" in line for line in failing(README.replace("- First article on Developer Community: " + url + "\n", "", 1)))
-    assert any("first article" in line for line in failing(README.replace(" | The product, the decision flow, the AI Hub experience and the safety model: " + url + " | ", " | x | ", 1)))
+    assert any("first article" in line for line in failing(README.replace("| First article on Developer Community | " + url + " |", "| First article on Developer Community | x |", 1)))
 
 
 def test_the_ipm_command_is_required_in_the_fast_path():
@@ -123,12 +133,12 @@ def test_the_ipm_command_is_required_in_the_fast_path():
 
 
 def test_the_video_link_is_required_in_the_fast_path():
-    out = failing(README.replace("https://youtu.be/ML2pBgBkqUo", "[PENDING: publication]", 1))
+    out = failing(README.replace("- Video, the main demonstration: https://youtu.be/ML2pBgBkqUo", "- Video, the main demonstration: [PENDING: publication]", 1))
     assert any("youtu.be" in line for line in out)
 
 
 def test_a_video_link_in_another_format_fails():
-    out = failing(README.replace("https://youtu.be/ML2pBgBkqUo", "https://www.youtube.com/watch?v=ML2pBgBkqUo", 1))
+    out = failing(README.replace("- Video, the main demonstration: https://youtu.be/ML2pBgBkqUo", "- Video, the main demonstration: https://www.youtube.com/watch?v=ML2pBgBkqUo", 1))
     assert any("youtu.be" in line for line in out)
 
 
@@ -173,7 +183,7 @@ def test_the_accounts_roles_and_the_exposure_are_required(needle):
     assert any("demo" in line and needle in line for line in out)
 
 
-@pytest.mark.parametrize("phrase", ["deliberately broader", "not always the owner", "specific to the Readback", "system context"])
+@pytest.mark.parametrize("phrase", ["broader than a production", "not always the owner", "specific to the Readback", "system context"])
 def test_the_framing_of_the_broad_roles_is_required(phrase):
     out = failing(README.replace(phrase, "something else"))
     assert any("demo" in line for line in out)
@@ -221,7 +231,7 @@ def test_a_block_under_the_wrong_model_heading_fails():
 def test_a_changed_release_guard_figure_fails():
     guard = json.loads(json.dumps(GUARD))
     guard["models"]["gpt-5.4-mini"]["notClearCutReleasedWithoutGuard"] = 11
-    assert any("Key figures" in out for out in gate.check(README, REPORT, BEFORE, DELTA, guard))
+    assert any("Key figures" in out for out in gate_check(README, REPORT, BEFORE, DELTA, guard))
 
 
 
@@ -291,8 +301,8 @@ def test_embedded_python_must_name_the_class_with_python_methods_and_its_caller(
 
 def test_the_feedback_links_the_reports():
     head, tail = README.split("## Feedback on AI Hub EAP", 1)
-    assert any("feedback" in out for out in failing(head + "## Feedback on AI Hub EAP" + tail.replace("issues/41", "issues/40", 1)))
-    assert any("feedback" in out for out in failing(README.replace("reported from this project;", "reported from this project; no issue has been filed;", 1)))
+    assert any("feedback" in out for out in failing(head + "## Feedback on AI Hub EAP" + tail.replace("issues/41", "issues/40")))
+    assert any("feedback" in out for out in failing(README.replace("I checked the candidates", "No issue has been filed. I checked the candidates", 1)))
 
 
 def test_the_run_it_time_statement_is_required():
@@ -316,14 +326,14 @@ def test_the_third_item_must_carry_the_numbers_of_the_run_without_the_verdict():
 
 
 def test_the_first_screen_must_say_the_rules_guarantee_the_safety_and_the_agent_explains():
-    out = failing(README.replace("The rules guarantee the safety and the agent explains.", "", 1))
+    out = failing(README.replace("the agent explains", "the agent talks", 1))
     assert any("first screen" in line for line in out)
 
 
 def test_the_cost_claim_is_checked_against_the_report():
     cheap = json.loads(json.dumps(REPORT))
     cheap["models"]["gpt-5.4"]["costPerThousandUsd"] = 1.0
-    assert any("about three times" in line for line in gate.check(README, cheap))
+    assert any("about three times" in line for line in gate_check(README, cheap))
 
 
 def test_the_key_figures_state_the_run_without_the_verdict_and_not_the_agent_alone_row():
@@ -338,7 +348,7 @@ def test_the_statement_about_the_visual_trace_is_the_precise_one():
 
 
 def test_the_tracing_map_passes_and_checks_something():
-    section = gate.sections_of(README)[0]["Idea DPI-I-689"]
+    section = gate.sections_of(DETAILS_ONLY)[0]["Idea DPI-I-689"]
     assert gate.dpi_map_problems(section) == []
     assert "GET /readback/api/indicators" in section and "Readback.Trace.ToolCall" in section
 
@@ -382,7 +392,7 @@ def test_the_mcp_bonus_row_is_required():
 
 
 def test_the_start_section_must_say_that_only_the_start_script_starts_the_production():
-    out = failing(README.replace("In the container only the start script", "In the container the start script", 1))
+    out = failing(README.replace("only the start script", "the start script", 1))
     assert any("start" in line and "start script" in line for line in out)
 
 
@@ -395,17 +405,17 @@ REPRODUCE = open(os.path.join(ROOT, "REPRODUCE.md"), encoding="utf-8").read()
 
 
 def test_the_finished_reproduce_file_passes():
-    assert gate.reproduce_problems(REPRODUCE, README) == []
+    assert gate.reproduce_problems(REPRODUCE, README_ONLY) == []
 
 
 @pytest.mark.parametrize("title", gate.REPRODUCE_SECTIONS)
 def test_a_missing_reproduce_section_fails(title):
-    out = gate.reproduce_problems(REPRODUCE.replace(f"## {title}", "## Renamed"), README)
+    out = gate.reproduce_problems(REPRODUCE.replace(f"## {title}", "## Renamed"), README_ONLY)
     assert any(title in line for line in out)
 
 
 def test_the_readme_must_link_the_reproduce_file():
-    assert any("link" in line for line in gate.reproduce_problems(REPRODUCE, README.replace("(REPRODUCE.md)", "(x)")))
+    assert any("link" in line for line in gate.reproduce_problems(REPRODUCE, README_ONLY.replace("(REPRODUCE.md)", "(x)")))
 
 
 @pytest.mark.parametrize("original, replacement, needle", [
@@ -419,12 +429,12 @@ def test_the_readme_must_link_the_reproduce_file():
 ])
 def test_a_command_file_or_variable_that_does_not_exist_fails(original, replacement, needle):
     assert original in REPRODUCE
-    out = gate.reproduce_problems(REPRODUCE.replace(original, replacement, 1), README)
+    out = gate.reproduce_problems(REPRODUCE.replace(original, replacement, 1), README_ONLY)
     assert any(needle in line for line in out)
 
 
 def test_a_placeholder_left_in_the_reproduce_file_fails():
-    assert any("BATTERY" "_MINUTES" in line for line in gate.reproduce_problems(REPRODUCE + "\nabout BATTERY" "_MINUTES minutes\n", README))
+    assert any("BATTERY" "_MINUTES" in line for line in gate.reproduce_problems(REPRODUCE + "\nabout BATTERY" "_MINUTES minutes\n", README_ONLY))
 
 
 def test_the_readme_citing_a_missing_file_fails():
@@ -456,9 +466,10 @@ def test_the_two_minute_block_is_required():
 
 def test_the_two_minute_block_must_come_before_the_fast_path():
     head, rest = README.split("\n## For judges: two minutes\n", 1)
-    block, tail = rest.split("\n## Fast path\n", 1)
-    moved = head + "\n## Fast path\n" + tail.split("\n## Run it\n", 1)[0] + "\n## For judges: two minutes\n" + block + "\n## Run it\n" + tail.split("\n## Run it\n", 1)[1]
-    assert any("order" in line or "before the Fast path" in line for line in failing(moved))
+    block, tail = rest.split("\n## Run it\n", 1)
+    run_it, tail = tail.split("\n## What I measured\n", 1)
+    moved = head + "\n## Run it\n" + run_it + "\n## For judges: two minutes\n" + block + "\n## What I measured\n" + tail
+    assert any("first section" in line for line in failing(moved))
 
 
 def test_the_two_minute_block_needs_the_real_demo_link():
@@ -466,7 +477,7 @@ def test_the_two_minute_block_needs_the_real_demo_link():
 
 
 def test_the_two_minute_block_is_limited_to_six_lines():
-    out = failing(README.replace("\n## Fast path\n", "7. one more line\n8. and another\n\n## Fast path\n", 1))
+    out = failing(README.replace("\n## Run it\n", "7. one more line\n8. and another\n\n## Run it\n", 1))
     assert any("at most six lines" in line for line in out)
 
 
@@ -483,13 +494,13 @@ def test_the_two_minute_password_must_match_the_demo_section():
 def test_the_second_article_is_required_in_the_fast_path_and_the_bonus_table():
     url = "https://community.intersystems.com/post/safety-deterministic-agent-explains-ablation-ai-hub-agent-critical-lab-results"
     assert any("second article" in line for line in failing(README.replace("- Second article on Developer Community: " + url + "\n", "", 1)))
-    assert any("second article" in line for line in failing(README.replace("| Second article on Developer Community | The measured numbers (matrix, cost, latency, the delta floor from 19 to 2), the ablation and the AI Hub findings: " + url + " |", "| Second article on Developer Community | x |", 1)))
+    assert any("second article" in line for line in failing(README.replace("| Second article on Developer Community | " + url + " |", "| Second article on Developer Community | x |", 1)))
 
 
 def test_the_readme_says_every_tool_call_is_a_trace_step():
     assert not any("trace" in line for line in failing(README))
     assert any("trace" in line for line in failing(README.replace("Readback.Agent.ToolTrace", "Readback.Agent.Other")))
-    stale = README.replace("every tool call of the investigation is a step of its own in that session", "the policy search, which calls another operation, also shows in the Visual Trace in that session", 1)
+    stale = README.replace("Every tool call of the investigation is a step of its own in that session", "The policy search, which calls another operation, also shows in the Visual Trace in that session", 1)
     assert any("only the policy search" in line for line in failing(stale))
 
 
@@ -498,3 +509,43 @@ def test_the_tool_trace_operation_and_its_check_exist():
         assert os.path.exists(os.path.join(ROOT, path)), path
     assert "tool_trace_replay_check.py" in open(os.path.join(ROOT, "tests", "e2e", "triage_check.sh"), encoding="utf-8").read()
     assert "Readback.Agent.ToolTrace" in open(os.path.join(ROOT, "src", "Readback", "Production.cls"), encoding="utf-8").read()
+
+
+def test_the_readme_is_limited_to_1500_words():
+    long = README.replace("## Author", "## Author\n\n" + "word " * 200, 1)
+    assert any("at most 1500" in line for line in failing(long))
+    assert len(README_ONLY.split()) <= 1500
+
+
+@pytest.mark.parametrize("phrase", ["stated plainly", "deliberately", "it is worth noting"])
+def test_a_banned_phrase_fails_in_the_readme_and_in_details(phrase):
+    assert any("uses the phrase" in line for line in failing(README.replace("## Author", "## Author\n\nThis is " + phrase + " here.", 1)))
+    assert any("uses the phrase" in line for line in failing(README.replace("## Idea DPI-I-689", "## Idea DPI-I-689\n\nThis is " + phrase + " here.", 1)))
+
+
+def test_chained_or_nested_parentheses_fail():
+    assert any("parentheses" in line for line in failing(README.replace("## Author", "## Author\n\nOne (two) (three) here.", 1)))
+    assert any("parentheses" in line for line in failing(README.replace("## Author", "## Author\n\nOne (two (three)) here.", 1)))
+
+
+def test_a_very_long_sentence_fails():
+    assert any("sentence of" in line for line in failing(README.replace("## Author", "## Author\n\n" + "word " * 60 + "end.", 1)))
+
+
+def test_the_readme_must_link_details_and_details_must_link_back():
+    assert any("link" in line for line in failing(README.replace("(DETAILS.md", "(OTHER.md")))
+    assert any("link back" in line for line in failing(README.replace("[README](README.md)", "the README", 1)))
+
+
+def test_the_short_ablation_table_is_generated_from_the_file():
+    assert any("What I measured" in line for line in failing(README.replace("| Full product | both |", "| Full product | gpt-5.4x |", 1)))
+
+
+def test_a_number_the_report_does_not_have_fails_in_what_i_measured():
+    assert any("What I measured" in line for line in failing(README.replace("240 synthetic cases", "777 synthetic cases", 1)))
+
+
+def test_the_delta_floor_effect_is_held_by_the_key_figures_in_details():
+    assert "19 to 2" in DETAILS_ONLY
+    assert "19 to 2" not in README_ONLY
+    assert any("figures" in line for line in failing(README.replace("19 to 2", "18 to 2", 1)))

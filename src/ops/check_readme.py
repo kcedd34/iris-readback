@@ -22,9 +22,15 @@ MODELS = ["gpt-5.4-mini", "gpt-5.4"]
 
 # Level-2 headings in the order the README must have them, then the level-3 headings of the organizers' four items.
 SECTIONS = [
-    "For judges: two minutes", "Fast path", "Run it", "For judges", "Demo", "Required by the organizers", "What the production contains",
-    "Technology bonuses", "Feedback on AI Hub EAP", "Idea DPI-I-689", "How it works", "Built with", "Author",
+    "For judges: two minutes", "Run it", "What I measured", "How it works", "Technology bonuses", "Links", "Required by the organizers",
+    "Built with", "Author",
 ]
+DETAILS = "DETAILS.md"
+DETAILS_SECTIONS = ["Evaluation", "Demo", "Start-up in detail", "What the production contains", "Feedback on AI Hub EAP", "Idea DPI-I-689"]
+MAX_WORDS = 1500
+MAX_SENTENCE = 50
+MAX_SENTENCE_DETAILS = 60
+BANNED_PHRASES = ("stated plainly", "deliberately", "it is worth noting", "worth noting")
 REQUIRED_ITEMS = {
     "Early Access image and build": [IMAGE, "154", IMAGE_109, "109"],
     "Load and rename the image": ["docker load", "docker tag", IMAGE_109, "READBACK_BASE_IMAGE"],
@@ -51,7 +57,7 @@ KEY_SHAPED = re.compile(r"(?m)sk-[A-Za-z0-9_-]{20,}|^\s*[A-Z_]*KEY\s*=\s*\S+")
 ALL_TO_HUMAN = re.compile(r"(?i)\b(every|all)\s+(error|mistake|miss(ed)?(\s+critical)?)s?\b[^.]{0,60}\b(human|person|people)\b")
 
 
-JUDGES = "For judges"
+JUDGES = "Evaluation"
 KEY_FIGURES = "Key figures"
 # Numbers the judges' section may state outside the figure blocks: the dataset (240 cases, 30 in each of 8 categories, seed 2026)
 # and the two parameters of the release guard, which are product settings and not results.
@@ -86,20 +92,37 @@ ABLATION_ROWS = (
 )
 
 
-def ablation_lines(ablation):
-    """The ablation table, one row per arrangement (and per model when an agent is in it), generated from data/eval/ablation.json."""
-    lines = ["| Arrangement | Model | Contextual criticals: read-back / sent to a person / released | Uncertain results released | Rule-critical silenced | False criticals | Review rate |",
-             "|---|---|---|---|---|---|---|"]
-    for key, label, per_model in ABLATION_ROWS:
+SHORT_ROWS = (
+    ("value", "Range rule only", False),
+    ("deterministic", "Range rule, change rule and release guard, no agent", False),
+    ("agentWithoutVerdict", "Agent without the verdict", True),
+    ("full", "Full product", True),
+)
+
+
+def ablation_lines(ablation, short=False):
+    """The ablation table, one row per arrangement (and per model when an agent is in it), generated from data/eval/ablation.json.
+    The short form, for the README, keeps the rules alone, the agent without the verdict and the full product."""
+    if short:
+        lines = ["| Arrangement | Model | Contextual criticals: read-back / sent to a person / released | Rule-critical silenced | False criticals |", "|---|---|---|---|---|"]
+    else:
+        lines = ["| Arrangement | Model | Contextual criticals: read-back / sent to a person / released | Uncertain results released | Rule-critical silenced | False criticals | Review rate |",
+                 "|---|---|---|---|---|---|---|"]
+    for key, label, per_model in (SHORT_ROWS if short else ABLATION_ROWS):
         if key == "agentWithoutVerdict":
             entries = [(name, ablation["agentWithoutVerdict"]["models"][name]) for name in MODELS if name in ablation["agentWithoutVerdict"]["models"]]
         elif per_model:
             entries = [(name, ablation["models"][name][key]) for name in MODELS]
         else:
             entries = [("none", ablation["models"][MODELS[0]][key])]
+        if short and per_model and key == "full" and len({json.dumps(x, sort_keys=True) for _, x in entries}) == 1:
+            entries = [("both", entries[0][1])]
         for name, x in entries:
             c = x["contextualCriticals"]
-            lines.append(f"| {label} | {name} | {c['readback']} / {c['review']} / {c['released']} | {x['uncertainReleased']} of {x['uncertainCases']} | {x['silencedCriticals']} | {x['falseCriticals']} | {x['reviewRate'] * 100:.1f}% |")
+            if short:
+                lines.append(f"| {label} | {name} | {c['readback']} / {c['review']} / {c['released']} | {x['silencedCriticals']} | {x['falseCriticals']} |")
+            else:
+                lines.append(f"| {label} | {name} | {c['readback']} / {c['review']} / {c['released']} | {x['uncertainReleased']} of {x['uncertainCases']} | {x['silencedCriticals']} | {x['falseCriticals']} | {x['reviewRate'] * 100:.1f}% |")
     return lines
 
 
@@ -312,7 +335,7 @@ REPRODUCE_SECTIONS = [
     "1. Prerequisites of the test battery", "2. A separate stack", "3. Reproduce the evaluation", "4. Reproduce the ablation",
     "5. Connect an MCP client from your machine",
 ]
-TOP_LEVEL_FILES = ("module.xml", "docker-compose.yml", ".env.example", "LICENSE", "Dockerfile", REPRODUCE, "README.md")
+TOP_LEVEL_FILES = ("module.xml", "docker-compose.yml", ".env.example", "LICENSE", "Dockerfile", REPRODUCE, "README.md", "DETAILS.md")
 PATH_TOKEN = re.compile(r"(?<![\w/.<$-])((?:src|tests|data|frontend|java|docs-assets)/[A-Za-z0-9_./*<>{}-]+)")
 VARIABLE = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b")
 PROJECT_VARIABLE = re.compile(r"\b(?:READBACK|EVAL|ABLATION)_[A-Z0-9_]+\b")
@@ -400,30 +423,82 @@ def reproduce_problems(text, readme, root=None):
     return problems
 
 
-def check(text, report, before=None, delta=None, guard=None, ablation=None):
+def style_problems(text, name, limit):
+    """The style of a document: no banned phrase, no nested or chained parentheses, no sentence longer than the limit."""
+    problems = []
+    for phrase in BANNED_PHRASES:
+        if re.search(r"(?i)\b" + re.escape(phrase) + r"\b", text):
+            problems.append(f"{name} uses the phrase '{phrase}'")
+    in_code = False
+    for number, line in enumerate(text.splitlines(), 1):
+        if line.startswith("```"):
+            in_code = not in_code
+            continue
+        if in_code or not line.strip() or line.lstrip().startswith(("|", "#", "![")):
+            continue
+        plain = re.sub(r"\]\([^)]*\)", "]", line)
+        plain = re.sub(r"`[^`]*`", "x", plain)
+        plain = re.sub(r"https?://\S+", "url", plain)
+        if re.search(r"\([^()]*\(", plain) or re.search(r"\)[ ,;]*\(", plain):
+            problems.append(f"{name} line {number} chains or nests parentheses: {line.strip()[:60]}")
+        body = re.sub(r"^\s*([-*]|\d+\.)\s+", "", plain)
+        for sentence in re.split(r"(?<=[.!?])\s+", body):
+            words = len(sentence.split())
+            if words > limit:
+                problems.append(f"{name} line {number} has a sentence of {words} words, at most {limit}: {sentence[:60]}")
+    return problems
+
+
+def language_problems(text, name):
+    problems = []
+    for number, line in enumerate(text.splitlines(), 1):
+        if PORTUGUESE_LETTERS.search(line) or PORTUGUESE_WORDS.search(line):
+            problems.append(f"{name} line {number} does not look English: {line.strip()[:70]}")
+    return problems
+
+
+def check(text, report, before=None, delta=None, guard=None, ablation=None, details=None):
+    """text is the README; details is DETAILS.md (read from the repository when it is not given)."""
     failures = []
     ablation = ablation if ablation is not None else load_ablation()
     if before is None or delta is None or guard is None:
         before, delta, guard = load_companions()
+    if details is None:
+        with open(os.path.join(ROOT, DETAILS), encoding="utf-8") as handle:
+            details = handle.read()
+    both = text + "\n" + details
 
     def fail(rule, what):
         failures.append(f"check-readme: FAIL {rule}: {what}")
 
     two, three, order = sections_of(text)
+    dtwo, dthree, dorder = sections_of(details)
 
-    for problem in cited_problems(text, "the README"):
+    for problem in cited_problems(text, "the README") + cited_problems(details, DETAILS):
         fail("cited", problem)
     compose = open(os.path.join(ROOT, "docker-compose.yml"), encoding="utf-8").read()
     if '"127.0.0.1:${READBACK_MCP_PORT' not in compose:
         fail("mcp-port", "docker-compose.yml must publish the MCP gateway port on 127.0.0.1 only, through READBACK_MCP_PORT")
-    if "after the instance restarts" not in text or "ipm_check.sh" not in text:
-        fail("ipm-restart", "the README must say the production is running again after the instance restarts on an IPM installation, and cite tests/e2e/ipm_check.sh")
-    if "Confirm the read-back" not in text or "does not match is refused" not in text:
-        fail("readback-steps", "the Demo section must say where to open a read-back task and that a wrong value is refused and counted")
+    if "after the instance restarts" not in details or "ipm_check.sh" not in details:
+        fail("ipm-restart", "DETAILS.md must say the production is running again after the instance restarts on an IPM installation, and cite tests/e2e/ipm_check.sh")
+    demo = dtwo.get("Demo", "")
+    if "Confirm the read-back" not in demo or "does not match is refused" not in demo:
+        fail("readback-steps", "the Demo section of DETAILS.md must say where to open a read-back task and that a wrong value is refused and counted")
     if "passes on build 154 and on build 109" not in text:
         fail("tested-builds", "the README must say what was tested on each Early Access build (the battery passes on build 154 and on build 109)")
-    if "SECURITYRESOURCE" not in text or "Found when moving to build 109" not in text:
-        fail("build-difference", "the README must describe the RESOURCE to SECURITYRESOURCE difference between the builds, in the Feedback section")
+    if "SECURITYRESOURCE" not in details or "Found when moving to build 109" not in dthree:
+        fail("build-difference", "DETAILS.md must describe the RESOURCE to SECURITYRESOURCE difference between the builds, under 'Found when moving to build 109'")
+    if "(DETAILS.md" not in text or "(REPRODUCE.md)" not in text:
+        fail("links", "the README must link DETAILS.md and REPRODUCE.md")
+    if "(README.md)" not in details:
+        fail("links", "DETAILS.md must link back to the README")
+
+    # The README is short, and both files are written in short sentences.
+    words = len(text.split())
+    if words > MAX_WORDS:
+        fail("length", f"the README has {words} words, at most {MAX_WORDS}")
+    for problem in style_problems(text, "the README", MAX_SENTENCE) + style_problems(details, DETAILS, MAX_SENTENCE_DETAILS):
+        fail("style", problem)
 
     # 1. The thesis is the first sentence after the title.
     body_lines = [l for l in text.splitlines() if l.strip()]
@@ -438,37 +513,37 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
     elif not os.path.exists(os.path.join(ROOT, "docs-assets", "signature.gif")):
         fail("hero", "docs-assets/signature.gif is missing")
 
-    # 2. The sections, in order.
-    positions = []
-    for title in SECTIONS:
-        if title not in two:
-            fail("section", f"missing section '{title}'")
-        else:
-            positions.append(order.index(title))
-    if positions != sorted(positions):
-        fail("order", "the sections are not in the required order")
+    # 2. The sections, in order, in each file.
+    for titles, sections, ordered, label in ((SECTIONS, two, order, "the README"), (DETAILS_SECTIONS, dtwo, dorder, DETAILS)):
+        positions = []
+        for title in titles:
+            if title not in sections:
+                fail("section", f"{label} is missing the section '{title}'")
+            else:
+                positions.append(ordered.index(title))
+        if positions != sorted(positions):
+            fail("order", f"the sections of {label} are not in the required order")
 
-    # The two-minute path: right after the GIF, before the Fast path, at most six lines, and it cites the real links.
+    # The two-minute path: right after the GIF, before everything else, at most six lines, and it cites the real links.
     quick = two.get(QUICK_PATH, "")
     if len(list_items(quick)) > 6 or len([l for l in quick.splitlines() if l.strip()]) > 6:
         fail("quick-path", f"'{QUICK_PATH}' must have at most six lines")
-    for needle in (DEMO_URL, "Run demo sequence", "Decisions", "held", "communicator1", "(#demo)", "(#for-judges)", "(#run-it)"):
+    for needle in (DEMO_URL, "Run demo sequence", "Decisions", "held", "communicator1", "(DETAILS.md#demo)", "(#what-i-measured)", "(#run-it)"):
         if needle not in quick:
             fail("quick-path", f"'{QUICK_PATH}' must mention {needle}")
-    demo_password = re.search(r"(?m)^Password: `([^`\s]+)`", two.get("Demo", ""))
+    demo_password = re.search(r"(?m)^Password: `([^`\s]+)`", demo)
     quick_password = re.search(r"communicator1`[^\n]*?password `([^`\s]+)`", quick)
     if not demo_password:
-        fail("quick-path", "the Demo section must give the demonstration password as: Password: `...`")
+        fail("quick-path", "the Demo section of DETAILS.md must give the demonstration password as: Password: `...`")
     elif not quick_password:
         fail("quick-path", f"'{QUICK_PATH}' must give the demonstration password beside communicator1")
     elif quick_password.group(1) != demo_password.group(1):
         fail("quick-path", f"the password in '{QUICK_PATH}' differs from the one in the Demo section")
-    if QUICK_PATH in order and "Fast path" in order and order.index(QUICK_PATH) > order.index("Fast path"):
-        fail("quick-path", f"'{QUICK_PATH}' must come before the Fast path")
-    for anchor_name in ("demo", "for-judges", "run-it"):
-        title = {"demo": "Demo", "for-judges": "For judges", "run-it": "Run it"}[anchor_name]
-        if title not in two:
-            fail("quick-path", f"'{QUICK_PATH}' links #{anchor_name}, but the README has no section '{title}'")
+    if order and order[0] != QUICK_PATH:
+        fail("quick-path", f"'{QUICK_PATH}' must be the first section")
+    for anchor, title, sections in (("what-i-measured", "What I measured", two), ("run-it", "Run it", two), ("demo", "Demo", dtwo), ("evaluation", "Evaluation", dtwo)):
+        if title not in sections:
+            fail("quick-path", f"a link goes to #{anchor}, but there is no section '{title}'")
 
     # 3. The four items the organizers require.
     for heading, tokens in REQUIRED_ITEMS.items():
@@ -480,20 +555,20 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
                 fail("required-item", f"'{heading}' does not contain '{token}'")
 
     # How the production starts in the container, and what happens at a restart.
-    start = three.get("Start and verify", "")
+    start = dtwo.get("Start-up in detail", "")
     if not (re.search(r"only the start script", start) and "src/ops/bootstrap.sh" in start and re.search(r"docker compose restart iris", start) and "tests/e2e/start_check.sh" in start):
-        fail("start", "the 'Start and verify' section must say that only the start script starts the production, after the Java gateway accepts a connection, that a restart brings it back, and cite tests/e2e/start_check.sh")
+        fail("start", "the start-up section must say that only the start script starts the production, after the Java gateway accepts a connection, that a restart brings it back, and cite tests/e2e/start_check.sh")
     for path in re.findall(r"`((?:src|tests)/[\w/.-]+\.(?:sh|py))`", start):
         if not os.path.exists(os.path.join(ROOT, path)):
-            fail("start", f"the 'Start and verify' section cites {path}, which does not exist")
+            fail("start", f"the start-up section cites {path}, which does not exist")
 
     # The read-only MCP server: its tools, the refusal of the read-back as a decision, the access, and what was and was not tested.
-    mcp = three.get("Read-only MCP server", "")
+    mcp = dthree.get("Read-only MCP server", "")
     for needle in ("list_pending_criticals", "explain_decision", "read_evaluation", "read_ablation", "Readback_MCP", "iris-mcp-server", "src/Readback/MCP/Service.cls", "src/Readback/MCP/Tools.cls"):
         if needle not in mcp:
             fail("mcp", f"the MCP section must mention '{needle}'")
-    if not (re.search(r"(?i)deliberately not exposed", mcp) and re.search(r"(?i)never closes a critical", mcp) and re.search(r"(?i)security decision, not a gap", mcp)):
-        fail("mcp", "the MCP section must state that the read-back is deliberately not exposed, that an AI assistant never closes a critical, and that it is a security decision and not a gap")
+    if not (re.search(r"(?i)read-back is not exposed", mcp) and re.search(r"(?i)never closes a critical", mcp) and re.search(r"(?i)security decision, not a gap", mcp)):
+        fail("mcp", "the MCP section must state that the read-back is not exposed, that an AI assistant never closes a critical, and that it is a security decision and not a gap")
     if not (re.search(r"MCP Inspector", mcp) and "tests/e2e/mcp_client_check.sh" in mcp and re.search(r"(?i)type 18", mcp) and re.search(r"(?i)What was tested", mcp)):
         fail("mcp", "the MCP section must name the client that was verified (the MCP Inspector), the check that runs it, the web application type 18 and what was tested")
     for path in re.findall(r"`(tests/e2e/\w+\.(?:py|sh))`", mcp):
@@ -506,7 +581,6 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
         fail("mcp", "the MCP section seems to offer a tool that confirms the read-back")
 
     # Demo: address, accounts, replay note, hourly reset.
-    demo = two.get("Demo", "")
     if DEMO_URL not in demo:
         fail("demo", f"the demo address {DEMO_URL} is missing")
     for account in ACCOUNTS:
@@ -517,13 +591,13 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
     for needle in ("%DB_USER", "%EnsRole_AlertAdministrator", "port 80", "404"):
         if needle not in demo:
             fail("demo", f"the demo section must state the accounts' roles and the exposure: '{needle}' is missing")
-    if not re.search(r"(?i)deliberately broader", demo) or not re.search(r"(?i)\bnot always the owner\b", demo):
-        fail("demo", "the demo section must say the roles are deliberately broader than production and why the confirming person is not always the owner of the alert")
+    if not re.search(r"(?i)broader than a production", demo) or not re.search(r"(?i)\bnot always the owner\b", demo):
+        fail("demo", "the demo section must say the roles are broader than production would use and why the confirming person is not always the owner of the alert")
     if not re.search(r"(?i)specific to the Readback", demo) or not re.search(r"(?i)system context", demo):
         fail("demo", "the demo section must say what production would use: roles specific to the Readback and closing the alert in a system context")
 
     # 4. The figures equal the report; the claims about it hold.
-    sections = model_sections(text)
+    sections = model_sections(details)
     for model_name, label, block in figure_blocks(report):
         if not holds_block(sections.get(model_name, []), block):
             fail("figures", f"the block '{label}' is missing under its model heading or differs from data/eval/report.json (run check_readme.py --print-tables)")
@@ -533,35 +607,46 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
             fail("claim", f"the report shows {model['silencedCriticals']} silenced criticals for {name}; the README claims zero")
         if len(model["missedCriticals"]) != 2:
             fail("claim", f"the report shows {len(model['missedCriticals'])} residual criticals for {name}; the README says 2")
-    results = two.get(JUDGES, "")
+    results = dtwo.get(JUDGES, "")
     expected = key_figures(report, before, delta, guard, ablation)
-    held = [line.rstrip() for line in three.get(KEY_FIGURES, "").splitlines() if line.strip()]
+    held = [line.rstrip() for line in dthree.get(KEY_FIGURES, "").splitlines() if line.strip()]
     if held != expected:
         fail("figures", f"the '{KEY_FIGURES}' block is missing or differs from the report, line by line (run check_readme.py --print-tables)")
+    allowed = ALLOWED_NUMBERS | ablation_numbers(ablation)
     for number in re.findall(r"\d[\d.,]*", strip_for_numbers(results)):
-        if number.strip(".,") not in ALLOWED_NUMBERS | ablation_numbers(ablation):
+        if number.strip(".,") not in allowed:
             fail("figures", f"the '{JUDGES}' section states the number {number.strip('.,')} outside the figure blocks; evaluation numbers come only from the generated blocks")
-    if not re.search(r"(?i)zero.{0,60}silenced|no .{0,60}silenced", results):
-        fail("claim", "the judges' section must say that no rule-critical result was silenced")
-    if not re.search(r"(?i)generator", results) or not re.search(r"(?i)calibrat", results):
-        fail("claim", "the judges' section must say the delta limits were calibrated knowing the generator")
+    measured = two.get("What I measured", "")
+    allowed_measured = allowed | set(re.findall(r"\d+", " ".join(expected)))
+    for number in re.findall(r"\d[\d.,]*", strip_for_numbers(measured)):
+        if number.strip(".,") not in allowed_measured:
+            fail("figures", f"the README states the number {number.strip('.,')} in 'What I measured', and neither the report nor the ablation has it")
+    if not re.search(r"(?i)zero.{0,60}silenced|no .{0,60}silenced", results) or not re.search(r"(?i)zero.{0,60}silenced|no .{0,60}silenced", measured):
+        fail("claim", "the README and the evaluation section must say that no rule-critical result was silenced")
+    if not re.search(r"(?i)generator", results) or not re.search(r"(?i)calibrat", results) or not re.search(r"(?i)generator", measured) or not re.search(r"(?i)calibrat", measured):
+        fail("claim", "the README and the evaluation section must say the delta limits were set knowing the generator and are not calibrated")
+    if "19 to 2" not in "\n".join(expected):
+        fail("claim", "the key figures must hold the delta floor effect (19 to 2)")
 
-    for problem in dpi_map_problems(two.get("Idea DPI-I-689", "")):
+    for problem in dpi_map_problems(dtwo.get("Idea DPI-I-689", "")):
         fail("idea", problem)
-    precedent = two.get("What the production contains", "")
+    precedent = dtwo.get("What the production contains", "")
     if not (re.search(r"(?i)confirmation", precedent) and re.search(r"(?i)completed review", precedent) and re.search(r"(?i)nothing that no person confirmed enters the pool", precedent)):
         fail("claim", "the architecture must say that a person's confirmation (a matching read-back or a completed review) is what lets a case into the pool of similar cases, and that nothing else enters it")
 
-    # The ablation table is generated from data/eval/ablation.json, and its full-product row agrees with the report.
-    held_ablation = [line.rstrip() for line in three.get(ABLATION_HEADING, "").splitlines() if line.strip().startswith("|")]
+    # The ablation tables are generated from data/eval/ablation.json: the full one in DETAILS.md, the short one in the README.
+    held_ablation = [line.rstrip() for line in dthree.get(ABLATION_HEADING, "").splitlines() if line.strip().startswith("|")]
     if held_ablation != ablation_lines(ablation):
         fail("ablation", f"the '{ABLATION_HEADING}' table is missing or differs from data/eval/ablation.json, line by line (run check_readme.py --print-tables)")
+    held_short = [line.rstrip() for line in measured.splitlines() if line.strip().startswith("|")]
+    if held_short != ablation_lines(ablation, short=True):
+        fail("ablation", "the table in 'What I measured' is missing or differs from data/eval/ablation.json, line by line (run check_readme.py --print-tables)")
     rule_critical = ablation["ruleCriticalCases"]
     for name in MODELS:
         routed = report["models"][name]["matrixFinal"]["CRITICAL"]["CRITICAL"] - rule_critical
         if ablation["models"][name]["full"]["contextualCriticals"]["readback"] != routed:
             fail("ablation", f"the full-product row of {name} in data/eval/ablation.json does not agree with the report")
-    said = three.get("What the numbers say, and what they do not say", "")
+    said = dthree.get("What the numbers say, and what they do not say", "")
     items = list_items(said)
     guard_released = str(ablation["models"][MODELS[0]]["valueGuard"]["contextualCriticals"]["released"])
     blind = ablation["agentWithoutVerdict"]["models"]
@@ -591,7 +676,7 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
     fifth = items[4] if len(items) > 4 else ""
     if not (re.search(r"(?i)synthetic", fifth) and re.search(r"(?i)single author|one author", fifth) and re.search(r"(?i)generator", fifth)):
         fail("claim", "the fifth item of 'What the numbers say' must state the caveats: synthetic, a single author, limits set on the generator")
-    if re.search(r"(?i)raised by the agent alone|the agent alone raised", text):
+    if re.search(r"(?i)raised by the agent alone|the agent alone raised", both):
         fail("claim", "the agent-alone figure came from a run in which the agent saw the rule's verdict and is not stated")
     first_screen = " ".join(l for l in head.splitlines())
     if not (re.search(r"(?i)rules? (guarantee|ensure)", first_screen) and re.search(r"(?i)agent explains", first_screen) and re.search(r"(?i)decided alone", first_screen)):
@@ -607,7 +692,7 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
     if len(list_items(said)) > MAX_NUMBERS_ITEMS:
         fail("summary", f"'What the numbers say' has {len(list_items(said))} items, at most {MAX_NUMBERS_ITEMS}")
 
-    # Run it: five commands right after the Fast path, linking to the full steps.
+    # Run it: five commands right after the two-minute path, linking to the full steps.
     run = two.get("Run it", "")
     for command in RUN_IT_COMMANDS:
         if command not in run:
@@ -628,38 +713,42 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
             fail("bonus", f"the 'Technology bonuses' table has no row for '{name}'")
             continue
         for path in re.findall(r"`([^`\s]+\.[A-Za-z]+|Dockerfile)`", row):
-            if "/" in path or path in ("Dockerfile",) or path.endswith((".xml", ".yml")):
+            if "/" in path or path in ("Dockerfile", "DETAILS.md") or path.endswith((".xml", ".yml")):
                 if not os.path.exists(os.path.join(ROOT, path)):
                     fail("bonus", f"the row '{name}' names {path}, which does not exist")
     python_row = next((l for l in bonus.splitlines() if l.startswith("|") and "Embedded Python" in l.split("|")[1]), "")
     if "Language = python" not in python_row or "src/Readback/Demo/Generator.cls" not in python_row or "src/Readback/API/Flow.cls" not in python_row:
         fail("bonus", "the Embedded Python row must name the class with the Python methods and the class that calls it")
-    elif not re.search(r"src/Readback/Demo/Generator\.cls", python_row) or "[ Language = python ]" not in open(os.path.join(ROOT, "src/Readback/Demo/Generator.cls"), encoding="utf-8").read():
+    elif "[ Language = python ]" not in open(os.path.join(ROOT, "src/Readback/Demo/Generator.cls"), encoding="utf-8").read():
         fail("bonus", "the class named for Embedded Python has no method with [ Language = python ]")
     elif "Generator" not in open(os.path.join(ROOT, "src/Readback/API/Flow.cls"), encoding="utf-8").read():
         fail("bonus", "the class named as the caller of the Python generator does not call it")
 
     # Feedback: the reports are linked, none is said to be pending.
-    feedback = two.get("Feedback on AI Hub EAP", "")
+    feedback = dtwo.get("Feedback on AI Hub EAP", "")
     links = set(re.findall(r"intersystems-community/ai-hub-eap/issues/(\d+)", feedback)) - {"40"}
     if len(links) < FEEDBACK_ISSUES:
         fail("feedback", f"the feedback section links {len(links)} reported issues besides issue 40, it must link {FEEDBACK_ISSUES}")
     for number in BUGREPORT_ISSUES:
         if f"ai-hub-eap-bugreports/issues/{number}" not in feedback or f"ai-hub-eap-bugreports/issues/{number}" not in bonus:
             fail("feedback", f"issue {number} of ai-hub-eap-bugreports must be linked in the feedback section and in the bonus table")
+    links_section = two.get("Links", "")
+    for number in sorted(links) + [str(n) for n in BUGREPORT_ISSUES]:
+        if f"/issues/{number})" not in links_section:
+            fail("feedback", f"the Links section must link the report {number}")
     if re.search(r"(?i)no issue has been filed|none has been (filed|reported)", feedback):
         fail("feedback", "the feedback section still says that no issue has been filed")
 
-    # Every tool call is a Visual Trace step: the README says so, names the operation, and no longer says only the policy search shows.
-    if "Readback.Agent.ToolTrace" not in text or "labelled `replay`" not in text:
-        fail("trace", "the README must say that every tool call is a Visual Trace step, through Readback.Agent.ToolTrace, labelled `replay` in replay mode")
-    if re.search(r"(?i)policy search,? which calls another operation,? also", text):
-        fail("trace", "the README still says that only the policy search appears in the Visual Trace")
-    if "Readback.Agent.ToolTrace" not in two.get("Idea DPI-I-689", "") and "every tool call of the investigation is a step of its own" not in two.get("Idea DPI-I-689", ""):
+    # Every tool call is a Visual Trace step: the files say so, name the operation, and no longer say only the policy search shows.
+    if "Readback.Agent.ToolTrace" not in both or "labelled `replay`" not in both:
+        fail("trace", "the documents must say that every tool call is a Visual Trace step, through Readback.Agent.ToolTrace, labelled `replay` in replay mode")
+    if re.search(r"(?i)policy search,? which calls another operation,? also", both):
+        fail("trace", "the documents still say that only the policy search appears in the Visual Trace")
+    if "Readback.Agent.ToolTrace" not in dtwo.get("Idea DPI-I-689", "") and "every tool call of the investigation is a step of its own" not in dtwo.get("Idea DPI-I-689", ""):
         fail("trace", "the DPI-I-689 section must say that every tool call is a step of the decision's session")
 
     # Idea justification.
-    idea = two.get("Idea DPI-I-689", "")
+    idea = dtwo.get("Idea DPI-I-689", "")
     if IDEA_URL not in idea or "Community Opportunity" not in idea:
         fail("idea", "the idea section needs the idea link and its status 'Community Opportunity'")
 
@@ -667,39 +756,35 @@ def check(text, report, before=None, delta=None, guard=None, ablation=None):
     if "Carlos Eduardo Dias Duarte" not in two.get("Author", ""):
         fail("author", "the author section must name Carlos Eduardo Dias Duarte")
 
-    # 5. Everything is published: no pending marker, the Fast path links the video, Open Exchange and the IPM command.
-    fast = two.get("Fast path", "")
-    if text.count(PENDING) or "PENDING" in text:
-        fail("pending", "a pending marker is left in the README: every link must be published by now")
+    # 5. Everything is published: no pending marker, the Links section has the video, Open Exchange and the IPM command.
+    fast = two.get("Links", "")
+    if both.count(PENDING) or "PENDING" in both:
+        fail("pending", "a pending marker is left in the documents: every link must be published by now")
     if not re.search(r"(?m)^- Video[^\n]*https://youtu\.be/[\w-]+", fast):
-        fail("pending", "the Fast path must link the video as https://youtu.be/...")
+        fail("pending", "the Links section must link the video as https://youtu.be/...")
     if OPEN_EXCHANGE_URL not in fast:
-        fail("pending", f"the Fast path must link the Open Exchange page {OPEN_EXCHANGE_URL}")
-    if ARTICLE_1_URL not in fast:
-        fail("pending", f"the Fast path must link the first article {ARTICLE_1_URL}")
-    if ARTICLE_1_URL not in two.get("Technology bonuses", ""):
-        fail("bonus", "the 'Technology bonuses' table must link the first article")
-    if ARTICLE_2_URL not in fast:
-        fail("pending", f"the Fast path must link the second article {ARTICLE_2_URL}")
-    if ARTICLE_2_URL not in two.get("Technology bonuses", ""):
-        fail("bonus", "the 'Technology bonuses' table must link the second article")
+        fail("pending", f"the Links section must link the Open Exchange page {OPEN_EXCHANGE_URL}")
+    for label, url in (("first", ARTICLE_1_URL), ("second", ARTICLE_2_URL)):
+        if url not in fast:
+            fail("pending", f"the Links section must link the {label} article {url}")
+        if url not in bonus:
+            fail("bonus", f"the 'Technology bonuses' table must link the {label} article")
     if 'zpm "install iris-readback"' not in fast:
-        fail("pending", "the Fast path must give the IPM command: zpm \"install iris-readback\"")
+        fail("pending", "the Links section must give the IPM command: zpm \"install iris-readback\"")
 
     # 6. Things that must never appear.
-    if KEY_SHAPED.search(text):
-        fail("secret", "something that looks like a key value is in the README")
-    if "_SYSTEM" in text:
-        fail("secret", "an administrator account name is in the README")
-    if re.search(r"(?i)\bsix (axes|domains)\b", text):
+    if KEY_SHAPED.search(both):
+        fail("secret", "something that looks like a key value is in the documents")
+    if "_SYSTEM" in both:
+        fail("secret", "an administrator account name is in the documents")
+    if re.search(r"(?i)\bsix (axes|domains)\b", both):
         fail("claim", "the contest does not ask for 'six axes' or 'six domains'")
-    if ALL_TO_HUMAN.search(text):
-        fail("claim", "the README must never say that every error goes to a human")
+    if ALL_TO_HUMAN.search(both):
+        fail("claim", "the documents must never say that every error goes to a human")
 
     # 7. English only.
-    for number, line in enumerate(text.splitlines(), 1):
-        if PORTUGUESE_LETTERS.search(line) or PORTUGUESE_WORDS.search(line):
-            fail("language", f"line {number} does not look English: {line.strip()[:70]}")
+    for problem in language_problems(text, "the README") + language_problems(details, DETAILS):
+        fail("language", problem)
     return failures
 
 
@@ -724,13 +809,21 @@ def main(argv):
         print("\n".join(key_figures(report, *load_companions(args.report), ablation)) + "\n")
         print(f"### {ABLATION_HEADING}\n")
         print("\n".join(ablation_lines(ablation)) + "\n")
+        print("### Short ablation table (README)\n")
+        print("\n".join(ablation_lines(ablation, short=True)) + "\n")
         return 0
     if not os.path.exists(args.readme):
         print(f"check-readme: FAIL file: {args.readme} does not exist")
         return 1
     with open(args.readme, encoding="utf-8") as handle:
         text = handle.read()
-    failures = check(text, report, *load_companions(args.report), load_ablation(args.report))
+    details_path = os.path.join(os.path.dirname(os.path.abspath(args.readme)), DETAILS)
+    if not os.path.exists(details_path):
+        print(f"check-readme: FAIL file: {details_path} does not exist")
+        return 1
+    with open(details_path, encoding="utf-8") as handle:
+        details = handle.read()
+    failures = check(text, report, *load_companions(args.report), load_ablation(args.report), details=details)
     reproduce = os.path.join(os.path.dirname(os.path.abspath(args.readme)), REPRODUCE)
     if not os.path.exists(reproduce):
         failures.append(f"check-readme: FAIL reproduce: {reproduce} does not exist")
